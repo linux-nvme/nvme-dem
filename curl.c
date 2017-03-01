@@ -116,22 +116,19 @@ void cleanup_curl(void *p)
 static int exec_curl(struct curl_context *ctx, char *url)
 {
 	CURL *curl = ctx->curl;
-	CURLcode res;
-	int ret = 0;
+	CURLcode ret;
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 
-	res = curl_easy_perform(curl);
+	ret = curl_easy_perform(curl);
 
 	printf("%s\n", url);
 
-	if (!res)
+	if (!ret)
 		printf("%s\n", ctx->memory);
-	else {
-		fprintf(stderr, "curl returned error %s (%d)\n", res,
-			curl_easy_strerror(res));
-		ret = -1;
-	}
+	else
+		fprintf(stderr, "curl returned error %s (%d)\n",
+			curl_easy_strerror(ret), ret);
 
 	if (ctx->size) {
 		free(ctx->memory);

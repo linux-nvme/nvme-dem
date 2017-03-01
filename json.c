@@ -133,7 +133,7 @@ static void show_list(struct json_object *parent, const char *tag,
 	cnt = json_object_array_length(array);
 
 	if (cnt == 0) {
-		fprintf(stderr, "no %s specified\n", tag);
+		sprintf(response, "no %s specified", tag);
 		return;
 	}
 
@@ -146,8 +146,6 @@ static void show_list(struct json_object *parent, const char *tag,
 				json_object_get_string(obj));
 		response += n;
 	}
-
-	strcpy(response, "\n");
 }
 
 static int list_array(struct json_object *array, const char *tag,
@@ -161,7 +159,8 @@ static int list_array(struct json_object *array, const char *tag,
 	for (i = 0; i < cnt; i++) {
 		iter = json_object_array_get_idx(array, i);
 		json_object_object_get_ex(iter, tag, &obj);
-		n = sprintf(response, "%s\r\n", json_object_get_string(obj));
+		n = sprintf(response, "%s%s", i ? "\r\n" : "",
+			    json_object_get_string(obj));
 		response += n;
 	}
 
@@ -204,28 +203,29 @@ static int del_from_array(struct json_object *parent, const char *target,
 
 	i = find_array(parent, target, value, &obj);
 	if (i < 0)
-		return -ENOENT;
+		goto err;
 
 	json_object_object_get_ex(obj, tag, &array);
 	if (!array)
-		return 0;
+		goto err;
 
 	i = find_string(array, p);
-	if (i < 0) {
-		fprintf(stderr, "%s not found in %s\n", p, tag);
-		return -ENOENT;
-	}
+	if (i < 0)
+		goto err;
 
 	json_object_array_del_idx(array, i, 1);
 
-	/* if array is empty, delete the json rapper */
+	/* if array is empty, delete the json wrapper */
 
 	if (json_object_array_length(array) == 0)
 		json_object_object_del(obj, tag);
 
 	return 0;
+err:
+	return -ENOENT;
 }
 
+/* walk all host acls for ss name change */
 static void rename_host_acl(struct json_object *hosts, char *old, char *new)
 {
 	struct json_object *array;
@@ -244,12 +244,14 @@ static void rename_host_acl(struct json_object *hosts, char *old, char *new)
 			continue;
 
 		idx = find_string(array, old);
-		if (idx >= 0)
+		if (idx >= 0) {
 			json_object_array_put_idx(array, idx,
 						  json_object_new_string(new));
+		}
 	}
 }
 
+/* walk all host acls for ss deletion */
 static void del_host_acl(struct json_object *hosts, char *nqn)
 {
 	struct json_object *array;
@@ -347,6 +349,8 @@ void cleanup_json(void *context)
 	json_object_put(ctx->ctrls);
 	json_object_put(ctx->hosts);
 	json_object_put(ctx->root);
+
+	free(ctx);
 }
 
 int add_ctrl(void *context, char *alias)
@@ -370,23 +374,35 @@ int add_ctrl(void *context, char *alias)
 int del_ctrl(void *context, char *alias)
 {
 	struct json_context *ctx = context;
-	struct json_object *array = ctx->ctrls;
+	struct json_object *parent = ctx->ctrls;
+	struct json_object *array;
 	struct json_object *iter;
-	int i;
+	struct json_object *obj;
+	int i, n, idx;
 
-	i = find_array(array, tagAlias, alias, &iter);
-	if (i < 0)
+	idx = find_array(parent, tagAlias, alias, &iter);
+	if (idx < 0)
 		return -ENOENT;
+
+	json_object_object_get_ex(iter, tagSubsystems, &array);
+	if (array) {
+		n = json_object_array_length(array);
+
+		for (i = 0; i < n; i++) {
+			obj = json_object_array_get_idx(array, 0);
+			del_subsys(ctx, alias,
+				   (char *) json_object_get_string(obj));
+		}
+	}
 
 	json_object_object_del(iter, tagAlias);
 	json_object_object_del(iter, tagRefresh);
-
 	json_object_object_del(iter, tagType);
 	json_object_object_del(iter, tagFamily);
 	json_object_object_del(iter, tagAddress);
 	json_object_object_del(iter, tagPort);
 
-	json_object_array_del_idx(array, i, 1);
+	json_object_array_del_idx(parent, idx, 1);
 
 	return 0;
 }
@@ -434,7 +450,6 @@ int set_ctrl(void *context, char *alias, char *type, char *family,
 
 	json_set_string(iter, attrs, tagAlias, alias);
 	json_set_int(iter, attrs, tagRefresh, refresh);
-
 	json_set_string(iter, attrs, tagType, type);
 	json_set_string(iter, attrs, tagFamily, family);
 	json_set_string(iter, attrs, tagAddress, address);
@@ -583,7 +598,7 @@ int del_subsys(void *context, char *alias, char *ss)
 	if (!ret)
 		del_host_acl(ctx->hosts, ss);
 
-	return 0;
+	return ret;
 }
 
 int rename_subsys(void *context, char *alias, char *old, char *new)

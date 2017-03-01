@@ -36,8 +36,10 @@ char *error(int ret)
 {
 	if (ret == -EEXIST)
 		return "already exists";
+
 	if (ret == -ENOENT)
 		return "not found";
+
 	return "unknown error";
 }
 
@@ -284,7 +286,7 @@ int main(int argc, char *argv[])
 		return -1;
 
 	ret = p->execute(ctx, url, argc - 4, &argv[3]);
-	if (ret) {
+	if (ret < 0) {
 		n = (strcmp(p->cmd, "rename") == 0 && ret == -EEXIST) ? 4 : 3;
 		printf("Error: %s: %s '%s' %s\n",
 		       argv[0], argv[2], argv[n], error(ret));

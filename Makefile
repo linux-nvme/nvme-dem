@@ -29,7 +29,6 @@ archive: clean
 
 test_cli: demcli
 	./demcli list ctrl
-	./demcli add ctrl ctrl1
 	./demcli set ctrl ctrl1 rdma ipv4 1.1.1.2 2332 25
 	./demcli show ctrl ctrl1
 	./demcli rename ctrl ctrl1 ctrl2
@@ -37,7 +36,7 @@ test_cli: demcli
 	./demcli delete ss ctrl2 ss21
 	./demcli delete ctrl ctrl2
 	./demcli list host
-	./demcli add host host01
+	./demcli set host host01
 	./demcli rename host host01 host02
 	./demcli add acl host01 ss11 ss21
 	./demcli show host host01

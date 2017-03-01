@@ -57,11 +57,14 @@ static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 int  bad_request(char *response)
 {
 	strcpy(response, "Method Not Implemented");
+
 	return HTTP_ERR_NOT_IMPLEMENTED;
 }
 
 int get_dem_request(char *response)
 {
+	// TODO build real config info in response
+
 	strcpy(response, "Config of DEM");
 
 	return 0;
@@ -107,27 +110,27 @@ int delete_ctrl_request(char *ctrl, char *ss, char *response)
 	if (ss) {
 		ret = del_subsys(ctx, ctrl, ss);
 		if (!ret)
-			sprintf(response, "Subsystem %s not found "
-				"for Controller %s", ss, ctrl);
-		else {
 			sprintf(response, "Subsystem %s deleted "
 				"from Controller %s", ss, ctrl);
+		else {
+			sprintf(response, "Subsystem %s not found "
+				"for Controller %s", ss, ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
 		}
 	} else {
 		ret = del_ctrl(ctx, ctrl);
 		if (!ret)
-			sprintf(response, "Controller %s deleted",
-				ctrl);
+			sprintf(response, "Controller %s deleted", ctrl);
 		else {
-			sprintf(response, "Controller %s not found",
-				ctrl);
+			sprintf(response, "Controller %s not found", ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
 		}
 	}
-	if (!ret)
-		store_config_file(ctx);
 
+	store_config_file(ctx);
+out:
 	return ret;
 }
 
@@ -146,6 +149,8 @@ int put_ctrl_request(char *ctrl, struct mg_str *body, char *response)
 	char data[LARGE_RSP+1];
 	int ret = 0;
 
+	// TODO use the data
+
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 	printf("put data: %s\n", data);
@@ -158,6 +163,8 @@ int  post_ctrl_request(char *ctrl, struct mg_str *body, char *response)
 {
 	char data[LARGE_RSP+1];
 	int ret = 0;
+
+	// TODO use the data
 
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
@@ -219,6 +226,7 @@ int delete_host_request(char *host, char *ss, char *response)
 			sprintf(response, "Subsystem %s not found "
 				"in acl for host %s", ss, host);
 			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
 		}
 	} else {
 		ret = del_host(ctx, host);
@@ -227,17 +235,19 @@ int delete_host_request(char *host, char *ss, char *response)
 		else {
 			sprintf(response, "Host %s not found", host);
 			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
 		}
 	}
 
-	if (!ret)
-		store_config_file(ctx);
-
+	store_config_file(ctx);
+out:
 	return ret;
 }
 
 int put_host_request(char *host, char *ss, char *response)
 {
+	// TODO call add_acl for ss
+
 	sprintf(response, "TODO add put method for host %s ss %s", host, ss);
 
 	return 0;
@@ -247,6 +257,8 @@ int post_host_request(char *host, char *ss, struct mg_str *body, char *response)
 {
 	char data[LARGE_RSP+1];
 	int ret = 0;
+
+	// TODO use data to rename host
 
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
@@ -355,7 +367,7 @@ void poll_loop(void *p)
 	signal(SIGTERM, signal_handler);
 
 	while (s_sig_num == 0)
-		mg_mgr_poll(mgr, 1000);
+		mg_mgr_poll(mgr, 1000); // TODO: add poll timer to args
 
 	mg_mgr_free(mgr);
 }
