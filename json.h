@@ -19,8 +19,7 @@ int add_ctrl(void *context, char *p);
 int del_ctrl(void *context, char *p);
 int list_ctrl(void *context, char *response);
 int rename_ctrl(void *context, char *old, char *new);
-int set_ctrl(void *context, char *alias, char *type, char *family,
-		char *address, int port, int refresh);
+int set_ctrl(void *context, char *alias, char *data);
 int rename_ss(void *context, char *alias, char *old, char *new);
 int show_ctrl(void *context, char *alias, char *response);
 int add_host(void *context, char *nqn);

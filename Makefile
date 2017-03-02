@@ -5,19 +5,19 @@ CFLAGS += -lpthread
 
 GDB_OPTS = -g -O0
 
-all: demcli dem config.json
+all: demd dem config.json
 	echo Done.
 
-demcli: cli.c curl.c Makefile
+dem: cli.c curl.c Makefile
 	echo CC $@
 	gcc cli.c curl.c -o $@ -lcurl ${GDB_OPTS}
 
-dem: dem.c json.c json.h mongoose.c mongoose.h Makefile
+demd: daemon.c json.c json.h mongoose.c mongoose.h Makefile
 	echo CC $@
-	gcc dem.c json.c mongoose.c -o $@ -ljson-c $(CFLAGS)
+	gcc daemon.c json.c mongoose.c -o $@ -ljson-c $(CFLAGS)
 
 clean:
-	rm -f dem demcli unittest config.json
+	rm -f dem demd unittest config.json
 	echo Done.
 
 config.json:
@@ -27,23 +27,23 @@ archive: clean
 	[ -d archive ] || mkdir archive
 	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile *.c *.h
 
-test_cli: demcli
-	./demcli list ctrl
-	./demcli set ctrl ctrl1 rdma ipv4 1.1.1.2 2332 25
-	./demcli show ctrl ctrl1
-	./demcli rename ctrl ctrl1 ctrl2
-	./demcli add ss ctrl2 ss21 ss22
-	./demcli delete ss ctrl2 ss21
-	./demcli delete ctrl ctrl2
-	./demcli list host
-	./demcli set host host01
-	./demcli rename host host01 host02
-	./demcli add acl host01 ss11 ss21
-	./demcli show host host01
-	./demcli delete acl host02 ss21
-	./demcli delete host host02
-	./demcli shutdown
-	./demcli config
+test_cli: dem
+	./dem list ctrl
+	./dem set ctrl ctrl1 rdma ipv4 1.1.1.2 2332 25
+	./dem show ctrl ctrl1
+	./dem rename ctrl ctrl1 ctrl2
+	./dem add ss ctrl2 ss21 ss22
+	./dem delete ss ctrl2 ss21
+	./dem delete ctrl ctrl2
+	./dem list host
+	./dem set host host01
+	./dem rename host host01 host02
+	./dem add acl host01 ss11 ss21
+	./dem show host host01
+	./dem delete acl host02 ss21
+	./dem delete host host02
+	./dem shutdown
+	./dem config
 
 put:
 	curl -X PUT -d bar -d foo http://127.0.0.1:12345/host/host01 --verbose

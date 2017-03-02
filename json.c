@@ -63,13 +63,13 @@ static const char *tagRefresh		= "Refresh";
 	json_object_object_add(x, y, json_object_new_int(z))
 #define json_set_string(w, x, y, z) do { \
 	json_object_object_get_ex(w, y, &x); \
-	json_object_set_string(x, z); \
-	json_object_put(x); \
+	if (x) json_object_set_string(x, z); \
+	else json_add_string(w, y, z); \
 	} while (0)
 #define json_set_int(w, x, y, z) do {\
 	json_object_object_get_ex(w, y, &x); \
-	json_object_set_int(x, z); \
-	json_object_put(x); \
+	if (x) json_object_set_int(x, z); \
+	else json_add_int(w, y, z); \
 	} while (0)
 
 /* helper functions */
@@ -127,8 +127,10 @@ static void show_list(struct json_object *parent, const char *tag,
 	int i, n, cnt;
 
 	json_object_object_get_ex(parent, tag, &array);
-	if (!array)
+	if (!array) {
+		sprintf(response, "no %s specified", tag);
 		return;
+	}
 
 	cnt = json_object_array_length(array);
 
@@ -156,6 +158,9 @@ static int list_array(struct json_object *array, const char *tag,
 	int i, n, cnt;
 
 	cnt = json_object_array_length(array);
+	if (!cnt)
+		return -ENOENT;
+
 	for (i = 0; i < cnt; i++) {
 		iter = json_object_array_get_idx(array, i);
 		json_object_object_get_ex(iter, tag, &obj);
@@ -185,11 +190,8 @@ static int add_to_array(struct json_object *parent, const char *target,
 	}
 
 	i = find_string(array, p);
-	if (i >= 0)
-		fprintf(stderr, "%s already in %s\n", p, tag);
-	else
-		json_object_array_add(array,
-				      json_object_new_string(p));
+	if (i < 0)
+		json_object_array_add(array, json_object_new_string(p));
 
 	return 0;
 }
@@ -353,24 +355,6 @@ void cleanup_json(void *context)
 	free(ctx);
 }
 
-int add_ctrl(void *context, char *alias)
-{
-	struct json_context *ctx = context;
-	struct json_object *array = ctx->ctrls;
-	struct json_object *attrs;
-
-	if (find_array(array, tagAlias, alias, NULL) >= 0)
-		return -EEXIST;
-
-	attrs = json_object_new_object();
-
-	json_add_string(attrs, tagAlias, alias);
-
-	json_object_array_add(array, attrs);
-
-	return 0;
-}
-
 int del_ctrl(void *context, char *alias)
 {
 	struct json_context *ctx = context;
@@ -435,25 +419,64 @@ int rename_ctrl(void *context, char *old, char *new)
 	return 0;
 }
 
-int set_ctrl(void *context, char *alias, char *type, char *family,
-		char *address, int port, int refresh)
+int add_ctrl(void *context, char *alias)
+{
+	struct json_context *ctx = context;
+	struct json_object *array = ctx->ctrls;
+	struct json_object *iter;
+	int i;
+
+	i = find_array(array, tagAlias, alias, NULL);
+	if (i >= 0)
+		return -EEXIST;
+
+	iter = json_object_new_object();
+	json_add_string(iter, tagAlias, alias);
+	json_object_array_add(array, iter);
+
+	return 0;
+}
+
+int set_ctrl(void *context, char *alias, char *data)
 {
 	struct json_context *ctx = context;
 	struct json_object *array = ctx->ctrls;
 	struct json_object *attrs;
 	struct json_object *iter;
+	struct json_object *new;
+	struct json_object *value;
 	int i;
 
 	i = find_array(array, tagAlias, alias, &iter);
 	if (i < 0)
 		return -ENOENT;
 
-	json_set_string(iter, attrs, tagAlias, alias);
-	json_set_int(iter, attrs, tagRefresh, refresh);
-	json_set_string(iter, attrs, tagType, type);
-	json_set_string(iter, attrs, tagFamily, family);
-	json_set_string(iter, attrs, tagAddress, address);
-	json_set_int(iter, attrs, tagPort, port);
+	new = json_tokener_parse(data);
+
+	json_object_object_get_ex(new, tagAlias, &value);
+	if (value)
+		json_set_string(iter, attrs, tagAlias,
+				json_object_get_string(value));
+	json_object_object_get_ex(new, tagType, &value);
+	if (value)
+		json_set_string(iter, attrs, tagType,
+				json_object_get_string(value));
+	json_object_object_get_ex(new, tagFamily, &value);
+	if (value)
+		json_set_string(iter, attrs, tagFamily,
+				json_object_get_string(value));
+	json_object_object_get_ex(new, tagAddress, &value);
+	if (value)
+		json_set_string(iter, attrs, tagAddress,
+				json_object_get_string(value));
+	json_object_object_get_ex(new, tagPort, &value);
+	if (value)
+		json_set_int(iter, attrs, tagPort,
+			     json_object_get_int(value));
+	json_object_object_get_ex(new, tagRefresh, &value);
+	if (value)
+		json_set_int(iter, attrs, tagRefresh,
+				json_object_get_int(value));
 
 	return 0;
 }
@@ -504,16 +527,16 @@ int add_host(void *context, char *nqn)
 {
 	struct json_context *ctx = context;
 	struct json_object *array = ctx->hosts;
-	struct json_object *attrs;
-
-	if (find_array(array, tagNQN, nqn, NULL) >= 0)
+	struct json_object *iter;
+	int i;
+	
+	i = find_array(array, tagNQN, nqn, &iter);
+	if (i >= 0)
 		return -EEXIST;
 
-	attrs = json_object_new_object();
-
-	json_add_string(attrs, tagNQN, nqn);
-
-	json_object_array_add(array, attrs);
+	iter = json_object_new_object();
+	json_add_string(iter, tagNQN, nqn);
+	json_object_array_add(array, iter);
 
 	return 0;
 }

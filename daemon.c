@@ -21,7 +21,9 @@
 /*For setting server options - e.g., SSL, document root, ...*/
 static struct mg_serve_http_opts s_http_server_opts;
 
+void *ctx; // json context
 static int s_sig_num;
+static int poll_timeout = 1000;
 
 static const struct mg_str s_get_method = MG_MK_STR("GET");
 static const struct mg_str s_put_method = MG_MK_STR("PUT");
@@ -29,8 +31,6 @@ static const struct mg_str s_post_method = MG_MK_STR("POST");
 static const struct mg_str s_patch_method = MG_MK_STR("PATCH");
 static const struct mg_str s_option_method = MG_MK_STR("OPTION");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
-
-void *ctx; // json context
 
 #define min(x, y) ((x < y) ? x : y)
 #define SMALL_RSP 128
@@ -47,6 +47,7 @@ static void signal_handler(int sig_num)
 {
 	signal(sig_num, signal_handler);
 	s_sig_num = sig_num;
+	printf("\n");
 }
 
 static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
@@ -136,41 +137,84 @@ out:
 
 int  get_ctrl_request(char *ctrl, char *response)
 {
-	if (!ctrl)
-		list_ctrl(ctx, response);
-	else
-		show_ctrl(ctx, ctrl, response);
+	int ret;
 
-	return 0;
+	if (!ctrl) {
+		ret = list_ctrl(ctx, response);
+		if (ret) {
+			strcpy(response, "No Contorllers configured");
+			ret = HTTP_ERR_NOT_FOUND;
+		}
+	} else {
+		ret = show_ctrl(ctx, ctrl, response);
+		if (ret) {
+			sprintf(response, "Contorller %s not found", ctrl);
+			ret = HTTP_ERR_NOT_FOUND;
+		}
+	}
+
+	return ret;
 }
 
-int put_ctrl_request(char *ctrl, struct mg_str *body, char *response)
+int put_ctrl_request(char *ctrl, char *ss, struct mg_str *body, char *response)
 {
 	char data[LARGE_RSP+1];
-	int ret = 0;
+	int ret;
 
-	// TODO use the data
+	if (ss) {
+		ret = add_subsys(ctx, ctrl, ss);
+		if (ret) {
+			sprintf(response, "Controller %s not found", ctrl);
+			goto out;
+		}
+	} else {
+		memset(data, 0, sizeof(data));
+		strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	memset(data, 0, sizeof(data));
-	strncpy(data, body->p, min(LARGE_RSP, body->len));
-	printf("put data: %s\n", data);
-	sprintf(response, "TODO add put method for controller %s", ctrl);
+		add_ctrl(ctx, ctrl); // if exists, this must be an update
 
+		ret = set_ctrl(ctx, ctrl, data);
+		if (ret) {
+			sprintf(response, "Could not update Controller %s",
+				ctrl);
+			ret = HTTP_ERR_INTERNAL;
+			goto out;
+		}
+
+		sprintf(response, "Controller %s updated", ctrl);
+	}
+
+	store_config_file(ctx);
+out:
 	return ret;
 }
 
 int  post_ctrl_request(char *ctrl, struct mg_str *body, char *response)
 {
-	char data[LARGE_RSP+1];
-	int ret = 0;
+	char new[SMALL_RSP+1];
+	int ret;
 
-	// TODO use the data
+	if (body->len) {
+	memset(new, 0, sizeof(new));
+	strncpy(new, body->p, min(LARGE_RSP, body->len));
 
-	memset(data, 0, sizeof(data));
-	strncpy(data, body->p, min(LARGE_RSP, body->len));
-	printf("post data: %s\n", data);
-	sprintf(response, "TODO add post method for controller %s", ctrl);
+	ret = rename_ctrl(ctx, ctrl, new);
 
+	if (ret) {
+		sprintf(response, "Controller %s not found or "
+			"Controller %s already exists", ctrl, new);
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
+	}
+
+	sprintf(response, "Controller %s renamed to %s", ctrl, new);
+
+	store_config_file(ctx);
+	} else {
+		// TODO refresh controller
+		ret = bad_request(response);
+	}
+out:
 	return ret;
 }
 
@@ -192,7 +236,7 @@ int handle_ctrl_requests(struct http_message *hm, char *response)
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_ctrl_request(ctrl, response);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_ctrl_request(ctrl, &hm->body, response);
+		ret = put_ctrl_request(ctrl, ss, &hm->body, response);
 	else if (is_equal(&hm->method, &s_delete_method))
 		ret = delete_ctrl_request(ctrl, ss, response);
 	else if (is_equal(&hm->method, &s_post_method))
@@ -205,12 +249,23 @@ int handle_ctrl_requests(struct http_message *hm, char *response)
 
 int get_host_request(char *host, char *response)
 {
-	if (!host)
-		list_host(ctx, response);
-	else
-		show_host(ctx, host, response);
+	int ret;
 
-	return 0;
+	if (!host) {
+		ret = list_host(ctx, response);
+		if (ret) {
+			strcpy(response, "No Host configured");
+			ret = HTTP_ERR_NOT_FOUND;
+		}
+	} else {
+		ret = show_host(ctx, host, response);
+		if (ret) {
+			sprintf(response, "Host %s not found", host);
+			ret = HTTP_ERR_NOT_FOUND;
+		}
+	}
+
+	return ret;
 }
 
 int delete_host_request(char *host, char *ss, char *response)
@@ -246,25 +301,59 @@ out:
 
 int put_host_request(char *host, char *ss, char *response)
 {
-	// TODO call add_acl for ss
+	int ret;
 
-	sprintf(response, "TODO add put method for host %s ss %s", host, ss);
+	if (ss) {
+		ret = add_acl(ctx, host, ss);
+		if (!ret)
+			sprintf(response, "Subsystem %s added "
+				"to acl for host %s", ss, host);
+		else {
+			sprintf(response, "Host %s not found", host);
+			goto out;
+		}
+	} else {
+		ret = add_host(ctx, host);
+		if (!ret)
+			sprintf(response, "Host %s added", host);
+		else {
+			sprintf(response, "Host %s exists", host);
+			ret = HTTP_ERR_INTERNAL;
+			goto out;
+		}
+	}
 
-	return 0;
+	store_config_file(ctx);
+out:
+	return ret;
 }
 
 int post_host_request(char *host, char *ss, struct mg_str *body, char *response)
 {
-	char data[LARGE_RSP+1];
-	int ret = 0;
+	char new[SMALL_RSP+1];
+	int ret;
 
-	// TODO use data to rename host
+	memset(new, 0, sizeof(new));
+	strncpy(new, body->p, min(LARGE_RSP, body->len));
 
-	memset(data, 0, sizeof(data));
-	strncpy(data, body->p, min(LARGE_RSP, body->len));
-	printf("post data: %s\n", data);
-	sprintf(response, "TODO add post method for host %s ss %s", host, ss);
+	if (ss) { // TODO may add changing ACL access R/W/RW
+		ret = bad_request(response);
+		goto out;
+	} else {
+		ret = rename_host(ctx, host, new);
 
+		if (ret) {
+			sprintf(response, "Host %s not found or "
+				"Host %s already exists", host, new);
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+		}
+
+		sprintf(response, "Host %s renamed to %s", host, new);
+
+	}
+	store_config_file(ctx);
+out:
 	return ret;
 }
 
@@ -367,7 +456,7 @@ void poll_loop(void *p)
 	signal(SIGTERM, signal_handler);
 
 	while (s_sig_num == 0)
-		mg_mgr_poll(mgr, 1000); // TODO: add poll timer to args
+		mg_mgr_poll(mgr, poll_timeout);
 
 	mg_mgr_free(mgr);
 }

@@ -23,11 +23,11 @@
 enum { CTRL = 0, HOST, DEM, END = -1 };
 static char *group[] = { "controller", "host", "dem" };
 
-struct cmds {
+struct verbs {
 	int (*execute)(void *ctx, char *base, int n, char **p);
 	int idx;
 	int args;
-	char *cmd;
+	char *verb;
 	char *object;
 	char *arglst;
 };
@@ -101,8 +101,10 @@ static int set_ctrl(void *ctx, char *base, int n, char **p)
 	int refresh = atoi(*p);
 	int len;
 
-	len = snprintf(data, sizeof(data), "type='%s'\r\nfamily='%s'\r\n"
-			"addr='%s'\r\nport=%d\r\nrefresh=%d",
+	len = snprintf(data, sizeof(data),
+			"{ \"Type\" : \"%s\", \"Family\" : \"%s\", "
+			"\"Address\" : \"%s\", \"Port\" : %d, "
+			"\"Refresh\" : %d }",
 			type, family, address, port, refresh);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
@@ -128,7 +130,7 @@ static int add_array(void *ctx, char *base, int n, char **p)
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s", base, alias, *++p);
-		exec_post(ctx, url, NULL, 0);
+		exec_put(ctx, url, NULL, 0);
 	}
 
 	return 0;
@@ -165,24 +167,24 @@ static int dem_shutdown(void *ctx, char *base, int n, char **p)
 	return exec_post(ctx, base, "shutdown", 8);
 }
 
-struct cmds cmd_list[] = {
-	{ del_entry,	CTRL,  1, "delete",  "ctrl", "{alias}" },
-	{ set_ctrl,	CTRL,  6, "set",     "ctrl",
-		"{alias} {trtype} {addrfam} {traddr} {trport}, {refresh}" },
-	{ show_entry,	CTRL,  1, "show",    "ctrl", "{alias}" },
+struct verbs verb_list[] = {
 	{ list_group,	CTRL,  0, "list",    "ctrl",  NULL },
-	{ rename_entry,	CTRL,  2, "rename",  "ctrl", "{old} {new}" },
-	{ refresh_ctrl,	CTRL,  1, "refresh", "ctrl", "{alias}" },
-	{ add_array,	CTRL, -2, "add",     "ss",   "{alias} {nqn} ..." },
-	{ del_array,	CTRL, -2, "delete",  "ss",   "{alias} {nqn} ..." },
-	{ rename_array,	CTRL,  3, "rename",  "ss", "{alias} {old} {new}" },
-	{ set_host,	HOST,  1, "set",     "host", "{nqn}" },
-	{ del_entry,	HOST,  1, "delete",  "host", "{nqn}" },
-	{ show_entry,	HOST,  1, "show",    "host", "{nqn}" },
+	{ set_ctrl,	CTRL,  6, "set",     "ctrl",
+		"<alias> <trtype> <addrfam> <traddr> <trport> <refresh>" },
+	{ show_entry,	CTRL,  1, "show",    "ctrl", "<alias>" },
+	{ del_entry,	CTRL,  1, "delete",  "ctrl", "<alias>" },
+	{ rename_entry,	CTRL,  2, "rename",  "ctrl", "<old> <new>" },
+	{ refresh_ctrl,	CTRL,  1, "refresh", "ctrl", "<alias>" },
+	{ add_array,	CTRL, -2, "add",     "ss",   "<alias> <nqn> ..." },
+	{ del_array,	CTRL, -2, "delete",  "ss",   "<alias> <nqn> ..." },
+	{ rename_array,	CTRL,  3, "rename",  "ss", "<alias> <old> <new>" },
 	{ list_group,	HOST,  0, "list",    "host",  NULL },
-	{ rename_entry,	HOST,  2, "rename",  "host", "{old} {new}" },
-	{ add_array,	HOST, -2, "add",     "acl", "{host_nqn} {ss_nqn} ..." },
-	{ del_array,	HOST, -2, "delete",  "acl", "{host_nqn} {ss_nqn} ..." },
+	{ set_host,	HOST,  1, "set",     "host", "<nqn>" },
+	{ show_entry,	HOST,  1, "show",    "host", "<nqn>" },
+	{ del_entry,	HOST,  1, "delete",  "host", "<nqn>" },
+	{ rename_entry,	HOST,  2, "rename",  "host", "<old> <new>" },
+	{ add_array,	HOST, -2, "add",     "acl", "<host_nqn> <ss_nqn> ..." },
+	{ del_array,	HOST, -2, "delete",  "acl", "<host_nqn> <ss_nqn> ..." },
 	{ dem_shutdown,	DEM,   0, "shutdown", NULL,   NULL },
 	{ list_group,	DEM,   0, "config", NULL,   NULL },
 	{ NULL,		END,   0,  NULL,  NULL,   NULL },
@@ -192,7 +194,7 @@ struct cmds cmd_list[] = {
 
 static void show_help(char *prog, char *msg, char *opt)
 {
-	struct cmds *p;
+	struct verbs *p;
 
 	if (msg) {
 		if (opt)
@@ -201,13 +203,15 @@ static void show_help(char *prog, char *msg, char *opt)
 			printf("Error: %s\n", msg);
 	}
 
-	printf("Usage: %s {cmd} <object> <values>\n", prog);
-	printf("  cmd : add | delete | set | list | show | rename | ");
+	printf("Usage: %s <verb> <object> {value ...}\n", prog);
+	printf("  verb : add | delete | set | list | show | rename | ");
 	printf("refresh | config | shutdown\n");
-	printf("  object : ctrl | ss | host | acl\n");
+	printf("       : shorthand verbs may be use (first 3 characters)\n");
+	printf("object : ctrl | ss | host | acl\n");
+	printf("       : shorthand objects may be used (first character)\n");
 
-	for (p = cmd_list; p->cmd; p++) {
-		printf("    %s", p->cmd);
+	for (p = verb_list; p->verb; p++) {
+		printf("  %s", p->verb);
 		if (p->object)
 			printf(" %s", p->object);
 		if (p->arglst)
@@ -216,21 +220,26 @@ static void show_help(char *prog, char *msg, char *opt)
 	}
 }
 
-static struct cmds *find_cmd(char *cmd, char *object)
+static struct verbs *find_verb(char *verb, char *object)
 {
-	struct cmds *p;
-	int len = strlen(cmd);
+	struct verbs *p;
+	int verb_len = strlen(verb);
+	int object_len = (object) ? strlen(object) : 0;
 
-	for (p = cmd_list; p->cmd; p++) {
-		if (strcmp(cmd, p->cmd))
-			if (len == 3 && strncmp(cmd, p->cmd, 3) == 0)
-				; // short version of command matches
+	for (p = verb_list; p->verb; p++) {
+		if (strcmp(verb, p->verb))
+			if (verb_len == 3 && strncmp(verb, p->verb, 3) == 0)
+				; // short version of verb matches
 			else
 				continue;
 		if (!p->object)
 			return p;
+		if (!object)
+			break;
 		if (strcmp(object, p->object) == 0)
 			return p;
+		if (object_len == 1 && object[0] == p->object[0])
+			return p; // short version of object matches
 	}
 
 	return NULL;
@@ -259,7 +268,7 @@ static int valid_arguments(char *prog, int argc, int idx, int expect)
 
 int main(int argc, char *argv[])
 {
-	struct cmds *p;
+	struct verbs *p;
 	int n;
 	int ret = -1;
 	char server[] = "127.0.0.1:12345";
@@ -271,9 +280,9 @@ int main(int argc, char *argv[])
 		return 0;
 	}
 
-	p = find_cmd(argv[1], (argc == 2) ? NULL : argv[2]);
+	p = find_verb(argv[1], (argc == 2) ? NULL : argv[2]);
 	if (!p) {
-		show_help(argv[0], "unknown cmd/object set", NULL);
+		show_help(argv[0], "unknown verb/object set", NULL);
 		return -1;
 	}
 
@@ -287,7 +296,7 @@ int main(int argc, char *argv[])
 
 	ret = p->execute(ctx, url, argc - 4, &argv[3]);
 	if (ret < 0) {
-		n = (strcmp(p->cmd, "rename") == 0 && ret == -EEXIST) ? 4 : 3;
+		n = (strcmp(p->verb, "rename") == 0 && ret == -EEXIST) ? 4 : 3;
 		printf("Error: %s: %s '%s' %s\n",
 		       argv[0], argv[2], argv[n], error(ret));
 	}
