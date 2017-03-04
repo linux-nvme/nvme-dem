@@ -12,9 +12,7 @@
  * more details.
  */
 
-void *init_json(char *filename);
 void store_config_file(void *context);
-void cleanup_json(void *context);
 int add_ctrl(void *context, char *p);
 int del_ctrl(void *context, char *p);
 int list_ctrl(void *context, char *response);

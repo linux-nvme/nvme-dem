@@ -12,12 +12,8 @@
  * more details.
  */
 
-extern int formatted;
-
-void *init_curl();
-void cleanup_curl(void *p);
-int exec_get(void *p, char *url, char **result);
-int exec_delete(void *p, char *url);
-int exec_put(void *p, char *url, char *data, int len);
-int exec_post(void *p, char *url, char *data, int len);
+void show_ctrl_data(struct json_object *parent, int formatted);
+void show_ctrl_list(struct json_object *parent, int formatted);
+void show_host_data(struct json_object *parent, int formatted);
+void show_host_list(struct json_object *parent, int formatted);
 

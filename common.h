@@ -12,12 +12,9 @@
  * more details.
  */
 
-extern int formatted;
+void shutdown_dem(void);
+void handle_http_request(void *json_ctx, struct mg_connection *c,
+			 void *ev_data);
 
-void *init_curl();
-void cleanup_curl(void *p);
-int exec_get(void *p, char *url, char **result);
-int exec_delete(void *p, char *url);
-int exec_put(void *p, char *url, char *data, int len);
-int exec_post(void *p, char *url, char *data, int len);
-
+void *init_json(char *filename);
+void cleanup_json(void *context);
