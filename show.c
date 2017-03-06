@@ -106,7 +106,7 @@ static int show_subsys(struct json_object *parent, int formatted)
 		goto err;
 
 	if (formatted)
-		printf("  \"%s\":\n  [", TAG_SUBSYSTEMS);
+		printf("  \"%s\": [", TAG_SUBSYSTEMS);
 
 	for (i = 0; i < cnt; i++) {
 		iter = json_object_array_get_idx(array, i);
@@ -157,7 +157,7 @@ static void show_transport(struct json_object *parent, int formatted)
 		goto err;
 
 	if (formatted)
-		printf("  \"%s\":\n  {\n", TAG_TRANSPORT);
+		printf("  \"%s\": {\n", TAG_TRANSPORT);
 
 	json_object_object_get_ex(iter, TAG_TYPE, &obj);
 	if (obj) {
@@ -278,7 +278,7 @@ static int show_acl(struct json_object *parent, int formatted)
 		goto err;
 
 	if (formatted)
-		printf("  \"%s\":\n  [", TAG_ACL);
+		printf("  \"%s\": [", TAG_ACL);
 
 	for (i = 0; i < cnt; i++) {
 		iter = json_object_array_get_idx(array, i);
@@ -338,15 +338,15 @@ void show_host_data(struct json_object *parent, int formatted)
 		return;
 
 	if (formatted)
-		printf("{ \"%s\": {\n  \"%s\": \"%s\",\n", TAG_HOSTS, TAG_NQN,
+		printf("{\n  \"%s\": \"%s\",\n", TAG_NQN,
 		       json_object_get_string(obj));
 	else
-		printf("Host %s\n", json_object_get_string(obj)); 
+		printf("Host %s\n", json_object_get_string(obj));
 
 	show_acl(host, formatted);
 
 	if (formatted)
-		printf("}}");
+		printf("\n}");
 
 	printf("\n");
 }

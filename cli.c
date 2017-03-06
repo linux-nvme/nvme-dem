@@ -71,7 +71,7 @@ static int list_ctrl(void *ctx, char *url, int n, char **p)
 	else {
 		parent = json_tokener_parse(result);
 		if (parent)
-			show_ctrl_list(parent, formatted); 
+			show_ctrl_list(parent, formatted);
 		else
 			printf("%s\n", result);
 	}
@@ -99,7 +99,7 @@ static int show_ctrl(void *ctx, char *base, int n, char **p)
 	else {
 		parent = json_tokener_parse(result);
 		if (parent)
-			show_ctrl_data(parent, formatted); 
+			show_ctrl_data(parent, formatted);
 		else
 			printf("%s\n", result);
 	}
@@ -123,7 +123,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	else {
 		parent = json_tokener_parse(result);
 		if (parent)
-			show_host_list(parent, formatted); 
+			show_host_list(parent, formatted);
 		else
 			printf("%s\n", result);
 	}
@@ -152,7 +152,7 @@ static int show_host(void *ctx, char *base, int n, char **p)
 	else {
 		parent = json_tokener_parse(result);
 		if (parent)
-			show_host_data(parent, formatted); 
+			show_host_data(parent, formatted);
 		else
 			printf("%s\n", result);
 	}
@@ -301,18 +301,20 @@ static int dem_shutdown(void *ctx, char *base, int n, char **p)
 
 static int dem_config(void *ctx, char *base, int n, char **p)
 {
-        char url[128];
-        char *alias = *p;
+	char url[128];
+	char *alias = *p;
 	char *result;
 	int ret;
 
-        snprintf(url, sizeof(url), "%s/%s", base, alias);
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-        ret = exec_delete(ctx, url);
+	ret = exec_get(ctx, url, &result);
 	if (ret)
 		return ret;
 
 	printf("%s\n", result);
+
+	free(result);
 
 	return 0;
 }
@@ -334,7 +336,7 @@ struct verbs verb_list[] = {
 	{ rename_entry,	CTRL,  2, "rename",  "ctrl", "<old> <new>" },
 	{ refresh_ctrl,	CTRL,  1, "refresh", "ctrl", "<alias>" },
 	{ set_subsys,	CTRL,  3, "set",     "ss",
-		"<alias> <nqn> <allow_all>." },
+		"<alias> <nqn> <allow_all>" },
 	{ del_array,	CTRL, -2, "delete",  "ss",   "<alias> <nqn> ..." },
 	{ rename_array,	CTRL,  3, "rename",  "ss",   "<alias> <old> <new>" },
 	{ list_host,	HOST,  0, "list",    "host",  NULL },
@@ -440,6 +442,7 @@ int main(int argc, char *argv[])
 {
 	struct verbs *p;
 	char **args;
+	char **opts;
 	int n;
 	int opt;
 	int ret = -1;
@@ -495,7 +498,14 @@ int main(int argc, char *argv[])
 	snprintf(url, sizeof(url), "http://%s:%s/%s", dem_server, dem_port,
 		 group[p->target]);
 
-	ret = p->function(ctx, url, argc - 4, &args[2]);
+	if (argc == 1)
+		opts = args;
+	else {
+		argc -= 3;
+		opts = &args[2];
+	}
+
+	ret = p->function(ctx, url, argc, opts);
 	if (ret < 0) {
 		n = (strcmp(p->verb, "rename") == 0 && ret == -EEXIST) ? 4 : 3;
 		printf("Error: %s: %s '%s' %s\n",

@@ -41,23 +41,23 @@ static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 	return s1->len == s2->len && memcmp(s1->p, s2->p, s2->len) == 0;
 }
 
-int  bad_request(char *response)
+int  bad_request(char *resp)
 {
-	strcpy(response, "Method Not Implemented");
+	strcpy(resp, "Method Not Implemented");
 
 	return HTTP_ERR_NOT_IMPLEMENTED;
 }
 
-int get_dem_request(char *response)
+int get_dem_request(char *resp)
 {
-	// TODO build real config info in response
+	// TODO build real config info in resp
 
-	strcpy(response, "Config of DEM");
+	strcpy(resp, "Config of DEM");
 
 	return 0;
 }
 
-int post_dem_request(struct http_message *hm, char *response)
+int post_dem_request(struct http_message *hm, char *resp)
 {
 	char body[SMALL_RSP+1];
 	int ret = 0;
@@ -67,43 +67,43 @@ int post_dem_request(struct http_message *hm, char *response)
 
 	if (strcmp(body, METHOD_SHUTDOWN) == 0) {
 		shutdown_dem();
-		strcpy(response, "DEM shutting down");
+		strcpy(resp, "DEM shutting down");
 	} else {
 		ret = HTTP_ERR_NOT_IMPLEMENTED;
-		strcpy(response, "Method Not Implemented");
+		strcpy(resp, "Method Not Implemented");
 	}
 
 	return ret;
 }
 
-int handle_dem_requests(struct http_message *hm, char *response)
+int handle_dem_requests(struct http_message *hm, char *resp)
 {
 	int ret;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_dem_request(response);
+		ret = get_dem_request(resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_dem_request(hm, response);
+		ret = post_dem_request(hm, resp);
 	else
-		ret = bad_request(response);
+		ret = bad_request(resp);
 
 	return ret;
 }
 
-int  get_ctrl_request(void *ctx, char *ctrl, char *response)
+int  get_ctrl_request(void *ctx, char *ctrl, char *resp)
 {
 	int ret;
 
 	if (!ctrl) {
-		ret = list_ctrl(ctx, response);
+		ret = list_ctrl(ctx, resp);
 		if (ret) {
-			strcpy(response, "No Controllers configured");
+			strcpy(resp, "No Controllers configured");
 			ret = HTTP_ERR_NOT_FOUND;
 		}
 	} else {
-		ret = show_ctrl(ctx, ctrl, response);
+		ret = show_ctrl(ctx, ctrl, resp);
 		if (ret) {
-			sprintf(response, "Contorller %s not found", ctrl);
+			sprintf(resp, "Contorller %s not found", ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
 		}
 	}
@@ -111,17 +111,17 @@ int  get_ctrl_request(void *ctx, char *ctrl, char *response)
 	return ret;
 }
 
-int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *response)
+int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *resp)
 {
 	int ret = 0;
 
 	if (ss) {
 		ret = del_subsys(ctx, ctrl, ss);
 		if (!ret)
-			sprintf(response, "Subsystem %s deleted "
+			sprintf(resp, "Subsystem %s deleted "
 				"from Controller %s", ss, ctrl);
 		else {
-			sprintf(response, "Subsystem %s not found "
+			sprintf(resp, "Subsystem %s not found "
 				"for Controller %s", ss, ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
@@ -129,9 +129,9 @@ int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *response)
 	} else {
 		ret = del_ctrl(ctx, ctrl);
 		if (!ret)
-			sprintf(response, "Controller %s deleted", ctrl);
+			sprintf(resp, "Controller %s deleted", ctrl);
 		else {
-			sprintf(response, "Controller %s not found", ctrl);
+			sprintf(resp, "Controller %s not found", ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
 		}
@@ -143,32 +143,44 @@ out:
 }
 
 int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
-		     char *response)
+		     char *resp)
 {
 	char data[LARGE_RSP+1];
 	int ret;
+	int n;
+
+	memset(data, 0, sizeof(data));
+	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	if (ss) {
-		ret = add_subsys(ctx, ctrl, ss);
-		if (ret) {
-			sprintf(response, "Controller %s not found", ctrl);
+		ret = set_subsys(ctx, ctrl, ss, data);
+		if (ret == -ENOENT) {
+			sprintf(resp, "Controller %s not found", ctrl);
+			goto out;
+		} else if (ret == -EINVAL) {
+			n = sprintf(resp, "bad json object\r\n");
+			resp += n;
+			n = sprintf(resp, "expect either/both elements of ");
+			resp += n;
+			n = sprintf(resp,
+				    "{ \"%s\": \"<ss>\", \"%s\": <access> } ",
+				    TAG_NQN, TAG_ACCESS);
+			resp += n;
+			n = sprintf(resp, "\r\ngot %s", data);
 			goto out;
 		}
+
+		sprintf(resp, "Controller %s Subsytem %s updated", ctrl, ss);
 	} else {
-		memset(data, 0, sizeof(data));
-		strncpy(data, body->p, min(LARGE_RSP, body->len));
-
-		add_ctrl(ctx, ctrl); // if exists, this must be an update
-
 		ret = set_ctrl(ctx, ctrl, data);
 		if (ret) {
-			sprintf(response, "Could not update Controller %s",
+			sprintf(resp, "Could not update Controller %s",
 				ctrl);
 			ret = HTTP_ERR_INTERNAL;
 			goto out;
 		}
 
-		sprintf(response, "Controller %s updated", ctrl);
+		sprintf(resp, "Controller %s updated", ctrl);
 	}
 
 	store_config_file(ctx);
@@ -176,37 +188,50 @@ out:
 	return ret;
 }
 
-int  post_ctrl_request(void *ctx, char *ctrl, struct mg_str *body,
-		       char *response)
+int  post_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
+		       char *resp)
 {
 	char new[SMALL_RSP+1];
 	int ret;
 
 	if (body->len) {
-	memset(new, 0, sizeof(new));
-	strncpy(new, body->p, min(LARGE_RSP, body->len));
+		memset(new, 0, sizeof(new));
+		strncpy(new, body->p, min(LARGE_RSP, body->len));
 
-	ret = rename_ctrl(ctx, ctrl, new);
+		if (ss) {
+			ret = rename_subsys(ctx, ctrl, ss, new);
+			if (ret) {
+				sprintf(resp, "Subsystem %s not found or "
+					"%s already exists for Controllor %s",
+					ss, ctrl, new);
+				ret = HTTP_ERR_NOT_FOUND;
+				goto out;
+			}
+			sprintf(resp,
+				"Controller %s Subsystem %s renamed to %s",
+				ctrl, ss, new);
+		} else {
+			ret = rename_ctrl(ctx, ctrl, new);
 
-	if (ret) {
-		sprintf(response, "Controller %s not found or "
-			"Controller %s already exists", ctrl, new);
-		ret = HTTP_ERR_NOT_FOUND;
-		goto out;
-	}
+			if (ret) {
+				sprintf(resp, "Controller %s not found or "
+					"%s already exists", ctrl, new);
+				ret = HTTP_ERR_NOT_FOUND;
+				goto out;
+			}
 
-	sprintf(response, "Controller %s renamed to %s", ctrl, new);
-
-	store_config_file(ctx);
+			sprintf(resp, "Controller %s renamed to %s", ctrl, new);
+		}
+		store_config_file(ctx);
 	} else {
 		// TODO refresh controller
-		ret = bad_request(response);
+		ret = bad_request(resp);
 	}
 out:
 	return ret;
 }
 
-int handle_ctrl_requests(void *ctx, struct http_message *hm, char *response)
+int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 {
 	char *url;
 	char *ctrl = NULL;
@@ -228,33 +253,33 @@ int handle_ctrl_requests(void *ctx, struct http_message *hm, char *response)
 		ss = strtok_r(NULL, "/", &p);
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_ctrl_request(ctx, ctrl, response);
+		ret = get_ctrl_request(ctx, ctrl, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_ctrl_request(ctx, ctrl, ss, &hm->body, response);
+		ret = put_ctrl_request(ctx, ctrl, ss, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_ctrl_request(ctx, ctrl, ss, response);
+		ret = delete_ctrl_request(ctx, ctrl, ss, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_ctrl_request(ctx, ctrl, &hm->body, response);
+		ret = post_ctrl_request(ctx, ctrl, ss, &hm->body, resp);
 	else
-		ret = bad_request(response);
+		ret = bad_request(resp);
 
 	return ret;
 }
 
-int get_host_request(void *ctx, char *host, char *response)
+int get_host_request(void *ctx, char *host, char *resp)
 {
 	int ret;
 
 	if (!host) {
-		ret = list_host(ctx, response);
+		ret = list_host(ctx, resp);
 		if (ret) {
-			strcpy(response, "No Host configured");
+			strcpy(resp, "No Host configured");
 			ret = HTTP_ERR_NOT_FOUND;
 		}
 	} else {
-		ret = show_host(ctx, host, response);
+		ret = show_host(ctx, host, resp);
 		if (ret) {
-			sprintf(response, "Host %s not found", host);
+			sprintf(resp, "Host %s not found", host);
 			ret = HTTP_ERR_NOT_FOUND;
 		}
 	}
@@ -262,17 +287,17 @@ int get_host_request(void *ctx, char *host, char *response)
 	return ret;
 }
 
-int delete_host_request(void *ctx, char *host, char *ss, char *response)
+int delete_host_request(void *ctx, char *host, char *ss, char *resp)
 {
 	int ret;
 
 	if (ss) {
 		ret = del_acl(ctx, host, ss);
 		if (!ret)
-			sprintf(response, "Subsystem %s deleted "
+			sprintf(resp, "Subsystem %s deleted "
 				"from acl for host %s", ss, host);
 		else {
-			sprintf(response, "Subsystem %s not found "
+			sprintf(resp, "Subsystem %s not found "
 				"in acl for host %s", ss, host);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
@@ -280,9 +305,9 @@ int delete_host_request(void *ctx, char *host, char *ss, char *response)
 	} else {
 		ret = del_host(ctx, host);
 		if (!ret)
-			sprintf(response, "Host %s deleted", host);
+			sprintf(resp, "Host %s deleted", host);
 		else {
-			sprintf(response, "Host %s not found", host);
+			sprintf(resp, "Host %s not found", host);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
 		}
@@ -293,25 +318,41 @@ out:
 	return ret;
 }
 
-int put_host_request(void *ctx, char *host, char *ss, char *response)
+int put_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
+		     char *resp)
 {
+	char data[LARGE_RSP+1];
 	int ret;
+	int n;
 
 	if (ss) {
-		ret = add_acl(ctx, host, ss);
+		memset(data, 0, sizeof(data));
+		strncpy(data, body->p, min(LARGE_RSP, body->len));
+
+		ret = set_acl(ctx, host, ss, data);
 		if (!ret)
-			sprintf(response, "Subsystem %s added "
-				"to acl for host %s", ss, host);
-		else {
-			sprintf(response, "Host %s not found", host);
+			sprintf(resp, "Subsystem %s updated to acl for host %s",
+				ss, host);
+		else if (ret == -ENOENT) {
+			sprintf(resp, "Host %s not found", host);
 			goto out;
+		} else {
+			n = sprintf(resp, "bad json object\r\n");
+			resp += n;
+			n = sprintf(resp, "expect either/both elements of ");
+			resp += n;
+			n = sprintf(resp,
+				    "{ \"%s\": \"<ss>\", \"%s\": <access> } ",
+				    TAG_NQN, TAG_ACCESS);
+			resp += n;
+			n = sprintf(resp, "\r\ngot %s", data);
 		}
 	} else {
-		ret = add_host(ctx, host);
+		ret = set_host(ctx, host);
 		if (!ret)
-			sprintf(response, "Host %s added", host);
+			sprintf(resp, "Host %s added", host);
 		else {
-			sprintf(response, "Host %s exists", host);
+			sprintf(resp, "Host %s exists", host);
 			ret = HTTP_ERR_INTERNAL;
 			goto out;
 		}
@@ -323,7 +364,7 @@ out:
 }
 
 int post_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
-		      char *response)
+		      char *resp)
 {
 	char new[SMALL_RSP+1];
 	int ret;
@@ -331,28 +372,27 @@ int post_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
 	memset(new, 0, sizeof(new));
 	strncpy(new, body->p, min(LARGE_RSP, body->len));
 
-	if (ss) { // TODO may add changing ACL access R/W/RW
-		ret = bad_request(response);
+	if (ss) {
+		ret = bad_request(resp);
 		goto out;
-	} else {
-		ret = rename_host(ctx, host, new);
-
-		if (ret) {
-			sprintf(response, "Host %s not found or "
-				"Host %s already exists", host, new);
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
-		}
-
-		sprintf(response, "Host %s renamed to %s", host, new);
-
 	}
+
+	ret = rename_host(ctx, host, new);
+	if (ret) {
+		sprintf(resp, "Host %s not found or "
+			"Host %s already exists", host, new);
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
+	}
+
+	sprintf(resp, "Host %s renamed to %s", host, new);
+
 	store_config_file(ctx);
 out:
 	return ret;
 }
 
-int handle_host_requests(void *ctx, struct http_message *hm, char *response)
+int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
 {
 	char *url;
 	char *host;
@@ -374,15 +414,15 @@ int handle_host_requests(void *ctx, struct http_message *hm, char *response)
 		ss = strtok_r(NULL, "/", &p);
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_host_request(ctx, host, response);
+		ret = get_host_request(ctx, host, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_host_request(ctx, host, ss, response);
+		ret = put_host_request(ctx, host, ss, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_host_request(ctx, host, ss, response);
+		ret = delete_host_request(ctx, host, ss, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_host_request(ctx, host, ss, &hm->body, response);
+		ret = post_host_request(ctx, host, ss, &hm->body, resp);
 	else
-		ret = bad_request(response);
+		ret = bad_request(resp);
 
 	return ret;
 }
@@ -391,31 +431,31 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 {
 	struct http_message *hm = (struct http_message *) ev_data;
 	char *target = (char *) &hm->uri.p[1];
-	char *response;
+	char *resp;
 	int ret;
 
 	if (!hm->uri.len) {
 		mg_printf(c, "HTTP/1.1 %d Page Not Found\r\n\r\n",
-                          HTTP_ERR_PAGE_NOT_FOUND);
+			  HTTP_ERR_PAGE_NOT_FOUND);
 		goto out1;
 	}
 
-	response = malloc(BODY_SZ);
-	if (!response) {
+	resp = malloc(BODY_SZ);
+	if (!resp) {
 		fprintf(stderr, "no memory!\n");
 		mg_printf(c, "HTTP/1.1 %d No Memory\r\n\r\n",
 			  HTTP_ERR_INTERNAL);
 		goto out1;
 	}
 
-	memset(response, 0, BODY_SZ);
+	memset(resp, 0, BODY_SZ);
 
 	if (strncmp(target, TARGET_DEM, DEM_LEN) == 0)
-		ret = handle_dem_requests(hm, response);
+		ret = handle_dem_requests(hm, resp);
 	else if (strncmp(target, TARGET_CTRL, CTRL_LEN) == 0)
-		ret = handle_ctrl_requests(ctx, hm, response);
+		ret = handle_ctrl_requests(ctx, hm, resp);
 	else if (strncmp(target, TARGET_HOST, HOST_LEN) == 0)
-		ret = handle_host_requests(ctx, hm, response);
+		ret = handle_host_requests(ctx, hm, resp);
 	else {
 		fprintf(stderr, "Bad page %*s\n", (int) hm->uri.len, hm->uri.p);
 		mg_printf(c, "HTTP/1.1 %d Page Not Found\r\n\r\n",
@@ -426,12 +466,12 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	if (!ret)
 		mg_printf(c, "HTTP/1.1 %d OK\r\n", HTTP_OK);
 	else
-		mg_printf(c, "HTTP/1.1 %d %s\r\n", ret, response);
+		mg_printf(c, "HTTP/1.1 %d %s\r\n", ret, resp);
 
 	mg_printf(c, "Content-Length: %ld\r\n\r\n%s",
-		  strlen(response), response);
+		  strlen(resp), resp);
 out2:
-	free(response);
+	free(resp);
 out1:
 	c->flags = MG_F_SEND_AND_CLOSE;
 }

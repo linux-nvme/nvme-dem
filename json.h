@@ -13,19 +13,18 @@
  */
 
 void store_config_file(void *context);
-int add_ctrl(void *context, char *p);
 int del_ctrl(void *context, char *p);
 int list_ctrl(void *context, char *response);
 int rename_ctrl(void *context, char *old, char *new);
 int set_ctrl(void *context, char *alias, char *data);
-int rename_ss(void *context, char *alias, char *old, char *new);
+int rename_subsys(void *context, char *alias, char *old, char *new);
 int show_ctrl(void *context, char *alias, char *response);
-int add_host(void *context, char *nqn);
+int set_host(void *context, char *nqn);
 int del_host(void *context, char *nqn);
 int list_host(void *context, char *response);
 int rename_host(void *context, char *old, char *new);
 int show_host(void *context, char *nqn, char *response);
-int add_subsys(void *context, char *alias, char *ss);
+int set_subsys(void *context, char *alias, char *ss, char *p);
 int del_subsys(void *context, char *alias, char *ss);
-int add_acl(void *context, char *nqn, char *ss);
+int set_acl(void *context, char *nqn, char *ss, char *p);
 int del_acl(void *context, char *nqn,  char *ss);
