@@ -15,6 +15,7 @@
 #include "mongoose.h"
 #include <pthread.h>
 #include <dirent.h>
+#include <unistd.h>
 
 #include "common.h"
 
@@ -26,7 +27,7 @@ static struct mg_serve_http_opts s_http_server_opts;
 
 static void *json_ctx;
 static int s_sig_num;
-static int poll_timeout = 1000;
+static int poll_timeout = 100;
 
 /*
 trtypes
@@ -74,7 +75,7 @@ int count_dem_config_files()
         return filecount;
 }
 
-int read_dem_config_files(struct dem_interface **interface)
+int read_dem_config_files(struct dem_interface *interface)
 {
         struct dirent *entry;
         DIR *dir;
@@ -89,10 +90,10 @@ int read_dem_config_files(struct dem_interface **interface)
                         continue;
                 if (!strcmp(entry->d_name,".."))
                         continue;
-		/* 
+
                 snprintf(config_file, sizeof(config_file), "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
-		*/ 
+ 
                 printf("path = %s\n", config_file);
                 if((fid = fopen(config_file,"r")) != NULL){
                         char buf[100];
@@ -112,26 +113,26 @@ int read_dem_config_files(struct dem_interface **interface)
                                 str = strtok(buf, "=,\t");
                                         if(!strcmp(str, "Type")) {
                                                 str = strtok(NULL, "=");
-                                                strcpy(interface[count]->trtype, str);
+                                                strcpy(interface[count].trtype, str);
                                                 configinfo++;
                                                 printf("%s %s\n", config_file,
-						       interface[count]->trtype);
+						       interface[count].trtype);
                                                 continue;
                                         }
                                         if(!strcmp(str, "Family")) {
                                                 str = strtok(NULL, "=");
-                                                strcpy(interface[count]->addrfam, str);
+                                                strcpy(interface[count].addrfam, str);
                                                 configinfo++;
                                                 printf("%s %s\n",config_file,
-						       interface[count]->addrfam);
+						       interface[count].addrfam);
                                                 continue;
                                         }
                                         if(!strcmp(str, "Address")) {
                                                 str = strtok(NULL, "=");
-                                                strcpy(interface[count]->hostaddr, str);
+                                                strcpy(interface[count].hostaddr, str);
                                                 configinfo++;
                                                 printf("%s %s\n",config_file,
-						       interface[count]->hostaddr);
+						       interface[count].hostaddr);
                                                 continue;
                                         }
                         }
@@ -215,7 +216,7 @@ int main(int argc, char *argv[])
 	int			 opt;
 	const char		*err_str;
 	char			*cp;
-	char			*s_http_port = "22345";
+	char			*s_http_port = "12345";
 #if MG_ENABLE_SSL
 	const char		*ssl_cert = NULL;
 #endif
@@ -287,7 +288,7 @@ help:
                 return filecount;
  
         interfaces = calloc(filecount, sizeof (struct dem_interface));
-        ret = read_dem_config_files(&interfaces);
+        ret = read_dem_config_files(interfaces);
         if (ret)
                 exit(1);
  
@@ -318,8 +319,10 @@ help:
                 exit(1);
         }
  
-        while (s_sig_num != 0)
-                ;
+        while (s_sig_num == 0)
+                usleep(200);
+
+	usleep(500);
 
         pthread_kill(poll_pthread, s_sig_num);
         pthread_kill(transport_pthread, s_sig_num);
