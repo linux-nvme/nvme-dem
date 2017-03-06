@@ -59,16 +59,36 @@ struct json_context {
 #define json_add_int(x, y, z) \
 	json_object_object_add(x, y, json_object_new_int(z))
 #define json_set_string(x, y, z) do { \
-	struct json_object *tmp; \
 	json_object_object_get_ex(x, y, &tmp); \
 	if (tmp) json_object_set_string(tmp, z); \
 	else json_add_string(x, y, z); \
 	} while (0)
 #define json_set_int(x, y, z) do {\
-	struct json_object *tmp; \
 	json_object_object_get_ex(x, y, &tmp); \
 	if (tmp) json_object_set_int(tmp, z); \
 	else json_add_int(x, y, z); \
+	} while (0)
+#define json_get_subgroup(x, y, z) do { \
+	json_object_object_get_ex(x, y, &z); \
+	if (!z) { \
+		z = json_object_new_object(); \
+		json_object_object_add(x, y, z); \
+	  } \
+	} while (0)
+#define json_get_array(x, y, z) do { \
+	json_object_object_get_ex(x, y, &z); \
+	if (!z) { \
+		z = json_object_new_array(); \
+		json_object_object_add(x, y, z); \
+	  } \
+	} while (0)
+#define json_update_string(w, x, y, z) do { \
+		json_object_object_get_ex(x, y, &z); \
+		if (z) json_set_string(w, y, json_object_get_string(z)); \
+	} while (0)
+#define json_update_int(w, x, y, z) do { \
+		json_object_object_get_ex(x, y, &z); \
+		if (z) json_set_int(w, y, json_object_get_int(z)); \
 	} while (0)
 
 /* helper functions */
@@ -157,6 +177,7 @@ static void rename_host_acl(struct json_object *hosts, char *old, char *new)
 	struct json_object *array;
 	struct json_object *iter;
 	struct json_object *obj;
+	struct json_object *tmp;
 	int idx;
 	int i;
 	int cnt;
@@ -304,13 +325,6 @@ int del_ctrl(void *context, char *alias)
 		}
 	}
 
-	json_object_object_del(iter, TAG_ALIAS);
-	json_object_object_del(iter, TAG_REFRESH);
-	json_object_object_del(iter, TAG_TYPE);
-	json_object_object_del(iter, TAG_FAMILY);
-	json_object_object_del(iter, TAG_ADDRESS);
-	json_object_object_del(iter, TAG_PORT);
-
 	json_object_array_del_idx(parent, idx, 1);
 
 	return 0;
@@ -341,6 +355,7 @@ int rename_ctrl(void *context, char *old, char *new)
 	struct json_context *ctx = context;
 	struct json_object *array = ctx->ctrls;
 	struct json_object *iter;
+	struct json_object *tmp;
 	int i;
 
 	if (find_array(array, TAG_ALIAS, new, NULL) >= 0)
@@ -359,32 +374,14 @@ void add_transport(struct json_object *parent, struct json_object *new)
 {
 	struct json_object *subgroup;
 	struct json_object *value;
+	struct json_object *tmp;
 
-	json_object_object_get_ex(parent, TAG_TRANSPORT, &subgroup);
-	if (!subgroup) {
-		subgroup = json_object_new_object();
-		json_object_object_add(parent, TAG_TRANSPORT, subgroup);
-	}
+	json_get_subgroup(parent, TAG_TRANSPORT, subgroup);
 
-	json_object_object_get_ex(new, TAG_TYPE, &value);
-	if (value)
-		json_set_string(subgroup, TAG_TYPE,
-				json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_FAMILY, &value);
-	if (value)
-		json_set_string(subgroup, TAG_FAMILY,
-				json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_ADDRESS, &value);
-	if (value)
-		json_set_string(subgroup, TAG_ADDRESS,
-				json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_PORT, &value);
-	if (value)
-		json_set_int(subgroup, TAG_PORT,
-			     json_object_get_int(value));
+	json_update_string(subgroup, new, TAG_TYPE, value);
+	json_update_string(subgroup, new, TAG_FAMILY, value);
+	json_update_string(subgroup, new, TAG_ADDRESS, value);
+	json_update_int(subgroup, new, TAG_PORT, value);
 }
 
 void add_subsys(struct json_object *parent, struct json_object *newparent)
@@ -393,13 +390,10 @@ void add_subsys(struct json_object *parent, struct json_object *newparent)
 	struct json_object *new;
 	struct json_object *obj;
 	struct json_object *value;
+	struct json_object *tmp;
 	int i, n;
 
-	json_object_object_get_ex(parent, TAG_SUBSYSTEMS, &subgroup);
-	if (!subgroup) {
-		subgroup = json_object_new_array();
-		json_object_object_add(parent, TAG_SUBSYSTEMS, subgroup);
-	}
+	json_get_array(parent, TAG_SUBSYSTEMS, subgroup);
 
 	json_object_object_get_ex(newparent, TAG_SUBSYSTEMS, &new);
 	if (!new)
@@ -410,15 +404,8 @@ void add_subsys(struct json_object *parent, struct json_object *newparent)
 	for (i = 0; i < n; i++) {
 		obj = json_object_array_get_idx(new, i);
 
-		json_object_object_get_ex(obj, TAG_NQN, &value);
-		if (value)
-			json_set_string(subgroup, TAG_NQN,
-					json_object_get_string(value));
-
-		json_object_object_get_ex(new, TAG_ALLOW_ALL, &value);
-		if (value)
-			json_set_int(subgroup, TAG_ALLOW_ALL,
-				     json_object_get_int(value));
+		json_update_string(subgroup, obj, TAG_NQN, value);
+		json_update_int(subgroup, new, TAG_ALLOW_ALL, value);
 	}
 }
 
@@ -429,6 +416,7 @@ int set_ctrl(void *context, char *alias, char *data)
 	struct json_object *iter;
 	struct json_object *new;
 	struct json_object *value;
+	struct json_object *tmp;
 	int i;
 
 	i = find_array(array, TAG_ALIAS, alias, &iter);
@@ -442,13 +430,8 @@ int set_ctrl(void *context, char *alias, char *data)
 	if (!new)
 		return -EINVAL;
 
-	json_object_object_get_ex(new, TAG_ALIAS, &value);
-	if (value)
-		json_set_string(iter, TAG_ALIAS, json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_REFRESH, &value);
-	if (value)
-		json_set_int(iter, TAG_REFRESH, json_object_get_int(value));
+	json_update_string(iter, new, TAG_ALIAS, value);
+	json_update_int(iter, new, TAG_REFRESH, value);
 
 	add_transport(iter, new);
 
@@ -619,8 +602,6 @@ int del_host(void *context, char *nqn)
 	if (i < 0)
 		return -ENOENT;
 
-	json_object_object_del(iter, TAG_NQN);
-
 	json_object_array_del_idx(array, i, 1);
 
 	return 0;
@@ -651,6 +632,7 @@ int rename_host(void *context, char *old, char *new)
 	struct json_context *ctx = context;
 	struct json_object *array = ctx->hosts;
 	struct json_object *iter;
+	struct json_object *tmp;
 	int i;
 
 	if (find_array(array, TAG_NQN, new, NULL) >= 0)
@@ -746,17 +728,14 @@ int set_subsys(void *context, char *alias, char *ss, char *data)
 	struct json_object *array;
 	struct json_object *new;
 	struct json_object *value;
+	struct json_object *tmp;
 	int i;
 
 	i = find_array(parent, TAG_ALIAS, alias, &obj);
 	if (i < 0)
 		return -ENOENT;
 
-	json_object_object_get_ex(obj, TAG_SUBSYSTEMS, &array);
-	if (!array) {
-		array = json_object_new_array();
-		json_object_object_add(obj, TAG_SUBSYSTEMS, array);
-	}
+	json_get_array(obj, TAG_SUBSYSTEMS, array);
 
 	i = find_array(array, TAG_NQN, ss, &iter);
 	if (i < 0) {
@@ -769,13 +748,8 @@ int set_subsys(void *context, char *alias, char *ss, char *data)
 	if (!new)
 		return -EINVAL;
 
-	json_object_object_get_ex(new, TAG_NQN, &value);
-	if (value)
-		json_set_string(iter, TAG_NQN, json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_ALLOW_ALL, &value);
-	if (value)
-		json_set_int(iter, TAG_ALLOW_ALL, json_object_get_int(value));
+	json_update_string(iter, new, TAG_NQN, value);
+	json_update_int(iter, new, TAG_ALLOW_ALL, value);
 
 	return 0;
 }
@@ -800,6 +774,7 @@ int rename_subsys(void *context, char *alias, char *old, char *new)
 	struct json_object *iter;
 	struct json_object *array;
 	struct json_object *obj;
+	struct json_object *tmp;
 	int i;
 	int idx;
 
@@ -831,17 +806,14 @@ int set_acl(void *context, char *nqn, char *ss, char *data)
 	struct json_object *array;
 	struct json_object *new;
 	struct json_object *value;
+	struct json_object *tmp;
 	int i;
 
 	i = find_array(parent, TAG_NQN, nqn, &obj);
 	if (i < 0)
 		return -ENOENT;
 
-	json_object_object_get_ex(obj, TAG_ACL, &array);
-	if (!array) {
-		array = json_object_new_array();
-		json_object_object_add(obj, TAG_ACL, array);
-	}
+	json_get_array(obj, TAG_ACL, array);
 
 	i = find_array(array, TAG_NQN, ss, &iter);
 	if (i < 0) {
@@ -854,13 +826,8 @@ int set_acl(void *context, char *nqn, char *ss, char *data)
 	if (!new)
 		return -EINVAL;
 
-	json_object_object_get_ex(new, TAG_NQN, &value);
-	if (value)
-		json_set_string(iter, TAG_NQN, json_object_get_string(value));
-
-	json_object_object_get_ex(new, TAG_ACCESS, &value);
-	if (value)
-		json_set_int(iter, TAG_ACCESS, json_object_get_int(value));
+	json_update_string(iter, new, TAG_NQN, value);
+	json_update_int(iter, new, TAG_ACCESS, value);
 
 	return 0;
 }
