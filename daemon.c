@@ -28,6 +28,8 @@ static void *json_ctx;
 static int s_sig_num;
 static int poll_timeout = 100;
 
+int debug;
+
 /*
  *  trtypes
  *	[NVMF_TRTYPE_RDMA]	= "rdma",
@@ -68,13 +70,13 @@ int count_dem_config_files()
 			filecount++;
 		}
 	} else {
-		printf("%s does not exist\n", PATH_NVMF_DEM_DISC);
+		fprintf(stderr, "%s does not exist\n", PATH_NVMF_DEM_DISC);
 		filecount = -ENOENT;
 	}
 
 	closedir(dir);
 
-	printf("Found %d files\n", filecount);
+	print_debug("Found %d files", filecount);
 
 	return filecount;
 }
@@ -97,13 +99,13 @@ int read_dem_config_files(struct dem_interface *iface)
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
-		printf("path = %s\n", config_file);
+		print_debug("path = %s", config_file);
 		if ((fid = fopen(config_file,"r")) != NULL){
 			char buf[CONFIG_MAX_LINE];
 			char *str;
 			int configinfo = 0;
 
-			printf("Opening %s\n",config_file);
+			print_debug("Opening %s",config_file);
 			while (1) {
 				fgets(buf, CONFIG_MAX_LINE, fid);
 
@@ -119,8 +121,8 @@ int read_dem_config_files(struct dem_interface *iface)
 					strncpy(iface[count].trtype, str,
 						CONFIG_TYPE_SIZE);
 					configinfo++;
-					printf("%s %s\n", config_file,
-					       iface[count].trtype);
+					print_debug("%s %s", config_file,
+						    iface[count].trtype);
 					continue;
 				}
 				if (!strcmp(str, "Family")) {
@@ -128,8 +130,8 @@ int read_dem_config_files(struct dem_interface *iface)
 					strncpy(iface[count].addrfam, str,
 						CONFIG_FAMILY_SIZE);
 					configinfo++;
-					printf("%s %s\n",config_file,
-					       iface[count].addrfam);
+					print_debug("%s %s",config_file,
+						    iface[count].addrfam);
 					continue;
 				}
 				if (!strcmp(str, "Address")) {
@@ -137,8 +139,8 @@ int read_dem_config_files(struct dem_interface *iface)
 					strncpy(iface[count].hostaddr, str,
 						CONFIG_ADDRESS_SIZE);
 					configinfo++;
-					printf("%s %s\n",config_file,
-					       iface[count].hostaddr);
+					print_debug("%s %s",config_file,
+						    iface[count].hostaddr);
 					continue;
 				}
 			}
@@ -276,9 +278,14 @@ int main(int argc, char *argv[])
 
 	s_http_server_opts.document_root = NULL;
 
+	debug = 0;
+
 	/* Process CLI options for HTTP server */
-	while ((opt = getopt(argc, argv, "dp:s:r:")) != -1) {
+	while ((opt = getopt(argc, argv, "Ddp:s:r:")) != -1) {
 		switch (opt) {
+		case 'D':
+			debug = 1;
+			break;
 		case 'd':
 			run_as_daemon = 1;
 			break;
@@ -347,9 +354,8 @@ help:
 	if (!json_ctx)
 		return 1;
 
-	printf("Starting server on port %s, serving %s\n",
-	       s_http_port, s_http_server_opts.document_root);
-	fflush(stdout);
+	print_info("Starting server on port %s, serving '%s'",
+		    s_http_port, s_http_server_opts.document_root);
 
 	s_sig_num = 0;
 
