@@ -69,26 +69,50 @@ struct json_context {
 	else json_add_int(x, y, z); \
 	} while (0)
 #define json_get_subgroup(x, y, z) do { \
-	json_object_object_get_ex(x, y, &z); \
-	if (!z) { \
-		z = json_object_new_object(); \
-		json_object_object_add(x, y, z); \
-	  } \
+	    if (json_object_get_type(x) == json_type_object) { \
+		json_object_object_get_ex(x, y, &z); \
+		if (!z) { \
+			z = json_object_new_object(); \
+			json_object_object_add(x, y, z); \
+		} else if ( json_object_get_type(z) != json_type_object ) \
+			fprintf(stderr, "%s(%d) Bad Target expect object\n", \
+				__func__, __LINE__); \
+	  } else \
+		fprintf(stderr, "%s(%d) Bad Group Object\n", \
+			__func__, __LINE__); \
 	} while (0)
 #define json_get_array(x, y, z) do { \
-	json_object_object_get_ex(x, y, &z); \
-	if (!z) { \
-		z = json_object_new_array(); \
-		json_object_object_add(x, y, z); \
-	  } \
+	    if (json_object_get_type(x) == json_type_object) { \
+		json_object_object_get_ex(x, y, &z); \
+		if (!z) { \
+			z = json_object_new_array(); \
+			json_object_object_add(x, y, z); \
+		} else if ( json_object_get_type(z) != json_type_array ) \
+			fprintf(stderr, "%s(%d) Bad Target expect array\n", \
+				__func__, __LINE__); \
+	  } else \
+		fprintf(stderr, "%s(%d) Bad Group Object\n", \
+			__func__, __LINE__); \
 	} while (0)
 #define json_update_string(w, x, y, z) do { \
-		json_object_object_get_ex(x, y, &z); \
-		if (z) json_set_string(w, y, json_object_get_string(z)); \
+	  json_object_object_get_ex(x, y, &z); \
+	  if (z) { \
+		if (json_object_get_type(x) == json_type_object) \
+			json_set_string(w, y, json_object_get_string(z)); \
+		else \
+			fprintf(stderr, "%s(%d) Bad type\n", \
+			       __func__, __LINE__); \
+	  } \
 	} while (0)
 #define json_update_int(w, x, y, z) do { \
-		json_object_object_get_ex(x, y, &z); \
-		if (z) json_set_int(w, y, json_object_get_int(z)); \
+	  json_object_object_get_ex(x, y, &z); \
+	  if (z) { \
+		if (json_object_get_type(x) == json_type_object) \
+			json_set_int(w, y, json_object_get_int(z)); \
+		else \
+			fprintf(stderr, "%s(%d) Bad type\n", \
+			       __func__, __LINE__); \
+	  } \
 	} while (0)
 
 /* helper functions */

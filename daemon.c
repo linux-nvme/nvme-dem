@@ -15,12 +15,11 @@
 #include "mongoose.h"
 #include <pthread.h>
 #include <dirent.h>
-#include <unistd.h>
 
 #include "common.h"
 
-#define PATH_NVMF_DEM_DISC          "/etc/nvme/nvmeof-dem/"
-#define NUM_CONFIG_ITEMS            3
+#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
+#define NUM_CONFIG_ITEMS	3
 
 /*For setting server options - e.g., SSL, document root, ...*/
 static struct mg_serve_http_opts s_http_server_opts;
@@ -30,130 +29,138 @@ static int s_sig_num;
 static int poll_timeout = 100;
 
 /*
-trtypes
-        [NVMF_TRTYPE_RDMA]      = "rdma",
-        [NVMF_TRTYPE_FC]        = "fibre-channel",
-        [NVMF_TRTYPE_LOOP]      = "loop",
- 
-adrfam
-        [NVMF_ADDR_FAMILY_IP4]  = "ipv4",
-        [NVMF_ADDR_FAMILY_IP6]  = "ipv6",
-        [NVMF_ADDR_FAMILY_IB]   = "infiniband",
-        [NVMF_ADDR_FAMILY_FC]   = "fibre-channel",
-*/
- 
+ *  trtypes
+ *	[NVMF_TRTYPE_RDMA]	= "rdma",
+ *	[NVMF_TRTYPE_FC]	= "fibre-channel",
+ *	[NVMF_TRTYPE_LOOP]	= "loop",
+ *
+ *  adrfam
+ *	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
+ *	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
+ *	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
+ *	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
+ */
+
 /*HACK*/
+#define CONFIG_TYPE_SIZE	8
+#define CONFIG_FAMILY_SIZE	8
+#define CONFIG_ADDRESS_SIZE	64
+#define CONFIG_MAX_LINE		256
+
 struct  dem_interface {
-        char trtype[13];
-        char addrfam[13];
-        char hostaddr[15];
+	char trtype[CONFIG_TYPE_SIZE + 1];
+	char addrfam[CONFIG_FAMILY_SIZE + 1];
+	char hostaddr[CONFIG_ADDRESS_SIZE + 1];
 };
 
 int count_dem_config_files()
 {
-        struct dirent *entry;
-        DIR *dir;
-        int filecount = 0;
-        dir = opendir(PATH_NVMF_DEM_DISC);
-        if (dir != NULL) {
-                while ((entry = readdir(dir))) {
-                        if (!strcmp(entry->d_name,"."))
-                                continue;
-                        if (!strcmp(entry->d_name,".."))
-                                continue;
-                        filecount++;
-                }
-        } else {
-                printf("%s does not exist\n", PATH_NVMF_DEM_DISC);
-                filecount = -ENOENT;
-        }
- 
-        closedir(dir);
- 
-        printf("dealing with %d files\n", filecount);
- 
-        return filecount;
+	struct dirent *entry;
+	DIR *dir;
+	int filecount = 0;
+	dir = opendir(PATH_NVMF_DEM_DISC);
+	if (dir != NULL) {
+		while ((entry = readdir(dir))) {
+			if (!strcmp(entry->d_name,"."))
+				continue;
+			if (!strcmp(entry->d_name,".."))
+				continue;
+			filecount++;
+		}
+	} else {
+		printf("%s does not exist\n", PATH_NVMF_DEM_DISC);
+		filecount = -ENOENT;
+	}
+
+	closedir(dir);
+
+	printf("Found %d files\n", filecount);
+
+	return filecount;
 }
 
-int read_dem_config_files(struct dem_interface *interface)
+int read_dem_config_files(struct dem_interface *iface)
 {
-        struct dirent *entry;
-        DIR *dir;
-        int ret = 0;
-        char config_file[1024];
-        FILE *fid;
-        int count = 0;
- 
-        dir = opendir(PATH_NVMF_DEM_DISC);
-        while ((entry = readdir(dir))) {
-                if (!strcmp(entry->d_name,"."))
-                        continue;
-                if (!strcmp(entry->d_name,".."))
-                        continue;
+	struct dirent *entry;
+	DIR *dir;
+	int ret = 0;
+	char config_file[FILENAME_MAX+1];
+	FILE *fid;
+	int count = 0;
 
-                snprintf(config_file, sizeof(config_file), "%s%s",
+	dir = opendir(PATH_NVMF_DEM_DISC);
+	while ((entry = readdir(dir))) {
+		if (!strcmp(entry->d_name,"."))
+			continue;
+		if (!strcmp(entry->d_name,".."))
+			continue;
+		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
- 
-                printf("path = %s\n", config_file);
-                if((fid = fopen(config_file,"r")) != NULL){
-                        char buf[100];
-                        char *str;
-                        int configinfo = 0;
- 
-                        printf("Opening %s\n",config_file);
-                        while (1) {
-                                fgets(buf, 100, fid);
- 
-                                if (feof(fid))
-                                        break;
- 
-                                if (buf[0] == '#') //skip comments
-                                        continue;
 
-                                str = strtok(buf, "=,\t");
-                                        if(!strcmp(str, "Type")) {
-                                                str = strtok(NULL, "=");
-                                                strcpy(interface[count].trtype, str);
-                                                configinfo++;
-                                                printf("%s %s\n", config_file,
-						       interface[count].trtype);
-                                                continue;
-                                        }
-                                        if(!strcmp(str, "Family")) {
-                                                str = strtok(NULL, "=");
-                                                strcpy(interface[count].addrfam, str);
-                                                configinfo++;
-                                                printf("%s %s\n",config_file,
-						       interface[count].addrfam);
-                                                continue;
-                                        }
-                                        if(!strcmp(str, "Address")) {
-                                                str = strtok(NULL, "=");
-                                                strcpy(interface[count].hostaddr, str);
-                                                configinfo++;
-                                                printf("%s %s\n",config_file,
-						       interface[count].hostaddr);
-                                                continue;
-                                        }
-                        }
-                        fclose(fid);
- 
-                        if (configinfo != NUM_CONFIG_ITEMS)
-                                fprintf(stderr, "%s: bad config file. Igoring interface.\n",
-					config_file);
-                        else
-                                count++;
-                } else {
-                        fprintf(stderr, "failed to open config file %s\n", config_file);
-                        ret = -ENOENT;
-                        goto out;
-                }
-        }
+		printf("path = %s\n", config_file);
+		if ((fid = fopen(config_file,"r")) != NULL){
+			char buf[CONFIG_MAX_LINE];
+			char *str;
+			int configinfo = 0;
+
+			printf("Opening %s\n",config_file);
+			while (1) {
+				fgets(buf, CONFIG_MAX_LINE, fid);
+
+				if (feof(fid))
+					break;
+
+				if (buf[0] == '#') //skip comments
+					continue;
+
+				str = strtok(buf, "= \t");
+				if (!strcmp(str, "Type")) {
+					str = strtok(NULL, " \n\t");
+					strncpy(iface[count].trtype, str,
+						CONFIG_TYPE_SIZE);
+					configinfo++;
+					printf("%s %s\n", config_file,
+					       iface[count].trtype);
+					continue;
+				}
+				if (!strcmp(str, "Family")) {
+					str = strtok(NULL, " \n\t");
+					strncpy(iface[count].addrfam, str,
+						CONFIG_FAMILY_SIZE);
+					configinfo++;
+					printf("%s %s\n",config_file,
+					       iface[count].addrfam);
+					continue;
+				}
+				if (!strcmp(str, "Address")) {
+					str = strtok(NULL, " \n\t");
+					strncpy(iface[count].hostaddr, str,
+						CONFIG_ADDRESS_SIZE);
+					configinfo++;
+					printf("%s %s\n",config_file,
+					       iface[count].hostaddr);
+					continue;
+				}
+			}
+			fclose(fid);
+
+			if (configinfo != NUM_CONFIG_ITEMS)
+				fprintf(stderr, "%s: bad config file."
+					" Ignoring interface.\n", config_file);
+			else
+				count++;
+		} else {
+			fprintf(stderr, "Failed to open config file %s\n",
+				config_file);
+			ret = -ENOENT;
+			goto out;
+		}
+	}
 out:
-        closedir(dir);
-        return ret;
+	closedir(dir);
+	return ret;
 }
- 
+
 void shutdown_dem()
 {
 	s_sig_num = 1;
@@ -184,10 +191,8 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	}
 }
 
-static void *poll_loop(void *p)
+static void *poll_loop(struct mg_mgr *mgr)
 {
-	struct mg_mgr *mgr = p;
-
 	s_sig_num = 0;
 
 	signal(SIGINT, signal_handler);
@@ -201,13 +206,50 @@ static void *poll_loop(void *p)
 	return NULL;
 }
 
-static void *transport_loop(void *p)
+static void *xport_loop(void *p)
 {
-        if (p != NULL) p = NULL;  //TEMP
- 
-        return NULL;
+	if (p != NULL) p = NULL;  //TEMP
+
+	return NULL;
 }
- 
+
+static int daemonize(void)
+{
+	pid_t pid, sid;
+
+	if (getuid() != 0) {
+		fprintf(stderr, "Must be root to run dem as a daemon\n");
+		return -1;
+	}
+
+	pid = fork();
+	if (pid < 0) {
+		fprintf(stderr, "fork failed %d\n", pid);
+		return pid;
+	}
+
+	if (pid) /* if parent, exit to allow child to run as daemon */
+		exit(0);
+
+	umask(0022);
+
+	sid = setsid();
+	if (sid < 0) {
+		fprintf(stderr, "setsid failed %d\n", sid);
+		return sid;
+	}
+
+	if ((chdir("/")) < 0) {
+		fprintf(stderr, "could not change dir to /\n");
+		return -1;
+	}
+
+	freopen("/var/log/dem_debug.log", "a", stdout);
+	freopen("/var/log/dem.log", "a", stderr);
+
+	return 0;
+}
+
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -220,12 +262,12 @@ int main(int argc, char *argv[])
 #if MG_ENABLE_SSL
 	const char		*ssl_cert = NULL;
 #endif
-        pthread_attr_t          pthread_attr;
-        pthread_t               poll_pthread;
-        pthread_t               transport_pthread;
-        int                     ret;
-        int                     filecount;
-        struct dem_interface    *interfaces;
+	pthread_attr_t		pthread_attr;
+	pthread_t		xport_pthread;
+	int			ret;
+	int			run_as_daemon = 0;
+	int			filecount;
+	struct dem_interface    *interfaces;
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
@@ -235,8 +277,11 @@ int main(int argc, char *argv[])
 	s_http_server_opts.document_root = NULL;
 
 	/* Process CLI options for HTTP server */
-	while ((opt = getopt(argc, argv, "p:s:r:")) != -1) {
+	while ((opt = getopt(argc, argv, "dp:s:r:")) != -1) {
 		switch (opt) {
+		case 'd':
+			run_as_daemon = 1;
+			break;
 		case 'r':
 			s_http_server_opts.document_root = optarg;
 			break;
@@ -253,8 +298,14 @@ int main(int argc, char *argv[])
 help:
 			fprintf(stderr, "Usage: %s %s\n", argv[0],
 				"{-r <root>} {-p <port>} {-s <ssl_cert>}\n");
-			exit(1);
+			return 1;
 		}
+	}
+
+	if (run_as_daemon) {
+		ret = daemonize();
+		if (ret)
+			return 1;
 	}
 
 	/* Use current binary directory as document root */
@@ -278,55 +329,47 @@ help:
 	if (c == NULL) {
 		fprintf(stderr, "Error starting server on port %s: %s\n",
 			s_http_port, *bind_opts.error_string);
-		exit(1);
+		return 1;
 	}
 
 	mg_set_protocol_http_websocket(c);
- 
-        filecount = count_dem_config_files();
-        if (filecount < 0)
-                return filecount;
- 
-        interfaces = calloc(filecount, sizeof (struct dem_interface));
-        ret = read_dem_config_files(interfaces);
-        if (ret)
-                exit(1);
- 
+
+	filecount = count_dem_config_files();
+	if (filecount < 0)
+		return filecount;
+
+	interfaces = calloc(filecount, sizeof (struct dem_interface));
+	ret = read_dem_config_files(interfaces);
+	if (ret)
+		return 1;
+
 	json_ctx = init_json("config.json");
 	if (!json_ctx)
 		return 1;
 
 	printf("Starting server on port %s, serving %s\n",
-		s_http_port, s_http_server_opts.document_root);
+	       s_http_port, s_http_server_opts.document_root);
+	fflush(stdout);
 
-        s_sig_num = 0;
- 
-        signal(SIGSEGV, signal_handler);
-        signal(SIGINT, signal_handler);
-        signal(SIGTERM, signal_handler);
- 
-        pthread_attr_init(&pthread_attr);
+	s_sig_num = 0;
 
-        pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_DETACHED);
-        if (pthread_create(&poll_pthread, &pthread_attr, poll_loop, &mgr)) {
-                fprintf(stderr, "Error starting poll thread\n");
-                exit(1);
-        }
- 
-        /*TODO: change to pass interfaces and filecount<?> rather than "mgr"*/
-        if (pthread_create(&transport_pthread, &pthread_attr, transport_loop, &mgr)) {
-                fprintf(stderr, "Error starting transport thread\n");
-                exit(1);
-        }
- 
-        while (s_sig_num == 0)
-                usleep(200);
+	signal(SIGSEGV, signal_handler);
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 
-	usleep(500);
+	pthread_attr_init(&pthread_attr);
 
-        pthread_kill(poll_pthread, s_sig_num);
-        pthread_kill(transport_pthread, s_sig_num);
-        free(interfaces);
+	/*TODO: change to pass interfaces and filecount<?> */
+	if (pthread_create(&xport_pthread, &pthread_attr, xport_loop, NULL)) {
+		fprintf(stderr, "Error starting transport thread\n");
+		return 1;
+	}
+
+	poll_loop(&mgr);
+
+	pthread_kill(xport_pthread, s_sig_num);
+
+	free(interfaces);
 
 	cleanup_json(json_ctx);
 

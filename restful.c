@@ -448,6 +448,11 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 		goto out1;
 	}
 
+	printf("\n%.*s %.*s\n", (int) hm->method.len, hm->method.p,
+		(int) hm->uri.len, hm->uri.p);
+	if (hm->body.len)
+		printf("%.*s\n", (int) hm->body.len, hm->body.p);
+
 	memset(resp, 0, BODY_SZ);
 
 	if (strncmp(target, TARGET_DEM, DEM_LEN) == 0)
