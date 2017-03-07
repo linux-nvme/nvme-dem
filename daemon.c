@@ -22,7 +22,8 @@
 #define NUM_CONFIG_ITEMS	3
 
 /*For setting server options - e.g., SSL, document root, ...*/
-static struct mg_serve_http_opts s_http_server_opts;
+static struct mg_serve_http_opts  s_http_server_opts;
+char				 *s_http_port = "22345";
 
 static void *json_ctx;
 static int s_sig_num;
@@ -30,36 +31,12 @@ static int poll_timeout = 100;
 
 int debug;
 
-/*
- *  trtypes
- *	[NVMF_TRTYPE_RDMA]	= "rdma",
- *	[NVMF_TRTYPE_FC]	= "fibre-channel",
- *	[NVMF_TRTYPE_LOOP]	= "loop",
- *
- *  adrfam
- *	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
- *	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
- *	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
- *	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
- */
-
-/*HACK*/
-#define CONFIG_TYPE_SIZE	8
-#define CONFIG_FAMILY_SIZE	8
-#define CONFIG_ADDRESS_SIZE	64
-#define CONFIG_MAX_LINE		256
-
-struct  dem_interface {
-	char trtype[CONFIG_TYPE_SIZE + 1];
-	char addrfam[CONFIG_FAMILY_SIZE + 1];
-	char hostaddr[CONFIG_ADDRESS_SIZE + 1];
-};
-
 int count_dem_config_files()
 {
-	struct dirent *entry;
-	DIR *dir;
-	int filecount = 0;
+	struct dirent	*entry;
+	DIR		*dir;
+	int		 filecount = 0;
+
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	if (dir != NULL) {
 		while ((entry = readdir(dir))) {
@@ -81,14 +58,14 @@ int count_dem_config_files()
 	return filecount;
 }
 
-int read_dem_config_files(struct dem_interface *iface)
+int read_dem_config_files(struct interface *iface)
 {
-	struct dirent *entry;
-	DIR *dir;
-	int ret = 0;
-	char config_file[FILENAME_MAX+1];
-	FILE *fid;
-	int count = 0;
+	struct dirent	*entry;
+	DIR		*dir;
+	int		 ret = 0;
+	char		 config_file[FILENAME_MAX+1];
+	FILE		*fid;
+	int		 count = 0;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	while ((entry = readdir(dir))) {
@@ -104,6 +81,8 @@ int read_dem_config_files(struct dem_interface *iface)
 			char buf[CONFIG_MAX_LINE];
 			char *str;
 			int configinfo = 0;
+			
+			strcpy(iface[count].netmask, "255.255.255.0"); //default
 
 			print_debug("Opening %s",config_file);
 			while (1) {
@@ -143,6 +122,13 @@ int read_dem_config_files(struct dem_interface *iface)
 						    iface[count].hostaddr);
 					continue;
 				}
+				if (!strcmp(str, "Netmask")) {
+					str = strtok(NULL, " \t\n");
+					strncpy(iface[count].netmask, str,
+						CONFIG_ADDRESS_SIZE);
+					print_debug("%s %s", config_file,
+						    iface[count].netmask);
+				}
 			}
 			fclose(fid);
 
@@ -150,7 +136,7 @@ int read_dem_config_files(struct dem_interface *iface)
 				fprintf(stderr, "%s: bad config file."
 					" Ignoring interface.\n", config_file);
 			else
-				count++;
+				count++; /* TODO - readress algorithm to prevent duplicate fields */
 		} else {
 			fprintf(stderr, "Failed to open config file %s\n",
 				config_file);
@@ -161,6 +147,26 @@ int read_dem_config_files(struct dem_interface *iface)
 out:
 	closedir(dir);
 	return ret;
+}
+
+int init_interfaces(struct interface **interfaces)
+{
+	int count;
+	int ret;
+	struct interface *iface;
+
+	count = count_dem_config_files();
+	if (count < 0)
+		return count;
+
+	iface = calloc(count, sizeof (struct interface));
+	ret = read_dem_config_files(iface);
+	if (ret)
+		return -1;
+
+	*interfaces = iface;
+
+	return count;
 }
 
 void shutdown_dem()
@@ -252,31 +258,15 @@ static int daemonize(void)
 	return 0;
 }
 
-int main(int argc, char *argv[])
+int init_dem(int argc, char *argv[],  char **ssl_cert)
 {
-	struct mg_mgr		 mgr;
-	struct mg_connection	*c;
-	struct mg_bind_opts	 bind_opts;
-	int			 opt;
-	const char		*err_str;
-	char			*cp;
-	char			*s_http_port = "12345";
-#if MG_ENABLE_SSL
-	const char		*ssl_cert = NULL;
-#endif
-	pthread_attr_t		pthread_attr;
-	pthread_t		xport_pthread;
-	int			ret;
-	int			run_as_daemon = 0;
-	int			filecount;
-	struct dem_interface    *interfaces;
+	int	opt;
+	int	run_as_daemon;			
+
+	*ssl_cert = NULL;
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
-
-	mg_mgr_init(&mgr, NULL);
-
-	s_http_server_opts.document_root = NULL;
 
 	debug = 0;
 
@@ -297,9 +287,7 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Using port %s\n", s_http_port);
 			break;
 		case 's':
-#if MG_ENABLE_SSL
-			ssl_cert = optarg;
-#endif
+			*ssl_cert = optarg;
 			break;
 		default:
 help:
@@ -310,17 +298,29 @@ help:
 	}
 
 	if (run_as_daemon) {
-		ret = daemonize();
-		if (ret)
+		if (daemonize())
 			return 1;
 	}
 
+	return 0;
+}
+
+int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
+{
+	struct mg_connection	*c;
+	struct mg_bind_opts	 bind_opts;
+	char			*cp;
+	const char		*err_str;
+	
+	mg_mgr_init(mgr, NULL);
+	s_http_server_opts.document_root = NULL;
+
 	/* Use current binary directory as document root */
 	if (!s_http_server_opts.document_root) {
-		cp = strrchr(argv[0], DIRSEP);
+		cp = strrchr(prog, DIRSEP);
 		if (cp != NULL) {
 			*cp = '\0';
-			s_http_server_opts.document_root = argv[0];
+			s_http_server_opts.document_root = prog;
 		}
 	}
 
@@ -328,11 +328,14 @@ help:
 	memset(&bind_opts, 0, sizeof(bind_opts));
 	bind_opts.error_string = &err_str;
 
-#if MG_ENABLE_SSL
+#ifdef SSL_CERT
 	if (ssl_cert != NULL)
 		bind_opts.ssl_cert = ssl_cert;
+#else
+	(void) ssl_cert;
 #endif
-	c = mg_bind_opt(&mgr, s_http_port, ev_handler, bind_opts);
+
+	c = mg_bind_opt(mgr, s_http_port, ev_handler, bind_opts);
 	if (c == NULL) {
 		fprintf(stderr, "Error starting server on port %s: %s\n",
 			s_http_port, *bind_opts.error_string);
@@ -341,21 +344,29 @@ help:
 
 	mg_set_protocol_http_websocket(c);
 
-	filecount = count_dem_config_files();
-	if (filecount < 0)
-		return filecount;
 
-	interfaces = calloc(filecount, sizeof (struct dem_interface));
-	ret = read_dem_config_files(interfaces);
-	if (ret)
-		return 1;
+	return 0;
+}
 
-	json_ctx = init_json("config.json");
-	if (!json_ctx)
-		return 1;
+void cleanup_threads(pthread_t *xport_pthread, int count)
+{
+	int i;
 
-	print_info("Starting server on port %s, serving '%s'",
-		    s_http_port, s_http_server_opts.document_root);
+	for (i = 0; i < count; i++)
+		pthread_kill(xport_pthread[i], s_sig_num);
+
+	free(xport_pthread);
+}
+
+int init_threads(pthread_t **xport_pthread, int count)
+{
+	pthread_attr_t		 pthread_attr;
+	pthread_t		*pthreads;
+	int			 i;
+
+	pthreads = calloc(count, sizeof(pthread_t));
+	if (!pthreads)
+		return -ENOMEM;
 
 	s_sig_num = 0;
 
@@ -365,15 +376,49 @@ help:
 
 	pthread_attr_init(&pthread_attr);
 
-	/*TODO: change to pass interfaces and filecount<?> */
-	if (pthread_create(&xport_pthread, &pthread_attr, xport_loop, NULL)) {
-		fprintf(stderr, "Error starting transport thread\n");
-		return 1;
+	for (i = 0; i < count; i++) {
+		/*TODO: change to pass interfaces and num_interfaces<?> */
+		if (pthread_create(&pthreads[i], &pthread_attr, xport_loop, NULL)) {
+			fprintf(stderr, "Error starting transport thread\n");
+			free(pthreads);
+			return 1;
+		}
 	}
 
+	*xport_pthread = pthreads;	
+
+	return 0;
+}
+
+int main(int argc, char *argv[])
+{
+	struct mg_mgr		 mgr;
+	char			*ssl_cert = NULL;
+	pthread_t		*xport_pthread;
+	int			 num_interfaces;
+	struct interface	*interfaces;
+
+	if (init_dem(argc, argv, &ssl_cert))
+		return 1;
+	
+	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
+		return 1;
+
+	num_interfaces = init_interfaces(&interfaces);
+
+	json_ctx = init_json("config.json");
+	if (!json_ctx)
+		return 1;
+
+	print_info("Starting server on port %s, serving '%s'",
+		    s_http_port, s_http_server_opts.document_root);
+
+	if (init_threads(&xport_pthread, num_interfaces))
+		return 1;
+ 
 	poll_loop(&mgr);
 
-	pthread_kill(xport_pthread, s_sig_num);
+	cleanup_threads(xport_pthread, num_interfaces);
 
 	free(interfaces);
 

@@ -34,3 +34,56 @@ extern int debug;
 	fprintf(stderr, "%s(%d) Error: " f "\n", __func__, __LINE__, ##x); \
 	fflush(stderr); \
 	} while (0)
+
+/*
+ *  trtypes
+ *	[NVMF_TRTYPE_RDMA]	= "rdma",
+ *	[NVMF_TRTYPE_FC]	= "fc",
+ *	[NVMF_TRTYPE_LOOP]	= "loop",
+ *
+ *  adrfam
+ *	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
+ *	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
+ *	[NVMF_ADDR_FAMILY_IB]	= "ib",
+ *	[NVMF_ADDR_FAMILY_FC]	= "fc",
+ */
+
+/*HACK*/
+#define CONFIG_TYPE_SIZE	8
+#define CONFIG_FAMILY_SIZE	8
+#define CONFIG_ADDRESS_SIZE	64	/* TODO: ensure large enough for FC */
+#define CONFIG_MAX_LINE		256
+#define MAX_NQN			64	
+
+enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
+enum {RESTRICTED = 0, ALOW_ALL = 1};
+
+struct host {
+	char			nqn[MAX_NQN + 1];
+	int			access;
+};
+
+struct subsystem {
+	char			 nqn[MAX_NQN + 1];
+	int			 access;
+	struct host		*host_list;
+};
+
+struct controller {
+	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	struct subsystem	*subsystem_list;
+	int			 num_subsystems;
+	void			*log_pages;
+	int			 num_logpages;
+};
+
+struct  interface {
+	char			 trtype[CONFIG_TYPE_SIZE + 1];
+	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	char			 hostaddr[CONFIG_ADDRESS_SIZE + 1];
+	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
+	struct controller	*controller_list;
+	int			 num_controllers;
+};
+
