@@ -6,7 +6,7 @@ CFLAGS += -lpthread
 GDB_OPTS = -g -O0
 
 CLI_SRC = cli.c curl.c show.c
-DAEMON_SRC = daemon.c json.c restful.c mongoose.c
+DAEMON_SRC = daemon.c json.c restful.c mongoose.c parse.c
 DAEMON_INC = json.h common.h mongoose.h
 
 all: demd dem config.json

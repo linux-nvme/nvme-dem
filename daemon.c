@@ -1,5 +1,5 @@
 /*
- * Distributed Endpoint Manager.
+ * NVMe over Fabrics Distributed Endpoint Manager (NVMe-oF DEM).
  * Copyright (c) 2017 Intel Corporation., Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -18,18 +18,14 @@
 
 #include "common.h"
 
-#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
-#define NUM_CONFIG_ITEMS	3
-
 /*For setting server options - e.g., SSL, document root, ...*/
 static struct mg_serve_http_opts  s_http_server_opts;
-char				 *s_http_port = "22345";
+char				 *s_http_port = "12345";
 
-static void *json_ctx;
-static int s_sig_num;
-static int poll_timeout = 100;
-
-int debug;
+static void			 *json_ctx;
+static int			  s_sig_num;
+static int			  poll_timeout = 100;
+int				  debug;
 
 int count_dem_config_files()
 {
@@ -62,10 +58,10 @@ int read_dem_config_files(struct interface *iface)
 {
 	struct dirent	*entry;
 	DIR		*dir;
-	int		 ret = 0;
-	char		 config_file[FILENAME_MAX+1];
 	FILE		*fid;
+	char		 config_file[FILENAME_MAX+1];
 	int		 count = 0;
+	int		 ret = 0;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	while ((entry = readdir(dir))) {
@@ -78,72 +74,56 @@ int read_dem_config_files(struct interface *iface)
 
 		print_debug("path = %s", config_file);
 		if ((fid = fopen(config_file,"r")) != NULL){
-			char buf[CONFIG_MAX_LINE];
-			char *str;
-			int configinfo = 0;
-			
-			strcpy(iface[count].netmask, "255.255.255.0"); //default
-
+			char tag[20];
+			char val[64];
+		
 			print_debug("Opening %s",config_file);
-			while (1) {
-				fgets(buf, CONFIG_MAX_LINE, fid);
 
-				if (feof(fid))
-					break;
-
-				if (buf[0] == '#') //skip comments
+			iface[count].interface_id = count;
+			while (!feof(fid)) {
+				ret = parse_line(fid, tag, sizeof(tag) -1, val, sizeof(val) -1);
+				if (ret)
 					continue;
-
-				str = strtok(buf, "= \t");
-				if (!strcmp(str, "Type")) {
-					str = strtok(NULL, " \n\t");
-					strncpy(iface[count].trtype, str,
-						CONFIG_TYPE_SIZE);
-					configinfo++;
-					print_debug("%s %s", config_file,
-						    iface[count].trtype);
+				if (!strcmp(tag, "Type")) {
+					strncpy(iface[count].trtype, val, CONFIG_TYPE_SIZE);
+					print_debug("%s %s", tag, iface[count].trtype);
 					continue;
 				}
-				if (!strcmp(str, "Family")) {
-					str = strtok(NULL, " \n\t");
-					strncpy(iface[count].addrfam, str,
-						CONFIG_FAMILY_SIZE);
-					configinfo++;
-					print_debug("%s %s",config_file,
-						    iface[count].addrfam);
+				if (!strcmp(tag, "Family")) {
+					strncpy(iface[count].addrfam, val, CONFIG_FAMILY_SIZE);
+					print_debug("%s %s",tag, iface[count].addrfam);
 					continue;
 				}
-				if (!strcmp(str, "Address")) {
-					str = strtok(NULL, " \n\t");
-					strncpy(iface[count].hostaddr, str,
-						CONFIG_ADDRESS_SIZE);
-					configinfo++;
-					print_debug("%s %s",config_file,
-						    iface[count].hostaddr);
+				if (!strcmp(tag, "Address")) {
+					strncpy(iface[count].hostaddr, val, CONFIG_ADDRESS_SIZE);
+					print_debug("%s %s",tag, iface[count].hostaddr);
 					continue;
 				}
-				if (!strcmp(str, "Netmask")) {
-					str = strtok(NULL, " \t\n");
-					strncpy(iface[count].netmask, str,
-						CONFIG_ADDRESS_SIZE);
-					print_debug("%s %s", config_file,
-						    iface[count].netmask);
+				if (!strcmp(tag, "Netmask")) {
+					strncpy(iface[count].netmask, val, CONFIG_ADDRESS_SIZE);
+					print_debug("%s %s", tag, iface[count].netmask);
 				}
 			}
 			fclose(fid);
-
-			if (configinfo != NUM_CONFIG_ITEMS)
-				fprintf(stderr, "%s: bad config file."
-					" Ignoring interface.\n", config_file);
+	printf("bob\n");
+			if ((!strcmp(iface[count].trtype, "")) || (!strcmp(iface[count].addrfam, "")) ||
+			    (!strcmp(iface[count].hostaddr, "")))
+				fprintf(stderr, "%s: bad config file. Ignoring interface.\n", config_file);
 			else
-				count++; /* TODO - readress algorithm to prevent duplicate fields */
+
+				count++;
 		} else {
-			fprintf(stderr, "Failed to open config file %s\n",
-				config_file);
+			fprintf(stderr, "Failed to open config file %s\n", config_file);
 			ret = -ENOENT;
 			goto out;
 		}
 	}
+
+	if (count == 0) {
+		fprintf(stderr, "No viable interfaces. Exiting\n");
+		ret = -ENODATA;
+	}
+
 out:
 	closedir(dir);
 	return ret;
@@ -151,9 +131,9 @@ out:
 
 int init_interfaces(struct interface **interfaces)
 {
-	int count;
-	int ret;
 	struct interface *iface;
+	int		  count;
+	int		  ret;
 
 	count = count_dem_config_files();
 	if (count < 0)
@@ -216,8 +196,14 @@ static void *poll_loop(struct mg_mgr *mgr)
 
 static void *xport_loop(void *p)
 {
-	if (p != NULL) p = NULL;  //TEMP
+	struct interface *iface = (struct interface *)p;
 
+	fprintf(stderr, "interface id = %d\n", iface->interface_id);
+
+	/*Parse netmask*/
+	/*Read in Target list*/
+	/*Search for Target addresses that match the address family and network/netmask, and*/
+	/*	add that target to the interface's controller list*/ 
 	return NULL;
 }
 
@@ -307,8 +293,8 @@ help:
 
 int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 {
-	struct mg_connection	*c;
 	struct mg_bind_opts	 bind_opts;
+	struct mg_connection	*c;
 	char			*cp;
 	const char		*err_str;
 	
@@ -358,7 +344,7 @@ void cleanup_threads(pthread_t *xport_pthread, int count)
 	free(xport_pthread);
 }
 
-int init_threads(pthread_t **xport_pthread, int count)
+int init_threads(pthread_t **xport_pthread, struct interface *interfaces, int count)
 {
 	pthread_attr_t		 pthread_attr;
 	pthread_t		*pthreads;
@@ -377,8 +363,7 @@ int init_threads(pthread_t **xport_pthread, int count)
 	pthread_attr_init(&pthread_attr);
 
 	for (i = 0; i < count; i++) {
-		/*TODO: change to pass interfaces and num_interfaces<?> */
-		if (pthread_create(&pthreads[i], &pthread_attr, xport_loop, NULL)) {
+		if (pthread_create(&pthreads[i], &pthread_attr, xport_loop, &(interfaces[i]))) {
 			fprintf(stderr, "Error starting transport thread\n");
 			free(pthreads);
 			return 1;
@@ -395,8 +380,8 @@ int main(int argc, char *argv[])
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
 	pthread_t		*xport_pthread;
-	int			 num_interfaces;
 	struct interface	*interfaces;
+	int			 num_interfaces;
 
 	if (init_dem(argc, argv, &ssl_cert))
 		return 1;
@@ -404,16 +389,18 @@ int main(int argc, char *argv[])
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
 		return 1;
 
-	num_interfaces = init_interfaces(&interfaces);
-
 	json_ctx = init_json("config.json");
 	if (!json_ctx)
+		return 1;
+
+	num_interfaces = init_interfaces(&interfaces);
+	if (num_interfaces <=0)
 		return 1;
 
 	print_info("Starting server on port %s, serving '%s'",
 		    s_http_port, s_http_server_opts.document_root);
 
-	if (init_threads(&xport_pthread, num_interfaces))
+	if (init_threads(&xport_pthread, interfaces, num_interfaces))
 		return 1;
  
 	poll_loop(&mgr);
