@@ -42,11 +42,14 @@ extern int debug;
  */
 
 /*HACK*/
-#define PATH_NVMF_DEM_DISC      "/etc/nvme/nvmeof-dem/"
-#define NUM_CONFIG_ITEMS        3
+#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
+#define NUM_CONFIG_ITEMS	3
 #define CONFIG_TYPE_SIZE	8
 #define CONFIG_FAMILY_SIZE	8
 #define CONFIG_ADDRESS_SIZE	40
+#define LARGEST_TAG		8
+#define LARGEST_VAL		40
+
 #define MAX_NQN			64
 
 #ifndef AF_IPV4
@@ -54,13 +57,13 @@ extern int debug;
 #define AF_IPV6			2
 #endif
 
-#define IPV4_ADDR_LEN 4
-#define IPV6_ADDR_LEN 8
-#define FC_ADDR_LEN 8
-#define IPV4_BITS 8
-#define IPV6_BITS 16
-#define IPV4_WIDTH 3
-#define IPV6_WIDTH 4
+#define IPV4_ADDR_LEN		4
+#define IPV6_ADDR_LEN		8
+#define FC_ADDR_LEN		8
+#define IPV4_BITS		8
+#define IPV6_BITS		16
+#define IPV4_WIDTH		3
+#define IPV6_WIDTH		4
 
 enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
 enum {RESTRICTED = 0, ALOW_ALL = 1};

@@ -20,7 +20,7 @@
 
 /*For setting server options - e.g., SSL, document root, ...*/
 static struct mg_serve_http_opts  s_http_server_opts;
-char				 *s_http_port = "12345";
+char				 *s_http_port = "22345";
 
 static void			 *json_ctx;
 static int			  s_sig_num;
@@ -61,7 +61,7 @@ int read_dem_config_files(struct interface *iface)
 	FILE		*fid;
 	char		 config_file[FILENAME_MAX+1];
 	int		 count = 0;
-	int		 ret = 0;
+	int		 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	while ((entry = readdir(dir))) {
@@ -74,8 +74,8 @@ int read_dem_config_files(struct interface *iface)
 
 		print_debug("path = %s", config_file);
 		if ((fid = fopen(config_file,"r")) != NULL){
-			char tag[20];
-			char val[64];
+			char tag[LARGEST_TAG];
+			char val[LARGEST_VAL];
 		
 			print_debug("Opening %s",config_file);
 
@@ -124,6 +124,7 @@ int read_dem_config_files(struct interface *iface)
 		ret = -ENODATA;
 	}
 
+	ret = 0;
 out:
 	closedir(dir);
 	return ret;
