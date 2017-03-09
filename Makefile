@@ -6,13 +6,14 @@ CFLAGS += -lpthread
 GDB_OPTS = -g -O0
 
 CLI_SRC = cli.c curl.c show.c
-DAEMON_SRC = daemon.c json.c restful.c mongoose.c parse.c
-DAEMON_INC = json.h common.h mongoose.h
+CLI_INC = curl.h show.h tags.h
+DAEMON_SRC = daemon.c json.c restful.c mongoose.c parse.c interfaces.c
+DAEMON_INC = json.h common.h mongoose.h tags.h
 
 all: demd dem config.json
 	echo Done.
 
-dem: ${CLI_SRC} Makefile
+dem: ${CLI_SRC} ${CLI_INC} Makefile
 	echo CC $@
 	gcc ${CLI_SRC} -o $@ -lcurl -ljson-c ${GDB_OPTS}
 
