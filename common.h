@@ -125,6 +125,8 @@ void ipv6_mask(int *mask, int bits);
 int ipv4_equal(int *addr, int *dest, int *mask);
 int ipv6_equal(int *addr, int *dest, int *mask);
 
+int init_interfaces(struct interface **interfaces);
+
 // TODO make these real function since FC Bits are only 8 not 16
 #define fc_to_addr	ipv6_to_addr
 #define fc_mask		ipv6_mask
