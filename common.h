@@ -76,6 +76,7 @@ struct host {
 
 struct subsystem {
 	struct subsystem	*next;
+	struct controller	*ctrl;
 	char			 nqn[MAX_NQN + 1];
 	int			 access;
 	struct host		*host_list;
@@ -83,8 +84,9 @@ struct subsystem {
 
 struct controller {
 	struct controller	*next;
-	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	struct interface	*interface;
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[IPV6_ADDR_LEN];
 	struct subsystem	*subsystem_list;
 	int			 num_subsystems;
 	void			*log_pages;
@@ -96,9 +98,9 @@ struct  interface {
 	char			 trtype[CONFIG_TYPE_SIZE + 1];
 	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
 	char			 hostaddr[CONFIG_ADDRESS_SIZE + 1];
-	int			 addr[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[IPV6_ADDR_LEN];
 	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
-	int			 mask[CONFIG_ADDRESS_SIZE + 1];
+	int			 mask[IPV6_ADDR_LEN];
 	struct controller	*controller_list;
 	int			 num_controllers;
 };

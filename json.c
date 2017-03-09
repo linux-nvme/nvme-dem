@@ -877,7 +877,7 @@ static int check_transport(struct interface *iface, struct json_object *grp)
 	family = (strcmp(iface->addrfam, "ipv4") == 0) ? AF_IPV4 :
 		 (strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 : -1;
 	if (family == -1)
-		goto out;	
+		goto out;
 
 	json_object_object_get_ex(grp, TAG_TYPE, &obj);
 	if (!obj)
@@ -893,14 +893,15 @@ static int check_transport(struct interface *iface, struct json_object *grp)
 	json_object_object_get_ex(grp, TAG_ADDRESS, &obj);
 	if (!obj)
 		goto out;
+	str = (char *) json_object_get_string(obj);
 	if (family == AF_IPV4) {
-		ret = ipv4_to_addr((char *) json_object_get_string(obj), addr);
+		ret = ipv4_to_addr(str, addr);
 		if (ret)
 			goto out;
 		if (!ipv4_equal(addr, iface->addr, iface->mask))
 			goto out;
-	} else { 
-		ret = ipv6_to_addr((char *) json_object_get_string(obj), addr);
+	} else {
+		ret = ipv6_to_addr(str, addr);
 		if (ret)
 			goto out;
 		if (!ipv6_equal(addr, iface->addr, iface->mask))
@@ -912,7 +913,12 @@ static int check_transport(struct interface *iface, struct json_object *grp)
 		goto out;
 
 	ctrl->next = iface->controller_list;
+	ctrl->interface = iface;
 	iface->controller_list = ctrl;
+	iface->num_controllers++;
+
+	strncpy(ctrl->address, str, CONFIG_ADDRESS_SIZE);
+	memcpy(ctrl->addr, addr, IPV6_ADDR_LEN);
 
 	ret = 1;
 out:

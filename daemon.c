@@ -76,7 +76,7 @@ int read_dem_config_files(struct interface *iface)
 		if ((fid = fopen(config_file,"r")) != NULL){
 			char tag[LARGEST_TAG];
 			char val[LARGEST_VAL];
-		
+
 			print_debug("Opening %s",config_file);
 
 			iface[count].interface_id = count;
@@ -109,9 +109,22 @@ int read_dem_config_files(struct interface *iface)
 			if ((!strcmp(iface[count].trtype, "")) || (!strcmp(iface[count].addrfam, "")) ||
 			    (!strcmp(iface[count].hostaddr, "")))
 				fprintf(stderr, "%s: bad config file. Ignoring interface.\n", config_file);
-			else
-
+			else {
+				if (strcmp(iface[count].addrfam, "ipv4") == 0) {
+					ipv4_to_addr(iface[count].hostaddr, iface[count].addr);
+					if (iface[count].netmask[0] == 0)
+						ipv4_mask(iface[count].mask, 24);
+					else
+						ipv4_to_addr(iface[count].netmask, iface[count].mask);
+				} else {
+					ipv6_to_addr(iface[count].hostaddr, iface[count].addr);
+					if (iface[count].netmask[0] == 0)
+						ipv6_mask(iface[count].mask, 48);
+					else
+						ipv6_to_addr(iface[count].netmask, iface[count].mask);
+				}
 				count++;
+			}
 		} else {
 			fprintf(stderr, "Failed to open config file %s\n", config_file);
 			ret = -ENOENT;
@@ -201,10 +214,13 @@ static void *xport_loop(void *p)
 
 	fprintf(stderr, "interface id = %d\n", iface->interface_id);
 
+	if (get_transport(p, json_ctx))
+		return NULL;
+
 	/*Parse netmask*/
 	/*Read in Target list*/
 	/*Search for Target addresses that match the address family and network/netmask, and*/
-	/*	add that target to the interface's controller list*/ 
+	/*	add that target to the interface's controller list*/
 	return NULL;
 }
 
@@ -248,7 +264,7 @@ static int daemonize(void)
 int init_dem(int argc, char *argv[],  char **ssl_cert)
 {
 	int	opt;
-	int	run_as_daemon;			
+	int	run_as_daemon;
 
 	*ssl_cert = NULL;
 
@@ -298,7 +314,7 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	struct mg_connection	*c;
 	char			*cp;
 	const char		*err_str;
-	
+
 	mg_mgr_init(mgr, NULL);
 	s_http_server_opts.document_root = NULL;
 
@@ -371,7 +387,7 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces, int co
 		}
 	}
 
-	*xport_pthread = pthreads;	
+	*xport_pthread = pthreads;
 
 	return 0;
 }
@@ -386,7 +402,7 @@ int main(int argc, char *argv[])
 
 	if (init_dem(argc, argv, &ssl_cert))
 		return 1;
-	
+
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
 		return 1;
 
@@ -403,7 +419,7 @@ int main(int argc, char *argv[])
 
 	if (init_threads(&xport_pthread, interfaces, num_interfaces))
 		return 1;
- 
+
 	poll_loop(&mgr);
 
 	cleanup_threads(xport_pthread, num_interfaces);
