@@ -13,14 +13,14 @@
  */
 
 #include <pthread.h>
+#include <stdbool.h>
 
+#include "../nvme/nvme-cli/nvme.h"	/*HACK: Hmmmm*/
 #include "mongoose.h"
 #include "common.h"
 
-/*For setting server options - e.g., SSL, document root, ...*/
 static struct mg_serve_http_opts  s_http_server_opts;
 char				 *s_http_port = "22345";
-
 static void			 *json_ctx;
 static int			  s_sig_num;
 static int			  poll_timeout = 100;
@@ -71,15 +71,81 @@ static void *poll_loop(struct mg_mgr *mgr)
 	return NULL;
 }
 
-static void *xport_loop(void *p)
+static int get_logpages(char *argstr, int len)
 {
-	struct interface *iface = (struct interface *)p;
+	char	*buf[DISC_BUF_SIZE];
+	int	 fid;
+	int	 ret;
 
-	fprintf(stderr, "interface id = %d\n", iface->interface_id);
+	printf("argstr = %s\n", argstr);
+	
+	fid = open(PATH_NVME_FABRICS, O_RDWR);
+	if (fid < 0) {
+		fprintf(stderr, "Failed to open %s with %s\n",
+				PATH_NVME_FABRICS, strerror(errno));
+		ret = -errno;
+		goto err1;
+	}
 
-	if (get_transport(p, json_ctx))
+	if (write(fid, argstr, len) != len) {
+		fprintf(stderr, "Failed to write to %s with %s\n",
+				PATH_NVME_FABRICS, strerror(errno));
+		ret = -errno;
+		goto err2;
+	}
+			
+	len = read(fid, buf, DISC_BUF_SIZE);
+	if (len < 0) {
+		fprintf(stderr, "Failed to read log from %s with %s\n",
+				PATH_NVME_FABRICS, strerror(errno));
+		ret = -errno;
+		goto err2;
+	}
+
+	/*TODO: Parse incoming log page*/
+err2:
+	close(fid);	
+err1:	
+	return ret;
+}
+
+static void *xport_loop(void *this_interface)
+{
+	struct interface		 *iface = (struct interface *)this_interface;
+	char				  disc_argstr[DISC_BUF_SIZE];
+	char				 *p = disc_argstr;
+	struct controller		 *controller;
+	int len;
+
+	if (get_transport(iface, json_ctx)) {
+		fprintf(stderr, "Failed to get transport for iface %d\n",
+				iface->interface_id);
 		return NULL;
+	}
 
+	fprintf(stderr, "interface id = %d with %d controllers\n",
+			 iface->interface_id, iface->num_controllers);
+
+	fprintf(stderr, "BEFORE while controllers loop\n");
+
+	controller = iface->controller_list;
+
+	/* Or should this 'for loop' on iface->num_controllers? */
+	while(controller) {
+		fprintf(stderr, "INSIDE while controllers loop\n");
+
+		len = sprintf(p, "nqn=%s,transport=%s,traddr=%s", NVME_DISC_SUBSYS_NAME,
+				  iface->trtype, controller->address);
+
+		fprintf(stderr, "%s",p);
+		if (get_logpages(disc_argstr, len)) {
+			fprintf(stderr, "Failed to get logpage for controller %s\n",
+				 controller->address);
+			continue;
+		}
+		controller = controller->next;
+	}
+	fprintf(stderr, "AFTER while controllers loop\n");
 	return NULL;
 }
 

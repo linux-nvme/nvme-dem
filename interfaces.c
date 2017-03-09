@@ -24,32 +24,38 @@
 
 static int check_transport(struct interface *iface, struct json_object *grp)
 {
-	struct json_object *obj;
-	struct controller *ctrl;
-	int addr[IPV6_ADDR_LEN];
-	char *str;
-	int family;
-	int ret = 0;
+	struct json_object	*obj;
+	struct controller	*ctrl;
+	int			 addr[IPV6_ADDR_LEN];
+	char			*str;
+	int			 family;
+	int			 ret = 0;
 
+	/*Currently supporting only IPV4 and IPV6.
+	  As expand to support FC and IB-GID need to add code here
+	*/
 	family = (strcmp(iface->addrfam, "ipv4") == 0) ? AF_IPV4 :
 		 (strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 : -1;
 	if (family == -1)
 		goto out;
-
 	json_object_object_get_ex(grp, TAG_TYPE, &obj);
 	if (!obj)
 		goto out;
 	if (strcmp((char *) json_object_get_string(obj), iface->trtype))
 		goto out;
+
 	json_object_object_get_ex(grp, TAG_FAMILY, &obj);
 	if (!obj)
 		goto out;
 	str = (char *) json_object_get_string(obj);
+
 	if (strcmp(str, iface->addrfam))
 		goto out;
+
 	json_object_object_get_ex(grp, TAG_ADDRESS, &obj);
 	if (!obj)
 		goto out;
+
 	str = (char *) json_object_get_string(obj);
 	if (family == AF_IPV4) {
 		ret = ipv4_to_addr(str, addr);
@@ -84,12 +90,11 @@ out:
 
 int get_transport(struct interface *iface, void *context)
 {
-	struct json_context *ctx = context;
-	struct json_object *array = ctx->ctrls;
-	struct json_object *subgroup;
-	struct json_object *iter;
-	int i, n;
-
+	struct json_context	*ctx = context;
+	struct json_object	*array = ctx->ctrls;
+	struct json_object	*subgroup;
+	struct json_object	*iter;
+	int			 i, n;
 	if (!iface)
 		return -1;
 	if (!array)
@@ -166,21 +171,25 @@ int read_dem_config_files(struct interface *iface)
 				ret = parse_line(fid, tag, sizeof(tag) -1, val, sizeof(val) -1);
 				if (ret)
 					continue;
+
 				if (!strcmp(tag, "Type")) {
 					strncpy(iface[count].trtype, val, CONFIG_TYPE_SIZE);
 					print_debug("%s %s", tag, iface[count].trtype);
 					continue;
 				}
+
 				if (!strcmp(tag, "Family")) {
 					strncpy(iface[count].addrfam, val, CONFIG_FAMILY_SIZE);
 					print_debug("%s %s",tag, iface[count].addrfam);
 					continue;
 				}
+
 				if (!strcmp(tag, "Address")) {
 					strncpy(iface[count].hostaddr, val, CONFIG_ADDRESS_SIZE);
 					print_debug("%s %s",tag, iface[count].hostaddr);
 					continue;
 				}
+
 				if (!strcmp(tag, "Netmask")) {
 					strncpy(iface[count].netmask, val, CONFIG_ADDRESS_SIZE);
 					print_debug("%s %s", tag, iface[count].netmask);
@@ -231,7 +240,7 @@ int init_interfaces(struct interface **interfaces)
 	int		  count;
 	int		  ret;
 
-	count = count_dem_config_files();
+	count = count_dem_config_files(); /* Could avoid this if we move to a list */
 	if (count < 0)
 		return count;
 
@@ -244,4 +253,3 @@ int init_interfaces(struct interface **interfaces)
 
 	return count;
 }
-

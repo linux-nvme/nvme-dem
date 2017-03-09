@@ -31,6 +31,7 @@ extern int debug;
 /*
  *  trtypes
  *	[NVMF_TRTYPE_RDMA]	= "rdma",
+ *	[NVMF_TRTYPE_TCPIP]	= "tcp"
  *	[NVMF_TRTYPE_FC]	= "fc",
  *	[NVMF_TRTYPE_LOOP]	= "loop",
  *
@@ -42,6 +43,7 @@ extern int debug;
  */
 
 /*HACK*/
+#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
 #define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 #define NUM_CONFIG_ITEMS	3
 #define CONFIG_TYPE_SIZE	8
@@ -64,6 +66,13 @@ extern int debug;
 #define IPV6_BITS		16
 #define IPV4_WIDTH		3
 #define IPV6_WIDTH		4
+
+/* HACK - Figure out which of these we need */
+#define DISC_BUF_SIZE		4096
+#define PATH_NVME_FABRICS       "/dev/nvme-fabrics"
+#define PATH_NVMF_DISC          "/etc/nvme/discovery.conf"
+#define PATH_NVMF_HOSTNQN       "/etc/nvme/hostnqn"
+#define SYS_NVME                "/sys/class/nvme"
 
 enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
 enum {RESTRICTED = 0, ALOW_ALL = 1};
