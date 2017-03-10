@@ -70,15 +70,16 @@ extern int debug;
 /* HACK - Figure out which of these we need */
 #define DISC_BUF_SIZE		4096
 #define PATH_NVME_FABRICS       "/dev/nvme-fabrics"
-#define PATH_NVMF_DISC          "/etc/nvme/discovery.conf"
+#define PATH_NVMF_DISC		"/etc/nvme/discovery.conf"
 #define PATH_NVMF_HOSTNQN       "/etc/nvme/hostnqn"
-#define SYS_NVME                "/sys/class/nvme"
+#define SYS_NVME		"/sys/class/nvme"
 
 enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
 enum {RESTRICTED = 0, ALOW_ALL = 1};
 
 struct host {
 	struct host		*next;
+	struct subsystem	*subsystem;
 	char			nqn[MAX_NQN + 1];
 	int			access;
 };
@@ -89,6 +90,7 @@ struct subsystem {
 	char			 nqn[MAX_NQN + 1];
 	int			 access;
 	struct host		*host_list;
+	int			 num_hosts;
 };
 
 struct controller {

@@ -30,7 +30,7 @@ enum { CTRL = 0, HOST, DEM, END = -1 };
 static char *group[] = { TARGET_CTRL, TARGET_HOST, TARGET_DEM };
 
 char *dem_server = "127.0.0.1";
-char *dem_port = "12345";
+char *dem_port = "22345";
 int prompt_deletes = 1;
 int formatted;
 
@@ -482,7 +482,7 @@ int main(int argc, char *argv[])
 	args = &argv[optind];
 	argc -= optind;
 
-	p = find_verb(args[0], (argc == 1) ? NULL : args[1]);
+	p = find_verb(args[0], (argc <= 1) ? NULL : args[1]);
 	if (!p) {
 		show_help(argv[0], "unknown verb/object set", NULL);
 		return -1;
@@ -498,7 +498,7 @@ int main(int argc, char *argv[])
 	snprintf(url, sizeof(url), "http://%s:%s/%s", dem_server, dem_port,
 		 group[p->target]);
 
-	if (argc == 1)
+	if (argc <= 1)
 		opts = args;
 	else {
 		argc -= 3;

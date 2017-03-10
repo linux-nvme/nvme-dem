@@ -30,7 +30,7 @@ int ipv4_to_addr(char *p, int *addr)
 			if (*p == '/')
 				break;
 		} else
-			nibble[z++] = *p; 
+			nibble[z++] = *p;
 	}
 
 	for (; j < IPV4_ADDR_LEN; j++)
@@ -71,7 +71,7 @@ int ipv6_to_addr(char *p, int *addr)
 			if (*p == '/')
 				break;
 		} else
-			nibble[z++] = *p; 
+			nibble[z++] = *p;
 	}
 
 	for (; j < IPV6_ADDR_LEN; j++)
@@ -108,7 +108,7 @@ void ipv4_mask(int *mask, int bits)
 	for (i = 0; i < IPV4_ADDR_LEN; i++) {
 		mask[i] = 0;
 		for (j = 0; j < IPV4_BITS; j++, bits--)
-			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0); 
+			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0);
 	}
 }
 
@@ -119,7 +119,7 @@ void ipv6_mask(int *mask, int bits)
 	for (i = 0; i < IPV6_ADDR_LEN; i++) {
 		mask[i] = 0;
 		for (j = 0; j < IPV6_BITS; j++, bits--)
-			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0); 
+			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0);
 	}
 }
 

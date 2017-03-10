@@ -52,7 +52,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	case MG_EV_RECV:
 		break;
 	default:
-		fprintf(stderr, "ev_handler: Unexpected request %d\n", ev);
+		print_err("ev_handler: Unexpected request %d", ev);
 	}
 }
 
@@ -77,26 +77,26 @@ static int get_logpages(char *argstr, int len)
 	int	 fid;
 	int	 ret;
 
-	printf("argstr = %s\n", argstr);
-	
+	print_debug("argstr = %s", argstr);
+
 	fid = open(PATH_NVME_FABRICS, O_RDWR);
 	if (fid < 0) {
-		fprintf(stderr, "Failed to open %s with %s\n",
+		print_err("Failed to open %s with %s",
 				PATH_NVME_FABRICS, strerror(errno));
 		ret = -errno;
 		goto err1;
 	}
 
 	if (write(fid, argstr, len) != len) {
-		fprintf(stderr, "Failed to write to %s with %s\n",
+		print_err("Failed to write to %s with %s",
 				PATH_NVME_FABRICS, strerror(errno));
 		ret = -errno;
 		goto err2;
 	}
-			
+
 	len = read(fid, buf, DISC_BUF_SIZE);
 	if (len < 0) {
-		fprintf(stderr, "Failed to read log from %s with %s\n",
+		print_err("Failed to read log from %s with %s",
 				PATH_NVME_FABRICS, strerror(errno));
 		ret = -errno;
 		goto err2;
@@ -104,8 +104,8 @@ static int get_logpages(char *argstr, int len)
 
 	/*TODO: Parse incoming log page*/
 err2:
-	close(fid);	
-err1:	
+	close(fid);
+err1:
 	return ret;
 }
 
@@ -118,34 +118,34 @@ static void *xport_loop(void *this_interface)
 	int len;
 
 	if (get_transport(iface, json_ctx)) {
-		fprintf(stderr, "Failed to get transport for iface %d\n",
+		print_err("Failed to get transport for iface %d",
 				iface->interface_id);
 		return NULL;
 	}
 
-	fprintf(stderr, "interface id = %d with %d controllers\n",
+	print_debug("interface id = %d with %d controllers",
 			 iface->interface_id, iface->num_controllers);
 
-	fprintf(stderr, "BEFORE while controllers loop\n");
+	print_debug("BEFORE while controllers loop");
 
 	controller = iface->controller_list;
 
 	/* Or should this 'for loop' on iface->num_controllers? */
-	while(controller) {
-		fprintf(stderr, "INSIDE while controllers loop\n");
+	while (controller) {
+		print_debug("INSIDE while controllers loop");
 
-		len = sprintf(p, "nqn=%s,transport=%s,traddr=%s", NVME_DISC_SUBSYS_NAME,
-				  iface->trtype, controller->address);
+		len = sprintf(p, "nqn=%s,transport=%s,traddr=%s",
+			      NVME_DISC_SUBSYS_NAME, iface->trtype,
+			controller->address);
 
-		fprintf(stderr, "%s",p);
+		print_debug("%s",p);
 		if (get_logpages(disc_argstr, len)) {
-			fprintf(stderr, "Failed to get logpage for controller %s\n",
+			print_err("Failed to get logpage for controller %s",
 				 controller->address);
-			continue;
 		}
 		controller = controller->next;
 	}
-	fprintf(stderr, "AFTER while controllers loop\n");
+	print_debug("AFTER while controllers loop");
 	return NULL;
 }
 
@@ -154,13 +154,13 @@ static int daemonize(void)
 	pid_t pid, sid;
 
 	if (getuid() != 0) {
-		fprintf(stderr, "Must be root to run dem as a daemon\n");
+		print_err("Must be root to run dem as a daemon");
 		return -1;
 	}
 
 	pid = fork();
 	if (pid < 0) {
-		fprintf(stderr, "fork failed %d\n", pid);
+		print_err("fork failed %d", pid);
 		return pid;
 	}
 
@@ -171,12 +171,12 @@ static int daemonize(void)
 
 	sid = setsid();
 	if (sid < 0) {
-		fprintf(stderr, "setsid failed %d\n", sid);
+		print_err("setsid failed %d", sid);
 		return sid;
 	}
 
 	if ((chdir("/")) < 0) {
-		fprintf(stderr, "could not change dir to /\n");
+		print_err("could not change dir to /");
 		return -1;
 	}
 
@@ -212,15 +212,15 @@ int init_dem(int argc, char *argv[],  char **ssl_cert)
 			break;
 		case 'p':
 			s_http_port = optarg;
-			fprintf(stderr, "Using port %s\n", s_http_port);
+			print_err("Using port %s", s_http_port);
 			break;
 		case 's':
 			*ssl_cert = optarg;
 			break;
 		default:
 help:
-			fprintf(stderr, "Usage: %s %s\n", argv[0],
-				"{-r <root>} {-p <port>} {-s <ssl_cert>}\n");
+			print_err("Usage: %s %s", argv[0],
+				"{-r <root>} {-p <port>} {-s <ssl_cert>}");
 			return 1;
 		}
 	}
@@ -265,7 +265,7 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 
 	c = mg_bind_opt(mgr, s_http_port, ev_handler, bind_opts);
 	if (c == NULL) {
-		fprintf(stderr, "Error starting server on port %s: %s\n",
+		print_err("Error starting server on port %s: %s",
 			s_http_port, *bind_opts.error_string);
 		return 1;
 	}
@@ -286,7 +286,8 @@ void cleanup_threads(pthread_t *xport_pthread, int count)
 	free(xport_pthread);
 }
 
-int init_threads(pthread_t **xport_pthread, struct interface *interfaces, int count)
+int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
+		 int count)
 {
 	pthread_attr_t		 pthread_attr;
 	pthread_t		*pthreads;
@@ -305,8 +306,9 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces, int co
 	pthread_attr_init(&pthread_attr);
 
 	for (i = 0; i < count; i++) {
-		if (pthread_create(&pthreads[i], &pthread_attr, xport_loop, &(interfaces[i]))) {
-			fprintf(stderr, "Error starting transport thread\n");
+		if (pthread_create(&pthreads[i], &pthread_attr, xport_loop,
+				   &(interfaces[i]))) {
+			print_err("Error starting transport thread");
 			free(pthreads);
 			return 1;
 		}
