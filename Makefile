@@ -1,13 +1,15 @@
 .SILENT:
+
 CFLAGS = -g -W -Wall -Werror -Wno-unused-function
 CFLAGS += -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
-CFLAGS += -lpthread
+CFLAGS += -lpthread -lfabric
 
 GDB_OPTS = -g -O0
 
 CLI_SRC = cli.c curl.c show.c
 CLI_INC = curl.h show.h tags.h
-DAEMON_SRC = daemon.c json.c restful.c mongoose.c parse.c interfaces.c
+DAEMON_SRC = daemon.c json.c restful.c mongoose.c \
+	     parse.c interfaces.c ofi.c
 DAEMON_INC = json.h common.h mongoose.h tags.h
 
 all: demd dem config.json
