@@ -15,8 +15,8 @@
 #include <stdlib.h>
 #include <string.h>
 #include <signal.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include <endian.h>
+#include <uuid/uuid.h>
 #include <sys/socket.h>
 
 #include <rdma/fabric.h>
@@ -28,46 +28,35 @@
 #include <rdma/fi_eq.h>
 #include <rdma/fi_rma.h>
 
-#if 1
-#define print_info(f, x...) \
-	printf(f "\n", ##x)
-#define print_err(f, x...) \
-	printf("fi_host: %s(%d): " f "\n", __func__, __LINE__, ##x)
-#else
-#define print_info(f, x...) do { } while (0)
-#define print_err(f, x...) do { } while (0)
-#endif
+#define NVMF_DQ_DEPTH	32
+
+#include "common.h"
+#include "nvme.h"
+#include "nvme-rdma.h"
 
 #define IDLE_TIMEOUT 100
 #define CTIMEOUT 100
-#define AQ_DEPTH 3
 #define PAGE_SIZE 4096
 #define BUF_SIZE 4096
 
 enum { DISCONNECTED, CONNECTED };
-
-struct context {
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_mr		*mr;
-	struct fid_pep		*pep;
-	struct fid_ep		*ep;
-	struct fid_eq		*eq;
-	struct fid_eq		*peq;
-	struct fid_cq		*rcq;
-	struct fid_cq		*scq;
-	int			state;
-};
-
-static int			stopped;
 
 static void signal_handler(int sig_num)
 {
 	signal(sig_num, signal_handler);
 	stopped = 1;
 	printf("\n");
+}
+
+static void dump(u8 *buf, int len)
+{
+	int i, j;
+
+	for (i = j = 0; i < len; i++) {
+		printf("%02x ", buf[i]);
+		if (++j == 16) printf("\n"), j= 0;
+	}
+	if (j) printf("\n");
 }
 
 static void print_cq_error(struct fid_cq *cq, int n)
@@ -122,8 +111,8 @@ static void print_eq_error(struct fid_eq *eq, int n)
 	}
 }
 
-static int init_fabrics(struct context *ctx, uint64_t flags, char *provider,
-			char *node, char *service)
+int init_fabrics(struct context *ctx, uint64_t flags, char *provider,
+		 char *node, char *service)
 {
 	struct fi_info		*hints;
 	int			ret;
@@ -178,27 +167,31 @@ free_info:
 	return ret;
 }
 
-static void *alloc_buffer(struct context *ctx, int size)
+void *alloc_buffer(struct context *ctx, int size, struct fid_mr **mr)
 {
 	void			*buf;
 	int			ret;
 
 	if (posix_memalign(&buf, PAGE_SIZE, size)) {
 		print_err("no memory for buffer, errno %d", errno);
-		return NULL;
+		goto out;
 	}
-	ret = fi_mr_reg(ctx->dom, buf, size, FI_RECV | FI_SEND,
-			0, 0, 0, &ctx->mr, NULL);
+	ret = fi_mr_reg(ctx->dom, buf, size,
+			FI_RECV | FI_SEND | FI_REMOTE_READ | FI_REMOTE_WRITE,
+			0, 0, 0, mr, NULL);
 	if (ret) {
 		print_err("fi_mr_reg returned %d", ret);
 		free(buf);
-		return NULL;
+		goto out;
 	}
 
 	return buf;
+out:
+	*mr = NULL;
+	return NULL;
 }
 
-static int server_listen(struct context *ctx)
+int server_listen(struct context *ctx)
 {
 	struct fi_eq_attr	eq_attr = { 0 };
 	struct fi_eq_cm_entry	entry;
@@ -255,7 +248,7 @@ static int server_listen(struct context *ctx)
 	return 0;
 }
 
-static int accept_connection(struct context *ctx)
+int accept_connection(struct context *ctx)
 {
 	struct fi_eq_cm_entry	entry;
 	uint32_t		event;
@@ -286,7 +279,7 @@ static int accept_connection(struct context *ctx)
 	return 0;
 }
 
-static int create_endpoint(struct context *ctx, struct fi_info *info)
+int create_endpoint(struct context *ctx, struct fi_info *info)
 {
 	struct fi_eq_attr	eq_attr = { 0 };
 	struct fi_cq_attr	cq_attr = { 0 };
@@ -347,16 +340,42 @@ static int create_endpoint(struct context *ctx, struct fi_info *info)
 	return 0;
 }
 
-static int client_connect(struct context *ctx)
+int client_connect(struct context *ctx)
 {
 	struct fi_eq_cm_entry	entry;
 	uint32_t		event;
+	struct nvme_rdma_cm_req	*priv;
+	struct nvmf_connect_data *data;
+	uuid_t			id;
+	char			uuid[40];
+	int			bytes = sizeof(*priv) + sizeof(*data);
 	int			ret;
 
-	ret = fi_connect(ctx->ep, ctx->prov->dest_addr, NULL, 0);
+	priv = malloc(bytes);
+	if (!priv)
+		return -ENOMEM;
+
+	memset(priv, 0, bytes);
+
+	priv->recfmt = htole16(NVME_RDMA_CM_FMT_1_0);
+	priv->hrqsize = htole16(NVMF_DQ_DEPTH);
+	priv->hsqsize = htole16(NVMF_DQ_DEPTH - 1);
+
+	data = (void *) &priv[1];
+
+	uuid_generate(id);
+	memcpy(&data->hostid, id, sizeof(*id));
+	uuid_unparse_upper(id, uuid);
+
+	data->cntlid = htole16(0xffff);
+	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
+	snprintf(data->hostnqn, NVMF_NQN_SIZE,
+		 "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s", uuid);
+
+	ret = fi_connect(ctx->ep, ctx->prov->dest_addr, priv, bytes);
 	if (ret) {
 		print_err("fi_connect returned %d", ret);
-		return ret;
+		goto out;
 	}
 
 	printf("Waiting...\n");
@@ -374,21 +393,26 @@ static int client_connect(struct context *ctx)
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
 		print_eq_error(ctx->eq, ret);
-		return ret;
+		goto out;
 	}
 
 	if (event != FI_CONNECTED) {
 		print_err("fi_connect failed, event %d", event);
-		return -ECONNRESET;
+		ret = -ECONNRESET;
+		goto out;
 	}
 
 	ctx->state = CONNECTED;
 	printf("Connected\n");
 
-	return 0;
+	ret = 0;
+
+out:
+	free(priv);
+	return ret;
 }
 
-static void cleanup_fabric(struct context *ctx)
+void cleanup_fabric(struct context *ctx)
 {
 	if (ctx->state == CONNECTED) {
 		fi_shutdown(ctx->ep, 0);
@@ -408,8 +432,8 @@ static void cleanup_fabric(struct context *ctx)
 		fi_close(&ctx->pep->fid);
 	if (ctx->peq)
 		fi_close(&ctx->peq->fid);
-	if (ctx->mr)
-		fi_close(&ctx->mr->fid);
+	if (ctx->send_mr)
+		fi_close(&ctx->send_mr->fid);
 	if (ctx->dom)
 		fi_close(&ctx->dom->fid);
 	if (ctx->fab)
@@ -417,54 +441,31 @@ static void cleanup_fabric(struct context *ctx)
 	if (ctx->prov)
 		fi_freeinfo(ctx->prov);
 }
+static inline void put_unaligned_le24(u32 val, u8 *p)
+{
+	*p++ = val;
+	*p++ = val >> 8;
+	*p++ = val >> 16;
+}
 
-int ofi_client(struct context *ctx)
+static inline void put_unaligned_le32(u32 val, u8 *p)
+{
+	*p++ = val;
+	*p++ = val >> 8;
+	*p++ = val >> 16;
+	*p++ = val >> 24;
+}
+
+int send_cmd(struct context *ctx, struct nvme_command *cmd, int bytes)
 {
 	struct fi_cq_err_entry	comp;
-	int			ret;
-	char			*node = "192.168.22.1";
-	char			*service = "22331";
-	char			*provider = "verbs";
-	char			*buf;
+	int ret;
 
-	ret = init_fabrics(ctx, 0, provider, node, service);
-	if (ret)
-		return ret;
-
-	buf = alloc_buffer(ctx, BUF_SIZE);
-	if (!buf)
-		goto cleanup;
-
-	ret = create_endpoint(ctx, ctx->prov);
-	if (ret)
-		goto cleanup;
-
-	ret = fi_recv(ctx->ep, buf, BUF_SIZE, fi_mr_desc(ctx->mr), 0, NULL);
-	if (ret) {
-		print_err("fi_recv returned %d", ret);
-		goto cleanup;
-	}
-
-	ret = client_connect(ctx);
-	if (ret)
-		goto cleanup;
-
-	sprintf(buf,
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n"
-		"This is a test, this is only a test\n");
-
-	ret = fi_send(ctx->ep, buf, strlen(buf) + 1, fi_mr_desc(ctx->mr),
+	ret = fi_send(ctx->ep, cmd, bytes, fi_mr_desc(ctx->send_mr),
 		      FI_ADDR_UNSPEC, NULL);
 	if (ret) {
 		print_err("fi_send returned %d", ret);
-		goto cleanup;
+		return ret;
 	}
 
 	while (!stopped) {
@@ -473,23 +474,232 @@ int ofi_client(struct context *ctx)
 			break;
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
-		print_cq_error(ctx->rcq, ret);
-		break;
+		print_err("fabric connect failed");
+		print_cq_error(ctx->scq, ret);
+		return ret;
 	}
 
-	ret = 0;
+	while (!stopped) {
+		ret = fi_cq_sread(ctx->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
+		if (ret == 1) {
+			struct qe *qe = comp.op_context;
+			print_err("completed recv");
+			dump(qe->buf, comp.len);
+			memset(qe->buf, 0, BUF_SIZE);
+			ret = fi_recv(ctx->ep, qe->buf, BUF_SIZE,
+				      fi_mr_desc(qe->recv_mr), 0, qe);
+			if (ret)
+				print_err("fi_recv returned %d", ret);
+			break;
+		}
+		if (ret == -EAGAIN || ret == -EINTR)
+			continue;
+		print_err("error on command %02x", cmd->common.opcode);
+		print_cq_error(ctx->rcq, ret);
+		return ret;
+	}
+	return 0;
+}
 
-	usleep(500);
+int send_fabric_connect(struct context *ctx)
+{
+	struct nvmf_connect_data	*data;
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ctx->cmd;
+	uuid_t				 id;
+	char				 uuid[40];
+	int				 bytes;
 
-cleanup:
+	bytes = sizeof(*cmd);
+
+	data = (void *) &cmd[1];
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->connect.opcode	= nvme_fabrics_command;
+	cmd->connect.fctype	= nvme_fabrics_type_connect;
+	cmd->connect.qid	= htole16(0);
+	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
+
+	uuid_generate(id);
+	memcpy(&data->hostid, id, sizeof(*id));
+	uuid_unparse_upper(id, uuid);
+
+	data->cntlid = htole16(0xffff);
+	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
+	snprintf(data->hostnqn, NVMF_NQN_SIZE,
+		 "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s", uuid);
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le24(sizeof(*data), sg->length);
+	put_unaligned_le32(fi_mr_key(ctx->send_mr), sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	return send_cmd(ctx, cmd, bytes);
+}
+
+int send_get_property(struct context *ctx, u32 reg)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ctx->cmd;
+	u64				*data;
+	int				 bytes;
+
+	bytes = sizeof(*cmd);
+
+	data = (void *) &cmd[1];
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_fabrics_command;
+	cmd->prop_get.fctype	= nvme_fabrics_type_property_get;
+	cmd->prop_get.attrib	= 1;
+	cmd->prop_get.offset	= htole32(reg);
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le24(4, sg->length);
+	put_unaligned_le32(fi_mr_key(ctx->send_mr), sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	return send_cmd(ctx, cmd, bytes);
+}
+
+int send_set_property(struct context *ctx, u32 reg, u64 val)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ctx->cmd;
+	u64				*data;
+	int				 bytes;
+
+	bytes = sizeof(*cmd);
+
+	data = (void *) &cmd[1];
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_fabrics_command;
+	cmd->prop_set.fctype	= nvme_fabrics_type_property_set;
+	cmd->prop_set.offset	= htole32(reg);
+	cmd->prop_set.value	= htole64(val);
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le24(BUF_SIZE, sg->length);
+	put_unaligned_le32(fi_mr_key(ctx->send_mr), sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	return send_cmd(ctx, cmd, bytes);
+}
+
+int send_get_log_page(struct context *ctx)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ctx->cmd;
+	u64				*data;
+	int				 bytes;
+
+	bytes = sizeof(*cmd);
+
+	data = (void *) &cmd[1];
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_admin_get_log_page;
+	cmd->common.nsid	= htole32(0xFFFFFFFF);
+	cmd->common.cdw10[0]	=
+		htole32((((sizeof(struct nvme_smart_log) / 4) - 1) << 16) |
+			NVME_LOG_SMART);
+	cmd->get_log_page.lid = NVME_LOG_DISC;
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data; //fi_mr_desc(ctx->recv_mr);
+	put_unaligned_le24(sizeof(struct nvme_smart_log), sg->length);
+	put_unaligned_le32(fi_mr_key(ctx->send_mr), sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	return send_cmd(ctx, cmd, bytes);
+}
+
+void disconnect_controller(struct context *ctx)
+{
+	if (ctx->qe)
+		free(ctx->qe);
 	cleanup_fabric(ctx);
-	if (buf)
-		free(buf);
+	if (ctx->cmd)
+		free(ctx->cmd);
+}
+
+int connect_controller(struct context *ctx)
+{
+	int			ret;
+	char			*node = "192.168.22.1";
+	char			*service = "4420";
+	char			*provider = "verbs";
+	struct nvme_command	*cmd = NULL;
+	struct qe		*qe;
+	int			i;
+	u64			val;
+
+	ret = init_fabrics(ctx, 0, provider, node, service);
+	if (ret)
+		return ret;
+
+	qe = calloc(sizeof(struct qe), NVMF_DQ_DEPTH);
+	if (!qe)
+		return -ENOMEM;
+
+	ctx->qe = qe;
+
+	for (i = 0; i < NVMF_DQ_DEPTH; i++) {
+		qe[i].buf = alloc_buffer(ctx, BUF_SIZE, &qe[i].recv_mr);
+		if (!qe[i].buf)
+			return ret;
+	}
+
+	ret = create_endpoint(ctx, ctx->prov);
+	if (ret)
+		return ret;;
+
+	for (i = 0; i < NVMF_DQ_DEPTH; i++) {
+		ret = fi_recv(ctx->ep, qe[i].buf, BUF_SIZE,
+			      fi_mr_desc(qe[i].recv_mr), 0, &qe[i]);
+		if (ret) {
+			print_err("fi_recv returned %d", ret);
+			return ret;;
+		}
+	}
+
+	ret = client_connect(ctx);
+	if (ret)
+		return ret;;
+
+	cmd = alloc_buffer(ctx, BUF_SIZE, &ctx->send_mr);
+	if (!cmd)
+		return -ENOMEM;
+
+	ctx->cmd = cmd;
+
+	ret = send_fabric_connect(ctx);
+	if (ret)
+		return ret;
+
+	val = 0x460001;
+	ret = send_set_property(ctx, NVME_REG_CC, val);
 
 	return ret;
 }
 
-int ofi_server(struct context *ctx)
+int run_server(struct context *ctx)
 {
 	struct fi_cq_err_entry	comp;
 	int			ret;
@@ -502,7 +712,7 @@ int ofi_server(struct context *ctx)
 	if (ret)
 		return ret;
 
-	buf = alloc_buffer(ctx, BUF_SIZE);
+	buf = alloc_buffer(ctx, BUF_SIZE, &ctx->recv_mr);
 	if (!buf)
 		goto cleanup;
 
@@ -514,13 +724,14 @@ int ofi_server(struct context *ctx)
 	if (ret)
 		goto cleanup;
 
-	ret = fi_recv(ctx->ep, buf, BUF_SIZE, fi_mr_desc(ctx->mr), 0, NULL);
+	ret = fi_recv(ctx->ep, buf, BUF_SIZE, fi_mr_desc(ctx->recv_mr), 0,
+		      NULL);
 	if (ret) {
 		print_err("fi_recv returned %d", ret);
 		goto cleanup;
 	}
 	ret = accept_connection(ctx);
-	if (ret) 
+	if (ret)
 		goto cleanup;
 
 	while (!stopped) {

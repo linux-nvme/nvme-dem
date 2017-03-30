@@ -310,7 +310,7 @@ int read_dem_config_files(struct interface *iface)
 
 			iface[count].interface_id = count;
 			while (!feof(fid))
-				read_dem_config(fid, iface);
+				read_dem_config(fid, &iface[count]);
 			fclose(fid);
 
 			if ((!strcmp(iface[count].trtype, "")) ||
@@ -334,6 +334,8 @@ int read_dem_config_files(struct interface *iface)
 		print_err("No viable interfaces. Exiting\n");
 		ret = -ENODATA;
 	}
+
+	/* TODO: Validate no two ifaces share the same subnet/mask */
 
 	ret = 0;
 out:

@@ -12,6 +12,12 @@
  * more details.
  */
 
+#define unlikely __glibc_unlikely
+
+#include <sys/types.h>
+#include <stdbool.h>
+#include "nvme.h"      /* NOTE: Using linux kernel include here */
+
 extern int debug;
 
 #define print_debug(f, x...) do { \
@@ -27,6 +33,18 @@ extern int debug;
 	fprintf(stderr, "%s(%d) Error: " f "\n", __func__, __LINE__, ##x); \
 	fflush(stderr); \
 	} while (0)
+
+#define UNUSED(x) (void) x
+
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+
+extern int stopped;
+
+#define u8  __u8
+#define u16 __u16
+#define u32 __u32
+#define u64 __u64
 
 /*
  *  trtypes
@@ -85,12 +103,36 @@ struct host {
 };
 
 struct subsystem {
-	struct subsystem	*next;
-	struct controller	*ctrl;
-	char			 nqn[MAX_NQN + 1];
-	int			 access;
-	struct host		*host_list;
-	int			 num_hosts;
+	struct subsystem		*next;
+	struct controller		*ctrl;
+	char				 nqn[MAX_NQN + 1];
+	struct nvmf_disc_rsp_page_entry	 log_page;
+	int				 access;
+	struct host			*host_list;
+	int				 num_hosts;
+};
+
+struct qe {
+        struct fid_mr           *recv_mr;
+        u8                      *buf;
+};
+
+struct context {
+        struct fi_info          *prov;
+        struct fi_info          *info;
+        struct fid_fabric       *fab;
+        struct fid_domain       *dom;
+        struct fid_mr           *send_mr;
+        struct fid_mr           *recv_mr;
+        struct fid_pep          *pep;
+        struct fid_ep           *ep;
+        struct fid_eq           *eq;
+        struct fid_eq           *peq;
+        struct fid_cq           *rcq;
+        struct fid_cq           *scq;
+        struct nvme_command     *cmd;
+        struct qe               *qe;
+        int                     state;
 };
 
 struct controller {
@@ -100,8 +142,7 @@ struct controller {
 	int			 addr[IPV6_ADDR_LEN];
 	struct subsystem	*subsystem_list;
 	int			 num_subsystems;
-	void			*log_pages;
-	int			 num_logpages;
+	struct context		 ctx;
 };
 
 struct  interface {
@@ -138,6 +179,9 @@ int ipv6_equal(int *addr, int *dest, int *mask);
 
 int init_interfaces(struct interface **interfaces);
 
+int connect_controller(struct context *ctx);
+void disconnect_controller(struct context *ctx);
+int send_get_log_page(struct context *ctx);
 // TODO make these real function since FC Bits are only 8 not 16
 #define fc_to_addr	ipv6_to_addr
 #define fc_mask		ipv6_mask

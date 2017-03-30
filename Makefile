@@ -1,8 +1,8 @@
 .SILENT:
 
-CFLAGS = -g -W -Wall -Werror -Wno-unused-function
+CFLAGS = -g -W -Wall -Werror -Wno-unused-function -Iincl
 CFLAGS += -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
-CFLAGS += -lpthread -lfabric
+CFLAGS += -lpthread -lfabric -luuid
 
 GDB_OPTS = -g -O0
 
