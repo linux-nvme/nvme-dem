@@ -16,7 +16,7 @@
 
 #include <sys/types.h>
 #include <stdbool.h>
-#include "nvme.h"      /* NOTE: Using linux kernel include here */
+#include "nvme.h"	/* NOTE: Using linux kernel include here */
 
 extern int debug;
 
@@ -67,6 +67,7 @@ extern int stopped;
 #define CONFIG_TYPE_SIZE	8
 #define CONFIG_FAMILY_SIZE	8
 #define CONFIG_ADDRESS_SIZE	40
+#define CONFIG_PORT_SIZE	8
 #define LARGEST_TAG		8
 #define LARGEST_VAL		40
 
@@ -87,9 +88,9 @@ extern int stopped;
 
 /* HACK - Figure out which of these we need */
 #define DISC_BUF_SIZE		4096
-#define PATH_NVME_FABRICS       "/dev/nvme-fabrics"
+#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
 #define PATH_NVMF_DISC		"/etc/nvme/discovery.conf"
-#define PATH_NVMF_HOSTNQN       "/etc/nvme/hostnqn"
+#define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
 #define SYS_NVME		"/sys/class/nvme"
 
 enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
@@ -113,32 +114,36 @@ struct subsystem {
 };
 
 struct qe {
-        struct fid_mr           *recv_mr;
-        u8                      *buf;
+	struct fid_mr		*recv_mr;
+	u8			*buf;
 };
 
 struct context {
-        struct fi_info          *prov;
-        struct fi_info          *info;
-        struct fid_fabric       *fab;
-        struct fid_domain       *dom;
-        struct fid_mr           *send_mr;
-        struct fid_mr           *recv_mr;
-        struct fid_pep          *pep;
-        struct fid_ep           *ep;
-        struct fid_eq           *eq;
-        struct fid_eq           *peq;
-        struct fid_cq           *rcq;
-        struct fid_cq           *scq;
-        struct nvme_command     *cmd;
-        struct qe               *qe;
-        int                     state;
+	struct fi_info		*prov;
+	struct fi_info		*info;
+	struct fid_fabric	*fab;
+	struct fid_domain	*dom;
+	struct fid_mr		*send_mr;
+	struct fid_mr		*recv_mr;
+	struct fid_pep		*pep;
+	struct fid_ep		*ep;
+	struct fid_eq		*eq;
+	struct fid_eq		*peq;
+	struct fid_cq		*rcq;
+	struct fid_cq		*scq;
+	struct nvme_command	*cmd;
+	struct qe		*qe;
+	int			state;
 };
 
 struct controller {
 	struct controller	*next;
 	struct interface	*interface;
+	char			 trtype[CONFIG_TYPE_SIZE + 1];
+	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	char			 port[CONFIG_PORT_SIZE + 1];
+	int			 port_num;
 	int			 addr[IPV6_ADDR_LEN];
 	struct subsystem	*subsystem_list;
 	int			 num_subsystems;
@@ -151,6 +156,7 @@ struct  interface {
 	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
 	char			 hostaddr[CONFIG_ADDRESS_SIZE + 1];
 	int			 addr[IPV6_ADDR_LEN];
+	char			 port[CONFIG_PORT_SIZE + 1];
 	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
 	int			 mask[IPV6_ADDR_LEN];
 	struct controller	*controller_list;
@@ -179,9 +185,10 @@ int ipv6_equal(int *addr, int *dest, int *mask);
 
 int init_interfaces(struct interface **interfaces);
 
-int connect_controller(struct context *ctx);
+int connect_controller(struct context *ctx, char *addr_family, char *addr, char *port);
 void disconnect_controller(struct context *ctx);
-int send_get_log_page(struct context *ctx);
+int send_get_log_page(struct context *ctx, int log_size,
+		      struct nvmf_disc_rsp_page_hdr **log);
 // TODO make these real function since FC Bits are only 8 not 16
 #define fc_to_addr	ipv6_to_addr
 #define fc_mask		ipv6_mask

@@ -109,7 +109,8 @@ static void check_subsystems(struct controller *ctrl,
 }
 
 static int match_transport(struct interface *iface, struct json_object *ctrl,
-			   int *_addr, char *saddr)
+			   char *type, char *fam, char *address, char *port,
+			   int *_addr)
 {
 	struct json_object *obj;
 	char *str;
@@ -119,20 +120,27 @@ static int match_transport(struct interface *iface, struct json_object *ctrl,
 
 	family = (strcmp(iface->addrfam, "ipv4") == 0) ? AF_IPV4 :
 		(strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 : -1;
-	if (family == -1)
+	if (family == -1) {
+		print_err("Address family not supported\n");
 		goto out;
+	}
 
 	json_object_object_get_ex(ctrl, TAG_TYPE, &obj);
 	if (!obj)
 		goto out;
-	if (strcmp((char *) json_object_get_string(obj), iface->trtype))
+	str = (char *) json_object_get_string(obj);
+	if (strcmp(str, iface->trtype))
 		goto out;
+	strncpy(type, str, CONFIG_TYPE_SIZE);
+
 	json_object_object_get_ex(ctrl, TAG_FAMILY, &obj);
 	if (!obj)
 		goto out;
 	str = (char *) json_object_get_string(obj);
 	if (strcmp(str, iface->addrfam))
 		goto out;
+	strncpy(fam, str, CONFIG_FAMILY_SIZE);
+
 	json_object_object_get_ex(ctrl, TAG_ADDRESS, &obj);
 	if (!obj)
 		goto out;
@@ -152,8 +160,14 @@ static int match_transport(struct interface *iface, struct json_object *ctrl,
 			goto out;
 		memcpy(_addr, addr, sizeof(addr[0]) * IPV6_ADDR_LEN);
 	}
+	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
-	strncpy(saddr, str, CONFIG_ADDRESS_SIZE);
+	json_object_object_get_ex(ctrl, TAG_PORT, &obj);
+	if (!obj)
+		strncpy(port, (char *) json_object_get_string(obj),
+			CONFIG_PORT_SIZE);
+	else
+		sprintf(port, "%d", NVME_RDMA_IP_PORT);
 
 	return 1;
 out:
@@ -166,9 +180,12 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 	struct controller *ctrl;
 	struct json_object *subgroup;
 	int addr[IPV6_ADDR_LEN];
-	char str[CONFIG_ADDRESS_SIZE];
+	char address[CONFIG_ADDRESS_SIZE];
+	char port[CONFIG_PORT_SIZE];
+	char fam[CONFIG_FAMILY_SIZE];
+	char type[CONFIG_TYPE_SIZE];
 
-	if (!match_transport(iface, grp, addr, str))
+	if (!match_transport(iface, grp, type, fam, address, port, addr))
 		goto err;
 
 	ctrl = malloc(sizeof(*ctrl));
@@ -181,8 +198,12 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 	iface->controller_list = ctrl;
 	iface->num_controllers++;
 
-	strncpy(ctrl->address, str, CONFIG_ADDRESS_SIZE);
+	strncpy(ctrl->trtype, type, CONFIG_TYPE_SIZE);
+	strncpy(ctrl->addrfam, fam, CONFIG_FAMILY_SIZE);
+	strncpy(ctrl->address, address, CONFIG_ADDRESS_SIZE);
+	strncpy(ctrl->port, port, CONFIG_PORT_SIZE);
 	memcpy(ctrl->addr, addr, IPV6_ADDR_LEN);
+	ctrl->port_num = atoi(port);
 
 	json_object_object_get_ex(parent, TAG_SUBSYSTEMS, &subgroup);
 	if (subgroup)
@@ -233,13 +254,11 @@ int count_dem_config_files()
 			filecount++;
 		}
 	} else {
-		print_err("%s does not exist\n", PATH_NVMF_DEM_DISC);
+		print_err("%s does not exist", PATH_NVMF_DEM_DISC);
 		filecount = -ENOENT;
 	}
 
 	closedir(dir);
-
-	print_debug("Found %d files", filecount);
 
 	return filecount;
 }
@@ -254,36 +273,46 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 	if (ret)
 		return;
 
-	if (strcmp(tag, "Type") == 0) {
+	if (strcmp(tag, "Type") == 0)
 		strncpy(iface->trtype, val, CONFIG_TYPE_SIZE);
-		print_debug("%s %s", tag, iface->trtype);
-	} else if (strcmp(tag, "Family") == 0) {
+	else if (strcmp(tag, "Family") == 0)
 		strncpy(iface->addrfam, val, CONFIG_FAMILY_SIZE);
-		print_debug("%s %s",tag, iface->addrfam);
-	} else if (strcmp(tag, "Address") == 0) {
+	else if (strcmp(tag, "Address") == 0)
 		strncpy(iface->hostaddr, val, CONFIG_ADDRESS_SIZE);
-		print_debug("%s %s",tag, iface->hostaddr);
-	} else if (strcmp(tag, "Netmask") == 0) {
+	else if (strcmp(tag, "Netmask") == 0)
 		strncpy(iface->netmask, val, CONFIG_ADDRESS_SIZE);
-		print_debug("%s %s", tag, iface->netmask);
-	}
+	else if (strcmp(tag, "Port") == 0)
+		strncpy(iface->port, val, CONFIG_PORT_SIZE);
 }
 
+/* TODO: Support FC and other transports */
 static void translate_addr_to_array(struct interface *iface)
 {
+	char default_port[CONFIG_PORT_SIZE] = {0};
+
 	if (strcmp(iface->addrfam, "ipv4") == 0) {
 		ipv4_to_addr(iface->hostaddr, iface->addr);
 		if (iface->netmask[0] == 0)
 			ipv4_mask(iface->mask, 24);
 		else
 			ipv4_to_addr(iface->netmask, iface->mask);
-	} else {
+
+		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
+	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
 		ipv6_to_addr(iface->hostaddr, iface->addr);
 		if (iface->netmask[0] == 0)
 			ipv6_mask(iface->mask, 48);
 		else
 			ipv6_to_addr(iface->netmask, iface->mask);
+
+		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
+	} else {
+		print_err("unsupported or unspecified address family");
+		return;
 	}
+
+	if (!strlen(iface->port))
+		strcpy(iface->port, default_port);
 }
 
 int read_dem_config_files(struct interface *iface)
@@ -299,39 +328,39 @@ int read_dem_config_files(struct interface *iface)
 	while ((entry = readdir(dir))) {
 		if (!strcmp(entry->d_name,"."))
 			continue;
+
 		if (!strcmp(entry->d_name,".."))
 			continue;
+
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
-		print_debug("path = %s", config_file);
 		if ((fid = fopen(config_file,"r")) != NULL){
-			print_debug("Opening %s",config_file);
-
 			iface[count].interface_id = count;
+
 			while (!feof(fid))
 				read_dem_config(fid, &iface[count]);
+
 			fclose(fid);
 
 			if ((!strcmp(iface[count].trtype, "")) ||
 			    (!strcmp(iface[count].addrfam, "")) ||
 			    (!strcmp(iface[count].hostaddr, "")))
 				print_err("%s: bad config file. "
-					"Ignoring interface.", config_file);
+					  "Ignoring interface.", config_file);
 			else {
 				translate_addr_to_array(&iface[count]);
 				count++;
 			}
 		} else {
-			print_err("Failed to open config file %s\n",
-				config_file);
+			print_err("Failed to open config file %s", config_file);
 			ret = -ENOENT;
 			goto out;
 		}
 	}
 
 	if (count == 0) {
-		print_err("No viable interfaces. Exiting\n");
+		print_err("No viable interfaces. Exiting");
 		ret = -ENODATA;
 	}
 

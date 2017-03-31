@@ -40,9 +40,9 @@ static const char *arg_str(const char * const *strings, size_t array_size,
 }
 
 static const char * const trtypes[] = {
-	[NVMF_TRTYPE_RDMA]      = "rdma",
-	[NVMF_TRTYPE_FC]        = "fibre-channel",
-	[NVMF_TRTYPE_LOOP]      = "loop",
+	[NVMF_TRTYPE_RDMA]	= "rdma",
+	[NVMF_TRTYPE_FC]	= "fibre-channel",
+	[NVMF_TRTYPE_LOOP]	= "loop",
 };
 
 static const char *trtype_str(u8 trtype)
@@ -51,11 +51,11 @@ static const char *trtype_str(u8 trtype)
 }
 
 static const char * const adrfams[] = {
-	[NVMF_ADDR_FAMILY_PCI]  = "pci",
-	[NVMF_ADDR_FAMILY_IP4]  = "ipv4",
-	[NVMF_ADDR_FAMILY_IP6]  = "ipv6",
-	[NVMF_ADDR_FAMILY_IB]   = "infiniband",
-	[NVMF_ADDR_FAMILY_FC]   = "fibre-channel",
+	[NVMF_ADDR_FAMILY_PCI]	= "pci",
+	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
+	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
+	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
+	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
 };
 
 static inline const char *adrfam_str(u8 adrfam)
@@ -64,8 +64,8 @@ static inline const char *adrfam_str(u8 adrfam)
 }
 
 static const char * const subtypes[] = {
-	[NVME_NQN_DISC]         = "discovery subsystem",
-	[NVME_NQN_NVME]         = "nvme subsystem",
+	[NVME_NQN_DISC]		= "discovery subsystem",
+	[NVME_NQN_NVME]		= "nvme subsystem",
 };
 
 static inline const char *subtype_str(u8 subtype)
@@ -74,9 +74,9 @@ static inline const char *subtype_str(u8 subtype)
 }
 
 static const char * const treqs[] = {
-	[NVMF_TREQ_NOT_SPECIFIED]       = "not specified",
-	[NVMF_TREQ_REQUIRED]            = "required",
-	[NVMF_TREQ_NOT_REQUIRED]        = "not required",
+	[NVMF_TREQ_NOT_SPECIFIED]	= "not specified",
+	[NVMF_TREQ_REQUIRED]		= "required",
+	[NVMF_TREQ_NOT_REQUIRED]	= "not required",
 };
 
 static inline const char *treq_str(u8 treq)
@@ -85,11 +85,11 @@ static inline const char *treq_str(u8 treq)
 }
 
 static const char * const prtypes[] = {
-	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]        = "not specified",
-	[NVMF_RDMA_PRTYPE_IB]                   = "infiniband",
-	[NVMF_RDMA_PRTYPE_ROCE]                 = "roce",
-	[NVMF_RDMA_PRTYPE_ROCEV2]               = "roce-v2",
-	[NVMF_RDMA_PRTYPE_IWARP]                = "iwarp",
+	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]	= "not specified",
+	[NVMF_RDMA_PRTYPE_IB]			= "infiniband",
+	[NVMF_RDMA_PRTYPE_ROCE]			= "roce",
+	[NVMF_RDMA_PRTYPE_ROCEV2]		= "roce-v2",
+	[NVMF_RDMA_PRTYPE_IWARP]		= "iwarp",
 };
 
 static inline const char *prtype_str(u8 prtype)
@@ -98,14 +98,13 @@ static inline const char *prtype_str(u8 prtype)
 }
 
 static const char * const qptypes[] = {
-	[NVMF_RDMA_QPTYPE_CONNECTED]    = "connected",
-	[NVMF_RDMA_QPTYPE_DATAGRAM]     = "datagram",
+	[NVMF_RDMA_QPTYPE_CONNECTED]	= "connected",
+	[NVMF_RDMA_QPTYPE_DATAGRAM]	= "datagram",
 };
 
 static inline const char *qptype_str(u8 qptype)
 {
-	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);
-}
+	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);	}
 
 static const char * const cms[] = {
 	[NVMF_RDMA_CMS_RDMA_CM] = "rdma-cm",
@@ -158,184 +157,65 @@ static void *poll_loop(struct mg_mgr *mgr)
 	return NULL;
 }
 
-static int fetch_nvme_path(int *instance, char *str, int len)
-{
-	char				*token;
-	char				 buf[DISC_BUF_SIZE];
-	int				 fid;
-	int				 ret = 0;
-
-	fid = open(PATH_NVME_FABRICS, O_RDWR);
-	if (fid < 0) {
-		print_err("Failed to open %s with %s",
-			  PATH_NVME_FABRICS, strerror(errno));
-		ret = -errno;
-		goto err;
-	}
-
-	if (write(fid, str, len) != len) {
-		print_err("Failed to write to %s with %s",
-			  PATH_NVME_FABRICS, strerror(errno));
-		ret = -errno;
-		goto err2;
-	}
-	if (read(fid, buf, DISC_BUF_SIZE) < 0) {
-		print_err("Failed to read log from %s with error %s",
-			  PATH_NVME_FABRICS, strerror(errno));
-		ret = -errno;
-		goto err2;
-	}
-
-	int n = strlen(buf) - 1;
-	if (buf[n] == '\n')
-		buf[n] = 0;
-	print_debug("Returned: %s", buf);
-
-	/* Get nvme instance # to build device string */
-	token = strtok(buf,  ",=");
-	token = strtok(NULL, ",=");
-
-	*instance = atoi(token);
-err2:
-	if (close(fid))
-		print_err("failed to close fid %d", fid);
-err:
-	return ret;
-}
-
-int nvme_get_log(int fid, u32 nsid, u8 log_id, u32 data_len, void *data)
-{
-	struct nvme_admin_cmd cmd = {
-		.opcode         = nvme_admin_get_log_page,
-		.nsid           = nsid,
-		.addr           = (u64)(uintptr_t) data,
-		.data_len       = data_len,
-	};
-	u32 numd = (data_len >> 2) - 1;
-	u16 numdu = numd >> 16, numdl = numd & 0xffff;
-
-	cmd.cdw10 = log_id | (numdl << 16);
-	cmd.cdw11 = numdu;
-
-	return ioctl(fid, NVME_IOCTL_ADMIN_CMD, &cmd);
-}
-
-static int get_logpages(char *str, int len,
-			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec )
+static int get_logpages(struct controller *ctrl,
+			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
-	char				*dev_path;
 	unsigned int			 log_size = 0;
 	unsigned long			 genctr;
-	int				 fid;
-	int				 instance;
 	int				 ret = 0;
 	size_t				 offset;
 
-	/* TODO - rearchitect this so it does not rely on nvme_host */
-	ret = fetch_nvme_path(&instance, str, len);
+	ret = connect_controller(&ctrl->ctx, ctrl->trtype,
+				 ctrl->address, ctrl->port);
 	if (ret)
-		goto err;
-
-	if (asprintf(&dev_path, "/dev/nvme%d", instance) < 0) {
-		print_err("Failed to construct path for instance nvme%d",
-			  instance);
-		ret = -errno;
-		goto err;
-	}
-
-	print_debug("Fetching log page data from %s", dev_path);
-	fid = open(dev_path, O_RDWR);
-	if (fid < 0) {
-		print_err("Failed to fetch log page data from %s", dev_path);
-		ret = -errno;
-		goto err1;
-	}
+		return ret;
 
 	offset = offsetof(struct nvmf_disc_rsp_page_hdr, numrec);
 	log_size = offset + sizeof(log->numrec);
-	if (log_size & 1)
-		log_size++;
+	log_size = round_up(log_size, sizeof(u32));
 
-	print_debug("log size = %d", log_size);
-
-	log = malloc(log_size);
-	if (!log) {
-		ret = -ENOMEM;
-		goto err2;
-	}
-
-	/* TODO - rearchitect this so it does not rely on nvme_host */
-	ret = nvme_get_log(fid, 0, NVME_LOG_DISC, log_size, log);
+	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch number of discovery log entries");
 		ret = -ENODATA;
-		goto err3;
+		goto err;
 	}
 
 	genctr = le64toh(log->genctr);
 	*numrec = le32toh(log->numrec);
 
-	free(log);  //Do we need to do this or can we reuse it later?
+	free(log);
 
 	if (*numrec == 0) {
-		print_err("No discovery log entries on %s", dev_path);
+		print_err("No discovery log on controller %s", ctrl->address);
 		ret = -ENODATA;
-		goto err2;
+		goto err;
 	}
-
 
 	print_debug("number of records to fetch is %d", *numrec);
 
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	log = malloc(log_size);
-	if (!log) {
-		ret = -ENOMEM;
-		goto err2;
-	}
-
-	/* TODO - rearchitect this so it does not rely on nvme_host */
-	ret = nvme_get_log(fid, 0, NVME_LOG_DISC, log_size, log);
+	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch discovery log entries");
 		ret = -ENODATA;
-		goto err3;
+		goto err;
 	}
 
 	if ((*numrec != le32toh(log->numrec)) ||
 	    ( genctr != le64toh(log->genctr))) {
 		print_err("# records for last two get log pages not equal");
 		ret = -EINVAL;
-		goto err3;
+		goto err;
 	}
 
 	*logp = log;
-	goto err2;
 
-err3:
-	free(log);
-err2:
-	if (close(fid))
-		print_err("failed to close fid %d", fid);
-err1:
-	free(dev_path);
-
-	if (asprintf(&dev_path, "/sys/class/nvme/nvme%d/delete_controller",
-		     instance) < 0)
-		ret = -ENOMEM;
-	else {
-		fid = open(dev_path, O_WRONLY);
-		if (fid >= 0) {
-			if (write(fid, "1", 1) != 1)
-				ret = errno;
-			if (close(fid))
-				print_err("failed to close fid %d", fid);
-		}
-		free(dev_path);
-	}
 err:
+	disconnect_controller(&ctrl->ctx);
 	return ret;
 }
 
@@ -398,43 +278,22 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 	}
 }
 
-static void fetch_log_pages(struct interface *iface, struct controller *ctrl)
+static void fetch_log_pages(struct controller *ctrl)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	u32				 num_records = 0;
-	int ret;
 
-	UNUSED(iface);
-	UNUSED(num_records);
-	UNUSED(log);
-
-	ret = connect_controller(&ctrl->ctx);
-	if (ret)
-		goto cleanup;
-
-	ret = send_get_log_page(&ctrl->ctx);
-	if (ret)
-		goto cleanup;
-
-cleanup:
-	disconnect_controller(&ctrl->ctx);
-
-/*
-	len = sprintf(p, "nqn=%s,transport=%s,traddr=%s",
-		      NVME_DISC_SUBSYS_NAME, iface->trtype, ctrl->address);
-
-	print_debug("%s", p);
-
-	if (get_logpages(disc_argstr, len, &log, &num_records)) {
-		print_err("Failed to get logpage for controller %s", ctrl->address);
+	if (get_logpages(ctrl, &log, &num_records)) {
+		print_err("Failed to get logpage for controller %s",
+			  ctrl->address);
 		return;
 	}
 
 	save_log_pages(log, num_records, ctrl);
 
 	print_discovery_log(log, num_records);
-*/
-	/* TODO: Save the log pages into the ctrl struct */
+
+	free(log);
 }
 
 static void *xport_thread(void *this_interface)
@@ -450,13 +309,10 @@ static void *xport_thread(void *this_interface)
 		return NULL;
 	}
 
-	print_debug("interface id = %d with %d controllers",
-		    iface->interface_id, iface->num_controllers);
-
 	ctrl = iface->controller_list;
 
 	while (ctrl) {
-		fetch_log_pages(iface, ctrl);
+		fetch_log_pages(ctrl);
 		ctrl = ctrl->next;
 	}
 
@@ -554,10 +410,9 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	char			*cp;
 	const char		*err_str;
 
-	printf("fred");
 	mg_mgr_init(mgr, NULL);
 	s_http_server_opts.document_root = NULL;
-	printf("fred");
+
 	/* Use current binary directory as document root */
 	if (!s_http_server_opts.document_root) {
 		cp = strrchr(prog, DIRSEP);
