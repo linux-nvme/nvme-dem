@@ -21,6 +21,7 @@
 #define TAG_FAMILY		"Family"
 #define TAG_ADDRESS		"Address"
 #define TAG_PORT		"Port"
+#define TAG_NETMASK		"Netmask"
 #define TAG_SUBSYSTEMS		"Subsystems"
 #define TAG_NQN			"NQN"
 #define TAG_ALLOW_ALL		"AllowAllHosts"

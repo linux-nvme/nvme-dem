@@ -25,7 +25,6 @@ static const struct mg_str s_patch_method = MG_MK_STR("PATCH");
 static const struct mg_str s_option_method = MG_MK_STR("OPTION");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 
-#define min(x, y) ((x < y) ? x : y)
 #define SMALL_RSP 128
 #define LARGE_RSP 512
 #define BODY_SZ   1024

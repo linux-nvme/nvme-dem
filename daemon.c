@@ -16,117 +16,41 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <sys/ioctl.h>
+
+#include <rdma/fabric.h>
+#include <rdma/fi_errno.h>
+#include <rdma/fi_eq.h>
+#include <rdma/fi_rma.h>
+#include <rdma/fi_cm.h>
 
 #include "mongoose.h"
 #include "common.h"
+#include "incl/nvme.h"
 
-#include "nvme_ioctl.h" /* NOTE: Using linux kernel include */
+#define IDLE_TIMEOUT 100
+#define RETRY_COUNT  200
+
+#define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 struct mg_serve_http_opts	s_http_server_opts;
 char				*s_http_port = "22345";
 void				*json_ctx;
-int				s_sig_num;
 int				stopped;
 int				poll_timeout = 100;
 int				debug;
 
-static const char *arg_str(const char * const *strings, size_t array_size,
-			   size_t idx)
-{
-	if (idx < array_size && strings[idx])
-		return strings[idx];
-	return "unrecognized";
-}
-
-static const char * const trtypes[] = {
-	[NVMF_TRTYPE_RDMA]	= "rdma",
-	[NVMF_TRTYPE_FC]	= "fibre-channel",
-	[NVMF_TRTYPE_LOOP]	= "loop",
-};
-
-static const char *trtype_str(u8 trtype)
-{
-	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
-}
-
-static const char * const adrfams[] = {
-	[NVMF_ADDR_FAMILY_PCI]	= "pci",
-	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
-	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
-	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
-	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
-};
-
-static inline const char *adrfam_str(u8 adrfam)
-{
-	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
-}
-
-static const char * const subtypes[] = {
-	[NVME_NQN_DISC]		= "discovery subsystem",
-	[NVME_NQN_NVME]		= "nvme subsystem",
-};
-
-static inline const char *subtype_str(u8 subtype)
-{
-	return arg_str(subtypes, ARRAY_SIZE(subtypes), subtype);
-}
-
-static const char * const treqs[] = {
-	[NVMF_TREQ_NOT_SPECIFIED]	= "not specified",
-	[NVMF_TREQ_REQUIRED]		= "required",
-	[NVMF_TREQ_NOT_REQUIRED]	= "not required",
-};
-
-static inline const char *treq_str(u8 treq)
-{
-	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
-}
-
-static const char * const prtypes[] = {
-	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]	= "not specified",
-	[NVMF_RDMA_PRTYPE_IB]			= "infiniband",
-	[NVMF_RDMA_PRTYPE_ROCE]			= "roce",
-	[NVMF_RDMA_PRTYPE_ROCEV2]		= "roce-v2",
-	[NVMF_RDMA_PRTYPE_IWARP]		= "iwarp",
-};
-
-static inline const char *prtype_str(u8 prtype)
-{
-	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
-}
-
-static const char * const qptypes[] = {
-	[NVMF_RDMA_QPTYPE_CONNECTED]	= "connected",
-	[NVMF_RDMA_QPTYPE_DATAGRAM]	= "datagram",
-};
-
-static inline const char *qptype_str(u8 qptype)
-{
-	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);	}
-
-static const char * const cms[] = {
-	[NVMF_RDMA_CMS_RDMA_CM] = "rdma-cm",
-};
-
-static const char *cms_str(u8 cm)
-{
-	return arg_str(cms, ARRAY_SIZE(cms), cm);
-}
-
 void shutdown_dem()
 {
-	s_sig_num = 1;
 	stopped = 1;
 }
 
 static void signal_handler(int sig_num)
 {
 	signal(sig_num, signal_handler);
-	s_sig_num = sig_num;
-	stopped = 1;
-	printf("\n");
+	if (!stopped) {
+		stopped = 1;
+		printf("\n");
+	}
 }
 
 static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
@@ -143,7 +67,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	case MG_EV_RECV:
 		break;
 	default:
-		print_err("ev_handler: Unexpected request %d", ev);
+		print_err("unexpected request %d", ev);
 	}
 }
 
@@ -157,169 +81,326 @@ static void *poll_loop(struct mg_mgr *mgr)
 	return NULL;
 }
 
-static int get_logpages(struct controller *ctrl,
-			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)
+static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
-	struct nvmf_disc_rsp_page_hdr	*log;
-	unsigned int			 log_size = 0;
-	unsigned long			 genctr;
-	int				 ret = 0;
-	size_t				 offset;
+	int ret = 0;
 
-	ret = connect_controller(&ctrl->ctx, ctrl->trtype,
-				 ctrl->address, ctrl->port);
-	if (ret)
-		return ret;
-
-	offset = offsetof(struct nvmf_disc_rsp_page_hdr, numrec);
-	log_size = offset + sizeof(log->numrec);
-	log_size = round_up(log_size, sizeof(u32));
-
-	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
-	if (ret) {
-		print_err("Failed to fetch number of discovery log entries");
-		ret = -ENODATA;
-		goto err;
-	}
-
-	genctr = le64toh(log->genctr);
-	*numrec = le32toh(log->numrec);
-
-	free(log);
-
-	if (*numrec == 0) {
-		print_err("No discovery log on controller %s", ctrl->address);
-		ret = -ENODATA;
-		goto err;
-	}
-
-	print_debug("number of records to fetch is %d", *numrec);
-
-	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
-		sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
-
-	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
-	if (ret) {
-		print_err("Failed to fetch discovery log entries");
-		ret = -ENODATA;
-		goto err;
-	}
-
-	if ((*numrec != le32toh(log->numrec)) ||
-	    ( genctr != le64toh(log->genctr))) {
-		print_err("# records for last two get log pages not equal");
+	print_debug("nvme_fabrics_type_property_set %x = %llx",
+		   cmd->prop_set.offset, cmd->prop_set.value);
+	if (cmd->prop_set.offset == NVME_REG_CC)
+		*csts = (cmd->prop_set.value == 0x460001) ? 1 : 8;
+	else
 		ret = -EINVAL;
-		goto err;
-	}
 
-	*logp = log;
-
-err:
-	disconnect_controller(&ctrl->ctx);
 	return ret;
 }
 
-static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
+static int handle_property_get(struct nvme_command *cmd,
+			       struct nvme_completion *resp, int csts)
 {
-	int i;
+	int ret = 0;
 
-	print_debug("Discovery Log Number of Records %d, "
-		    "Generation counter %"PRIu64"",
-		    numrec, (uint64_t)le64toh(log->genctr));
+	print_debug("nvme_fabrics_type_property_get %x", cmd->prop_get.offset);
+	if (cmd->prop_get.offset == NVME_REG_CSTS)
+		resp->result = htole32(csts);
+	else if (cmd->prop_get.offset == NVME_REG_CAP)
+		resp->result64 = htole64(0x200f0003ff);
+	else if (cmd->prop_get.offset == NVME_REG_VS)
+		resp->result = htole32(NVME_VER);
+	else
+		ret = -EINVAL;
 
-	for (i = 0; i < numrec; i++) {
-		struct nvmf_disc_rsp_page_entry *e = &log->entries[i];
-
-		print_debug("=====Discovery Log Entry %d======", i);
-		print_debug("trtype:  %s", trtype_str(e->trtype));
-		print_debug("adrfam:  %s", adrfam_str(e->adrfam));
-		print_debug("subtype: %s", subtype_str(e->subtype));
-		print_debug("treq:    %s", treq_str(e->treq));
-		print_debug("portid:  %d", e->portid);
-		print_debug("trsvcid: %s", e->trsvcid);
-		print_debug("subnqn:  %s", e->subnqn);
-		print_debug("traddr:  %s", e->traddr);
-
-		switch (e->trtype) {
-		case NVMF_TRTYPE_RDMA:
-			print_debug("rdma_prtype: %s",
-				    prtype_str(e->tsas.rdma.prtype));
-			print_debug("rdma_qptype: %s",
-				    qptype_str(e->tsas.rdma.qptype));
-			print_debug("rdma_cms:    %s",
-				    cms_str(e->tsas.rdma.cms));
-			print_debug("rdma_pkey: 0x%04x",
-				    e->tsas.rdma.pkey);
-			break;
-		}
-	}
+	return ret;
 }
 
-static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
-			   struct controller *ctrl)
+static int handle_connect(struct context *ctx, u64 length, u64 addr, u64 key,
+			  void *desc)
 {
-	int			i;
-	struct subsystem	*subsys;
-	struct nvmf_disc_rsp_page_entry *e;
+	int ret;
 
-	for (i = 0; i < numrec; i++) {
-		e = &log->entries[i];
+	print_debug("nvme_fabrics_type_connect");
+
+	ret = rma_read(ctx->ep, ctx->scq, ctx->data, length, desc, addr, key);
+	if (ret) {
+		print_err("rma_read returned %d", ret);
+		return ret;
+	}
+
+	struct nvmf_connect_data *data = (void *) ctx->data;
+
+	print_info("host '%s' connected", data->hostnqn);
+
+	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME)) {
+		print_err("bad subsystem '%s', expecting '%s'",
+			  data->subsysnqn, NVME_DISC_SUBSYS_NAME);
+		ret = -EINVAL;
+	}
+	if (data->cntlid != 0xffff) {
+		print_err("bad controller id %x, expecting %x",
+			  data->cntlid, 0xffff);
+		ret = -EINVAL;
+	}
+
+	return ret;
+}
+
+static int handle_identify(struct context *ctx, struct nvme_command *cmd,
+			   u64 length, u64 addr, u64 key, void *desc)
+{
+	struct nvme_id_ctrl *id = (void *) ctx->data;
+	int ret;
+
+	if (htole32(cmd->identify.cns) != NVME_NQN_DISC) {
+		print_err("unexpected identify command");
+		return -EINVAL;
+	}
+
+	memset(id, 0, sizeof(*id));
+
+	print_debug("identify");
+
+	memset(id->fr, ' ', sizeof(id->fr));
+	strncpy((char *)id->fr, " ", sizeof(id->fr));
+
+	id->mdts = 0;
+	id->cntlid = 0;
+	id->ver = htole32(NVME_VER);
+	id->lpa = (1 << 2);
+	id->maxcmd = htole16(NVMF_DQ_DEPTH);
+	id->sgls = htole32(1 << 0) | htole32(1 << 2) | htole32(1 << 20);
+
+	strcpy(id->subnqn, NVME_DISC_SUBSYS_NAME);
+
+	if (length > sizeof(*id))
+		length = sizeof(*id);
+
+	ret = rma_write(ctx->ep, ctx->scq, id, length, desc, addr, key);
+	if (ret)
+		print_err("rma_write returned %d", ret);
+
+	return ret;
+}
+
+/* TODO: Walk the list of log pages, return the log page count */
+static int handle_get_log_page_count(struct context *ctx,
+				     struct interface *iface, u64 length,
+				     u64 addr, u64 key, void *desc)
+{
+	struct nvmf_disc_rsp_page_hdr *log = (void *) ctx->data;
+	struct controller	*ctrl;
+	struct subsystem	*subsys;
+	int			ret;
+	int			numrec = 0;
+
+	print_debug("get_log_page_count");
+
+	for (ctrl = iface->controller_list; ctrl; ctrl = ctrl->next) {
 		subsys = ctrl->subsystem_list;
 		while (subsys) {
-			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
-				subsys->log_page = *e;
-				break;
+			if (subsys->access)
+				numrec++;
+			subsys = subsys->next;
+		}
+	}
+
+	log->numrec = numrec;
+	log->genctr = 1;
+
+	ret = rma_write(ctx->ep, ctx->scq, log, length, desc, addr, key);
+	if (ret) {
+		print_err("rma_write returned %d", ret);
+	}
+
+	return ret;
+}
+
+/* TODO: Walk the list of log pages, build log page headers */
+static int handle_get_log_pages(struct context *ctx, struct interface *iface,
+				u64 length, u64 addr, u64 key, void *desc)
+{
+	struct nvmf_disc_rsp_page_hdr *log = (void *) ctx->data;
+	struct nvmf_disc_rsp_page_entry *page = (void *) &log[1];
+	struct controller	*ctrl;
+	struct subsystem	*subsys;
+	int ret;
+	int numrec = 0;
+
+	print_debug("get_log_pages");
+
+	for (ctrl = iface->controller_list; ctrl; ctrl = ctrl->next) {
+		subsys = ctrl->subsystem_list;
+		while (subsys) {
+			if (subsys->access) {
+				memcpy(page, &subsys->log_page, sizeof(*page));
+				numrec++;
+				page++;
 			}
 			subsys = subsys->next;
 		}
-		if (!subsys)
-			print_err("subsystem for log page (%s) not found",
-				  e->subnqn);
 	}
+
+	log->numrec = numrec;
+	log->genctr = 1;
+
+	ret = rma_write(ctx->ep, ctx->scq, log, length, desc, addr, key);
+	if (ret) {
+		print_err("rma_write returned %d", ret);
+	}
+
+	return ret;
 }
 
-static void fetch_log_pages(struct controller *ctrl)
+static void handle_request(struct interface *iface, struct context *ctx,
+			   struct qe *qe, int length)
 {
-	struct nvmf_disc_rsp_page_hdr	*log = NULL;
-	u32				 num_records = 0;
+	struct nvme_command	*cmd;
+	struct nvme_completion	*resp;
+	struct nvmf_connect_command *c;
+	int			ret;
+	u64			len;
+	void			*desc;
+	u64			addr;
+	u64			key;
 
-	if (get_logpages(ctrl, &log, &num_records)) {
-		print_err("Failed to get logpage for controller %s",
-			  ctrl->address);
-		return;
+	cmd = (struct nvme_command *) qe->buf;
+	c = &cmd->connect;
+
+	len = get_unaligned_le24(c->dptr.ksgl.length);
+	key = get_unaligned_le32(c->dptr.ksgl.key);
+	desc = fi_mr_desc(ctx->data_mr);
+	addr = c->dptr.ksgl.addr;
+
+	resp = (void *) ctx->cmd;
+	memset(resp, 0, sizeof(*resp));
+
+	resp->command_id = c->command_id;
+
+#if DEBUG_REQUEST
+	dump(qe->buf, length);
+#else
+	UNUSED(length);
+#endif
+
+	if (cmd->common.opcode == nvme_fabrics_command) {
+		switch (cmd->fabrics.fctype) {
+		case nvme_fabrics_type_property_set:
+			ret = handle_property_set(cmd, &ctx->csts);
+			break;
+		case nvme_fabrics_type_property_get:
+			ret = handle_property_get(cmd, resp, ctx->csts);
+			break;
+		case nvme_fabrics_type_connect:
+			ret = handle_connect(ctx, len, addr, key, desc);
+			break;
+		default:
+			print_err("unknown fctype %d", cmd->fabrics.fctype);
+			ret = -EINVAL;
+		}
+	} else if (cmd->common.opcode == nvme_admin_identify)
+		ret = handle_identify(ctx, cmd, len, addr, key, desc);
+	else if (cmd->common.opcode == nvme_admin_get_log_page) {
+		if (len == 16)
+			ret = handle_get_log_page_count(ctx, iface, len, addr,
+							key, desc);
+		else
+			ret = handle_get_log_pages(ctx, iface, len, addr, key,
+						   desc);
+	} else {
+		print_err("unknown nvme opcode %d\n", cmd->common.opcode);
+		ret = -EINVAL;
 	}
 
-	save_log_pages(log, num_records, ctrl);
+	if (ret)
+		resp->status = NVME_SC_DNR;
 
-	print_discovery_log(log, num_records);
+	send_msg_and_repost(ctx, qe, resp, sizeof(*resp));
+}
 
-	free(log);
+static void *host_thread(void *this_interface)
+{
+	struct context		*ctx = (struct context *)this_interface;
+	struct fi_cq_err_entry	 comp;
+	struct fi_eq_cm_entry	 entry;
+	uint32_t		 event;
+	int			 retry_count = RETRY_COUNT;
+	int			 ret;
+
+	while (!stopped) {
+		/* Listen and service Host requests */
+
+		ret = fi_eq_read(ctx->eq, &event, &entry, sizeof(entry), 0);
+		if (ret == sizeof(entry))
+			if (event == FI_SHUTDOWN)
+				goto out;
+
+		ret = fi_cq_sread(ctx->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
+		if (ret > 0)
+			handle_request(ctx->iface, ctx, comp.op_context,
+				       comp.len);
+		else if (ret == -EAGAIN) {
+			retry_count--;
+			if (!retry_count)
+				goto out;
+		} else if (ret != -EINTR) {
+			print_cq_error(ctx->rcq, ret);
+			break;
+		}
+	}
+
+out:
+	fi_shutdown(ctx->ep, 0);
+	ctx->state = DISCONNECTED;
+
+	return NULL;
 }
 
 static void *xport_thread(void *this_interface)
 {
-	struct interface		*iface;
-	struct controller		*ctrl;
+	pthread_attr_t		 pthread_attr;
+	pthread_t		 pthread;
+	struct controller	*ctrl;
+	struct context		ctx;
+	int			ret;
 
-	iface = (struct interface *)this_interface;
+	ctx.iface = (struct interface *)this_interface;
 
-	if (get_transport(iface, json_ctx)) {
-		print_err("Failed to get transport for iface %d",
-			  iface->interface_id);
+	if (get_transport(ctx.iface, json_ctx)) {
+		print_err("failed to get transport for iface %d",
+			  ctx.iface->interface_id);
 		return NULL;
 	}
 
-	ctrl = iface->controller_list;
-
-	while (ctrl) {
+	for (ctrl = ctx.iface->controller_list; ctrl; ctrl = ctrl->next)
 		fetch_log_pages(ctrl);
-		ctrl = ctrl->next;
+
+	ret = start_pseudo_target(&ctx, ctx.iface->trtype,
+				  ctx.iface->hostaddr, ctx.iface->port);
+	if (ret) {
+		print_err("failed to start pseudo target");
+		return NULL;
 	}
 
-	/* TODO: Timer refresh on log-pages */
-	/* TODO: Handle RESTful request to force log-page refresh */
-	/* TODO: Handle changes to JSON context */
-	/* TODO: Listen and service Host requests */
+	while (!stopped) {
+
+		/* wait_for_connect */
+		ret = pseudo_target_check_for_host(&ctx);
+		if (ret == 0) {
+			pthread_attr_init(&pthread_attr);
+			run_pseudo_target(&ctx);
+			if (pthread_create(&pthread, &pthread_attr,
+			    host_thread, &ctx)) {
+				print_err("failed to start host thread");
+				return NULL;
+			}
+		} else if (ret != -EAGAIN && ret != -EINTR)
+			print_err("Host connection failed %d\n", ret);
+
+		/* TODO: Timer refresh on log-pages */
+		/* TODO: Handle RESTful request to force log-page refresh */
+		/* TODO: Handle changes to JSON context */
+		}
+
+	cleanup_fabric(&ctx);
 
 	return NULL;
 }
@@ -382,14 +463,14 @@ int init_dem(int argc, char *argv[], char **ssl_cert)
 			break;
 		case 'p':
 			s_http_port = optarg;
-			print_err("Using port %s", s_http_port);
+			print_info("Using port %s", s_http_port);
 			break;
 		case 's':
 			*ssl_cert = optarg;
 			break;
 		default:
 help:
-			print_err("Usage: %s %s", argv[0],
+			print_info("Usage: %s %s", argv[0],
 				  "{-r <root>} {-p <port>} {-s <ssl_cert>}");
 			return 1;
 		}
@@ -435,7 +516,7 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 
 	c = mg_bind_opt(mgr, s_http_port, ev_handler, bind_opts);
 	if (c == NULL) {
-		print_err("Error starting server on port %s: %s",
+		print_err("failed to start server on port %s: %s",
 			  s_http_port, *bind_opts.error_string);
 		return 1;
 	}
@@ -450,7 +531,7 @@ void cleanup_threads(pthread_t *xport_pthread, int count)
 	int i;
 
 	for (i = 0; i < count; i++)
-		pthread_kill(xport_pthread[i], s_sig_num);
+		pthread_kill(xport_pthread[i], SIGTERM);
 
 	free(xport_pthread);
 }
@@ -466,8 +547,6 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
 	if (!pthreads)
 		return -ENOMEM;
 
-	s_sig_num = 0;
-
 	signal(SIGSEGV, signal_handler);
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -477,7 +556,7 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
 	for (i = 0; i < count; i++) {
 		if (pthread_create(&pthreads[i], &pthread_attr, xport_thread,
 				   &(interfaces[i]))) {
-			print_err("Error starting transport thread");
+			print_err("failed to start transport thread");
 			free(pthreads);
 			return 1;
 		}
@@ -496,11 +575,13 @@ int main(int argc, char *argv[])
 	struct interface	*interfaces;
 	int			 num_interfaces;
 
+/* TODO: Do we want to restrict to root if daemenized  */
+#if 0
 	if (getuid() != 0) {
-		print_err("Must be root to run dem");
+		print_err("must be root to run dem");
 		return -1;
 	}
-
+#endif
 	if (init_dem(argc, argv, &ssl_cert))
 		return 1;
 
@@ -515,11 +596,7 @@ int main(int argc, char *argv[])
 	if (num_interfaces <=0)
 		return 1;
 
-	s_sig_num = 0;
 	stopped = 0;
-
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
 
 	print_info("Starting server on port %s, serving '%s'",
 		   s_http_port, s_http_server_opts.document_root);

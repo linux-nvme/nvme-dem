@@ -14,7 +14,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <signal.h>
 #include <endian.h>
 #include <uuid/uuid.h>
 #include <sys/socket.h>
@@ -23,32 +22,22 @@
 #include <rdma/fi_errno.h>
 #include <rdma/fi_endpoint.h>
 #include <rdma/fi_domain.h>
-#include <rdma/fi_tagged.h>
+//#include <rdma/fi_tagged.h>
 #include <rdma/fi_cm.h>
 #include <rdma/fi_eq.h>
 #include <rdma/fi_rma.h>
-
-#define NVMF_DQ_DEPTH	32
 
 #include "common.h"
 #include "nvme.h"
 #include "nvme-rdma.h"
 
 #define IDLE_TIMEOUT 100
-#define CTIMEOUT 100
 #define PAGE_SIZE 4096
-#define BUF_SIZE 4096
 
-enum { DISCONNECTED, CONNECTED };
+#define NVME_CTRL_ENABLE 0x460001
+#define NVME_CTRL_DISABLE 0x464001
 
-static void signal_handler(int sig_num)
-{
-	signal(sig_num, signal_handler);
-	stopped = 1;
-	printf("\n");
-}
-
-static void dump(u8 *buf, int len)
+void dump(u8 *buf, int len)
 {
 	int i, j;
 
@@ -59,7 +48,7 @@ static void dump(u8 *buf, int len)
 	if (j) printf("\n");
 }
 
-static void print_cq_error(struct fid_cq *cq, int n)
+void print_cq_error(struct fid_cq *cq, int n)
 {
 	int rc;
 	struct fi_cq_err_entry entry = { 0 };
@@ -85,7 +74,7 @@ static void print_cq_error(struct fid_cq *cq, int n)
 	}
 }
 
-static void print_eq_error(struct fid_eq *eq, int n)
+void print_eq_error(struct fid_eq *eq, int n)
 {
 	int rc;
 	struct fi_eq_err_entry eqe = { 0 };
@@ -120,8 +109,9 @@ static void *alloc_buffer(struct context *ctx, int size, struct fid_mr **mr)
 		print_err("no memory for buffer, errno %d", errno);
 		goto out;
 	}
-	ret = fi_mr_reg(ctx->dom, buf, size,
-			FI_RECV | FI_SEND | FI_REMOTE_READ | FI_REMOTE_WRITE,
+	ret = fi_mr_reg(ctx->dom, buf, size, FI_RECV | FI_SEND |
+			FI_REMOTE_READ | FI_REMOTE_WRITE |
+			FI_READ | FI_WRITE,
 			0, 0, 0, mr, NULL);
 	if (ret) {
 		print_err("fi_mr_reg returned %d", ret);
@@ -208,8 +198,6 @@ free_info:
 static int server_listen(struct context *ctx)
 {
 	struct fi_eq_attr	eq_attr = { 0 };
-	struct fi_eq_cm_entry	entry;
-	uint32_t		event;
 	int			ret;
 
 	ret = fi_eq_open(ctx->fab, &eq_attr, &ctx->peq, NULL);
@@ -235,8 +223,14 @@ static int server_listen(struct context *ctx)
 
 	stopped = 0;
 
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
+	return 0;
+}
+
+int pseudo_target_check_for_host(struct context *ctx)
+{
+	struct fi_eq_cm_entry	entry;
+	uint32_t		event;
+	int			ret;
 
 	while (!stopped) {
 		ret = fi_eq_sread(ctx->peq, &event, &entry, sizeof(entry),
@@ -244,10 +238,11 @@ static int server_listen(struct context *ctx)
 		if (ret == sizeof(entry))
 			break;
 		if (ret == -EAGAIN || ret == -EINTR)
-			continue;
+			return ret;
 		print_eq_error(ctx->peq, ret);
 		return ret;
 	}
+
 	if (stopped)
 		return -ESHUTDOWN;
 
@@ -312,7 +307,7 @@ static int create_endpoint(struct context *ctx, struct fi_info *info)
 	info->rx_attr->iov_limit = 1;
 	info->tx_attr->inject_size = 0;
 
-	cq_attr.size = 4;
+	cq_attr.size = NVMF_DQ_DEPTH;
 	cq_attr.format = FI_CQ_FORMAT_MSG;
 	cq_attr.wait_obj = FI_WAIT_UNSPEC;
 	cq_attr.wait_cond = FI_CQ_COND_NONE;
@@ -408,11 +403,6 @@ int client_connect(struct context *ctx)
 		print_err("fi_connect returned %d", ret);
 		goto out;
 	}
-
-	stopped = 0;
-
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
 
 	while (!stopped) {
 		ret = fi_eq_sread(ctx->eq, &event, &entry, sizeof(entry),
@@ -679,12 +669,96 @@ int send_get_log_page(struct context *ctx, int log_size,
 	return ret;
 }
 
+int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
+	     void *desc, u64 addr, u64 key)
+{
+	struct fi_cq_err_entry	comp;
+	int			ret;
+
+	ret = fi_read(ep, buf, len, desc, (fi_addr_t) NULL, addr, key, NULL);
+	if (ret)
+		return ret;
+
+	while (!stopped) {
+		ret = fi_cq_sread(scq, &comp, 1, NULL, IDLE_TIMEOUT);
+		if (ret > 0)
+			return 0;
+		if (ret == -EAGAIN || ret == -EINTR)
+			continue;
+		print_err("fabric connect failed");
+		print_cq_error(scq, ret);
+		break;
+	}
+
+	return ret;
+}
+
+int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
+	      void *desc, u64 addr, u64 key)
+{
+	struct fi_cq_err_entry	comp;
+	int			ret;
+
+	ret = fi_write(ep, buf, len, desc, (fi_addr_t) NULL, addr, key, NULL);
+	if (ret)
+		return ret;
+
+	while (!stopped) {
+		ret = fi_cq_sread(scq, &comp, 1, NULL, IDLE_TIMEOUT);
+		if (ret > 0)
+			return 0;
+		if (ret == -EAGAIN || ret == -EINTR)
+			continue;
+		print_err("fabric connect failed");
+		print_cq_error(scq, ret);
+		break;
+	}
+
+	return ret;
+}
+
+int send_msg_and_repost(struct context *ctx, struct qe *qe, void *msg, int len)
+{
+	struct fi_cq_err_entry comp;
+	int ret;
+
+	ret = fi_recv(ctx->ep, qe->buf, BUF_SIZE, fi_mr_desc(qe->recv_mr),
+		      0, qe);
+	if (ret) {
+		print_err("fi_recv returned %d", ret);
+		return ret;
+	}
+
+	ret = fi_send(ctx->ep, msg, len, fi_mr_desc(ctx->send_mr),
+		      FI_ADDR_UNSPEC, NULL);
+	if (ret) {
+		print_err("fi_send returned %d", ret);
+		return ret;
+	}
+
+	while (!stopped) {
+		ret = fi_cq_sread(ctx->scq, &comp, 1, NULL, IDLE_TIMEOUT);
+		if (ret > 0)
+			break;
+		if (ret == -EAGAIN || ret == -EINTR)
+			continue;
+		print_err("fabric connect failed");
+		print_cq_error(ctx->scq, ret);
+		return ret;
+	}
+
+	return 0;
+}
+
 void disconnect_controller(struct context *ctx)
 {
-	if (ctx->qe)
-		free(ctx->qe);
+	if (ctx->state == CONNECTED)
+		send_set_property(ctx, NVME_REG_CC, NVME_CTRL_DISABLE);
 
 	cleanup_fabric(ctx);
+
+	if (ctx->qe)
+		free(ctx->qe);
 
 	if (ctx->cmd)
 		free(ctx->cmd);
@@ -692,11 +766,10 @@ void disconnect_controller(struct context *ctx)
 
 int connect_controller(struct context *ctx, char *type, char *node, char *port)
 {
-	int			ret;
-	char			*provider;
 	struct nvme_command	*cmd;
+	char			*provider;
 	char			*verbs = "verbs";
-	u64			val;
+	int			ret;
 
 	if (!strcmp(type, "rdma"))
 		provider = verbs;
@@ -725,25 +798,16 @@ int connect_controller(struct context *ctx, char *type, char *node, char *port)
 	if (ret)
 		return ret;
 
-	val = 0x460001;
-	ret = send_set_property(ctx, NVME_REG_CC, val);
+	ret = send_set_property(ctx, NVME_REG_CC, NVME_CTRL_ENABLE);
 
 	return ret;
 }
 
-static void handle_request(struct context *ctx, struct qe *qe, int len)
+int start_pseudo_target(struct context *ctx, char *type, char *node, char *port)
 {
-	UNUSED(ctx);
-	UNUSED(qe);
-	UNUSED(len);
-}
-
-int pseudo_target(struct context *ctx, char *type, char *node, char *port)
-{
-	struct fi_cq_err_entry	comp;
-	int			ret;
 	char			*provider;
 	char			verbs[] = "verbs";
+	int			ret;
 
 	if (!strcmp(type, "rdma"))
 		provider = verbs;
@@ -758,6 +822,19 @@ int pseudo_target(struct context *ctx, char *type, char *node, char *port)
 	if (ret)
 		goto cleanup;
 
+	return 0;
+
+cleanup:
+	cleanup_fabric(ctx);
+	return ret;
+}
+
+int run_pseudo_target(struct context *ctx)
+{
+	struct nvme_command	*cmd;
+	void			*data;
+	int			 ret;
+
 	ret = create_endpoint(ctx, ctx->info);
 	if (ret)
 		goto cleanup;
@@ -766,15 +843,19 @@ int pseudo_target(struct context *ctx, char *type, char *node, char *port)
 	if (ret)
 		goto cleanup;
 
-	while (!stopped) {
-		ret = fi_cq_sread(ctx->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
-		if (ret > 0)
-			handle_request(ctx, comp.op_context, comp.len);
-		else if (ret != -EAGAIN && ret != -EINTR) {
-			print_cq_error(ctx->rcq, ret);
-			break;
-		}
-	}
+	cmd = alloc_buffer(ctx, BUF_SIZE, &ctx->send_mr);
+	if (!cmd)
+		return -ENOMEM;
+
+	ctx->cmd = cmd;
+
+	data = alloc_buffer(ctx, BUF_SIZE, &ctx->data_mr);
+	if (!data)
+		return -ENOMEM;
+
+	ctx->data = data;
+
+	return 0;
 
 cleanup:
 	cleanup_fabric(ctx);

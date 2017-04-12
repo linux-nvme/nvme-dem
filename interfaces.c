@@ -163,7 +163,7 @@ static int match_transport(struct interface *iface, struct json_object *ctrl,
 	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
 	json_object_object_get_ex(ctrl, TAG_PORT, &obj);
-	if (!obj)
+	if (obj)
 		strncpy(port, (char *) json_object_get_string(obj),
 			CONFIG_PORT_SIZE);
 	else
@@ -273,15 +273,15 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 	if (ret)
 		return;
 
-	if (strcmp(tag, "Type") == 0)
+	if (strcasecmp(tag, TAG_TYPE) == 0)
 		strncpy(iface->trtype, val, CONFIG_TYPE_SIZE);
-	else if (strcmp(tag, "Family") == 0)
+	else if (strcasecmp(tag, TAG_FAMILY) == 0)
 		strncpy(iface->addrfam, val, CONFIG_FAMILY_SIZE);
-	else if (strcmp(tag, "Address") == 0)
+	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
 		strncpy(iface->hostaddr, val, CONFIG_ADDRESS_SIZE);
-	else if (strcmp(tag, "Netmask") == 0)
+	else if (strcasecmp(tag, TAG_NETMASK) == 0)
 		strncpy(iface->netmask, val, CONFIG_ADDRESS_SIZE);
-	else if (strcmp(tag, "Port") == 0)
+	else if (strcasecmp(tag, TAG_PORT) == 0)
 		strncpy(iface->port, val, CONFIG_PORT_SIZE);
 }
 

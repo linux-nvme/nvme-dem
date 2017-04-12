@@ -20,6 +20,10 @@
 
 extern int debug;
 
+#define BUF_SIZE	4096
+#define NVMF_DQ_DEPTH	32
+#define CTIMEOUT	100
+
 #define print_debug(f, x...) do { \
 	if (debug) { \
 		printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
@@ -36,15 +40,34 @@ extern int debug;
 
 #define UNUSED(x) (void) x
 
+#define min(x, y) ((x < y) ? x : y)
+
 #define __round_mask(x, y) ((__typeof__(x))((y)-1))
 #define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
 
+#ifndef ARRAY_SIZE
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+#endif
+
 extern int stopped;
+
+enum { DISCONNECTED, CONNECTED };
 
 #define u8  __u8
 #define u16 __u16
 #define u32 __u32
 #define u64 __u64
+
+static inline u32 get_unaligned_le24(const u8 *p)
+{
+	return (u32) p[0] | (u32) p[1] << 8 | (u32) p[2] << 16;
+}
+
+static inline u32 get_unaligned_le32(const u8 *p)
+{
+	return (u32) p[0] | (u32) p[1] << 8 |
+		(u32) p[2] << 16 | (u32) p[3] << 24;
+}
 
 /*
  *  trtypes
@@ -124,7 +147,7 @@ struct context {
 	struct fid_fabric	*fab;
 	struct fid_domain	*dom;
 	struct fid_mr		*send_mr;
-	struct fid_mr		*recv_mr;
+	struct fid_mr		*data_mr;
 	struct fid_pep		*pep;
 	struct fid_ep		*ep;
 	struct fid_eq		*eq;
@@ -132,8 +155,11 @@ struct context {
 	struct fid_cq		*rcq;
 	struct fid_cq		*scq;
 	struct nvme_command	*cmd;
+	void			*data;
 	struct qe		*qe;
 	int			state;
+	int			csts;
+	struct interface	*iface;
 };
 
 struct controller {
@@ -183,12 +209,29 @@ void ipv6_mask(int *mask, int bits);
 int ipv4_equal(int *addr, int *dest, int *mask);
 int ipv6_equal(int *addr, int *dest, int *mask);
 
+void print_eq_error(struct fid_eq *eq, int n);
+
 int init_interfaces(struct interface **interfaces);
 
-int connect_controller(struct context *ctx, char *addr_family, char *addr, char *port);
+int start_pseudo_target(struct context *ctx, char *addr_family, char *addr,
+			char *port);
+int run_pseudo_target(struct context *ctx);
+int pseudo_target_check_for_host(struct context *ctx);
+int connect_controller(struct context *ctx, char *addr_family, char *addr,
+		       char *port);
 void disconnect_controller(struct context *ctx);
+void cleanup_fabric(struct context *ctx);
 int send_get_log_page(struct context *ctx, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
+void fetch_log_pages(struct controller *ctrl);
+int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
+	     void *desc, u64 addr, u64 key);
+int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
+	      void *desc, u64 addr, u64 key);
+int send_msg_and_repost(struct context *c, struct qe *qe, void *msg, int len);
+void print_cq_error(struct fid_cq *cq, int n);
+void dump(u8 *buf, int len);
+
 // TODO make these real function since FC Bits are only 8 not 16
 #define fc_to_addr	ipv6_to_addr
 #define fc_mask		ipv6_mask
