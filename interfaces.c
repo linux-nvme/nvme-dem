@@ -23,6 +23,24 @@
 #include "tags.h"
 #include "common.h"
 
+int refresh_ctrl(char *alias)
+{
+	struct controller	*ctrl;
+	int			 i;
+
+	for (i = 0; i < num_interfaces; i++) {
+		ctrl = interfaces[i].controller_list;
+		for (; ctrl; ctrl = ctrl->next) {
+			if (!strcmp(ctrl->alias, alias)) {
+				fetch_log_pages(ctrl);
+				return 0;
+			}
+		}
+	}
+
+	return -EINVAL;
+}
+
 static void check_host(struct subsystem *subsys, struct json_object *nqn,
 		       struct json_object *array)
 {
@@ -179,38 +197,58 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 {
 	struct controller *ctrl;
 	struct json_object *subgroup;
+	struct json_object *obj;
 	int addr[IPV6_ADDR_LEN];
-	char address[CONFIG_ADDRESS_SIZE];
-	char port[CONFIG_PORT_SIZE];
-	char fam[CONFIG_FAMILY_SIZE];
-	char type[CONFIG_TYPE_SIZE];
+	char address[CONFIG_ADDRESS_SIZE + 1];
+	char port[CONFIG_PORT_SIZE + 1];
+	char fam[CONFIG_FAMILY_SIZE + 1];
+	char type[CONFIG_TYPE_SIZE + 1];
+	int refresh = 0;
 
 	if (!match_transport(iface, grp, type, fam, address, port, addr))
-		goto err;
+		goto err1;
 
 	ctrl = malloc(sizeof(*ctrl));
 	if (!ctrl)
-		goto err;
+		goto err1;
 
 	memset(ctrl, 0, sizeof(*ctrl));
+
 	ctrl->next = iface->controller_list;
 	ctrl->interface = iface;
+
 	iface->controller_list = ctrl;
 	iface->num_controllers++;
+
+	json_object_object_get_ex(parent, TAG_REFRESH, &obj);
+	if (obj)
+		refresh = json_object_get_int(obj);
+
+	json_object_object_get_ex(parent, TAG_ALIAS, &obj);
+	if (!obj)
+		goto err2;
+
+	strncpy(ctrl->alias, (char *) json_object_get_string(obj),
+		MAX_ALIAS_SIZE);
 
 	strncpy(ctrl->trtype, type, CONFIG_TYPE_SIZE);
 	strncpy(ctrl->addrfam, fam, CONFIG_FAMILY_SIZE);
 	strncpy(ctrl->address, address, CONFIG_ADDRESS_SIZE);
 	strncpy(ctrl->port, port, CONFIG_PORT_SIZE);
+
 	memcpy(ctrl->addr, addr, IPV6_ADDR_LEN);
+
 	ctrl->port_num = atoi(port);
+	ctrl->refresh = refresh;
 
 	json_object_object_get_ex(parent, TAG_SUBSYSTEMS, &subgroup);
 	if (subgroup)
 		check_subsystems(ctrl, ctx, subgroup);
 
 	return 1;
-err:
+err2:
+	free(ctrl);
+err1:
 	return 0;
 }
 
@@ -372,23 +410,57 @@ out:
 	return ret;
 }
 
-int init_interfaces(struct interface **interfaces)
+void cleanup_interfaces(struct interface *interfaces)
 {
-	struct interface *iface;
-	int		  count;
-	int		  ret;
+	struct controller	*ctrl;
+	struct controller	*next_ctrl;
+	struct subsystem	*subsys;
+	struct subsystem	*next_subsys;
+	struct host		*host;
+	struct host		*next_host;
+
+	for (ctrl = interfaces->controller_list; ctrl; ctrl = next_ctrl) {
+		for (subsys = ctrl->subsystem_list; subsys;
+		     subsys = next_subsys) {
+			for (host = subsys->host_list; host;
+			     host = next_host) {
+				next_host = host->next;
+				free(host);
+			}
+			next_subsys = subsys->next;
+			free(subsys);
+		}
+		next_ctrl = ctrl->next;
+		free(ctrl);
+	}
+
+	free(interfaces);
+}
+
+int init_interfaces(struct interface **iface)
+{
+	struct interface	*interfaces;
+	int			count;
+	int			ret;
 
 	/* Could avoid this if we move to a list */
 	count = count_dem_config_files();
 	if (count < 0)
 		return count;
 
-	iface = calloc(count, sizeof (struct interface));
-	ret = read_dem_config_files(iface);
-	if (ret)
-		return -1;
+	interfaces = calloc(count, sizeof(struct interface));
+	if (!interfaces)
+		return -ENOMEM;
 
-	*interfaces = iface;
+	memset(interfaces, 0, count * sizeof(struct interface));
+
+	ret = read_dem_config_files(interfaces);
+	if (ret) {
+		free(interfaces);
+		return -1;
+	}
+
+	*iface = interfaces;
 
 	return count;
 }

@@ -12,13 +12,14 @@
  * more details.
  */
 
+#ifndef __COMMON_H__
+#define __COMMON_H__
+
 #define unlikely __glibc_unlikely
 
 #include <sys/types.h>
 #include <stdbool.h>
 #include "nvme.h"	/* NOTE: Using linux kernel include here */
-
-extern int debug;
 
 #define BUF_SIZE	4096
 #define NVMF_DQ_DEPTH	32
@@ -49,7 +50,10 @@ extern int debug;
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-extern int stopped;
+extern int		 debug;
+extern int		 stopped;
+extern struct interface	*interfaces;
+extern int		 num_interfaces;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -94,7 +98,8 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define LARGEST_TAG		8
 #define LARGEST_VAL		40
 
-#define MAX_NQN			64
+#define MAX_NQN_SIZE		64
+#define MAX_ALIAS_SIZE		64
 
 #ifndef AF_IPV4
 #define AF_IPV4			1
@@ -122,14 +127,14 @@ enum {RESTRICTED = 0, ALOW_ALL = 1};
 struct host {
 	struct host		*next;
 	struct subsystem	*subsystem;
-	char			nqn[MAX_NQN + 1];
+	char			nqn[MAX_NQN_SIZE + 1];
 	int			access;
 };
 
 struct subsystem {
 	struct subsystem		*next;
 	struct controller		*ctrl;
-	char				 nqn[MAX_NQN + 1];
+	char				 nqn[MAX_NQN_SIZE + 1];
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
 	struct host			*host_list;
@@ -165,12 +170,15 @@ struct context {
 struct controller {
 	struct controller	*next;
 	struct interface	*interface;
+	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 trtype[CONFIG_TYPE_SIZE + 1];
 	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
 	int			 addr[IPV6_ADDR_LEN];
+	int			 refresh;
+	int			 refresh_countdown;
 	struct subsystem	*subsystem_list;
 	int			 num_subsystems;
 	struct context		 ctx;
@@ -212,6 +220,7 @@ int ipv6_equal(int *addr, int *dest, int *mask);
 void print_eq_error(struct fid_eq *eq, int n);
 
 int init_interfaces(struct interface **interfaces);
+void cleanup_interfaces(struct interface *interfaces);
 
 int start_pseudo_target(struct context *ctx, char *addr_family, char *addr,
 			char *port);
@@ -229,6 +238,7 @@ int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	      void *desc, u64 addr, u64 key);
 int send_msg_and_repost(struct context *c, struct qe *qe, void *msg, int len);
+int refresh_ctrl(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
 
@@ -236,3 +246,5 @@ void dump(u8 *buf, int len);
 #define fc_to_addr	ipv6_to_addr
 #define fc_mask		ipv6_mask
 #define fc_equal	ipv6_equal
+
+#endif

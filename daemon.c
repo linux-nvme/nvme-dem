@@ -32,12 +32,14 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-struct mg_serve_http_opts	s_http_server_opts;
+struct mg_serve_http_opts	 s_http_server_opts;
 char				*s_http_port = "22345";
 void				*json_ctx;
-int				stopped;
-int				poll_timeout = 100;
-int				debug;
+int				 stopped;
+int				 poll_timeout = 100;
+int				 debug;
+struct interface		*interfaces;
+int				 num_interfaces;
 
 void shutdown_dem()
 {
@@ -181,7 +183,6 @@ static int handle_identify(struct context *ctx, struct nvme_command *cmd,
 	return ret;
 }
 
-/* TODO: Walk the list of log pages, return the log page count */
 static int handle_get_log_page_count(struct context *ctx,
 				     struct interface *iface, u64 length,
 				     u64 addr, u64 key, void *desc)
@@ -214,7 +215,6 @@ static int handle_get_log_page_count(struct context *ctx,
 	return ret;
 }
 
-/* TODO: Walk the list of log pages, build log page headers */
 static int handle_get_log_pages(struct context *ctx, struct interface *iface,
 				u64 length, u64 addr, u64 key, void *desc)
 {
@@ -348,19 +348,66 @@ static void *host_thread(void *this_interface)
 	}
 
 out:
-	fi_shutdown(ctx->ep, 0);
-	ctx->state = DISCONNECTED;
+	cleanup_fabric(ctx);
+	free(ctx);
 
 	return NULL;
 }
 
+static int run_pseudo_target_for_host(struct context *ctx)
+{
+	struct context	*child_ctx;
+	pthread_attr_t	 pthread_attr;
+	pthread_t	 pthread;
+	int		 ret;
+
+
+	child_ctx = malloc(sizeof(*ctx));
+	if (!child_ctx) {
+		print_err("malloc failed");
+		return -ENOMEM;
+	}
+	memcpy(child_ctx, ctx, sizeof(*ctx));
+
+	ret = run_pseudo_target(child_ctx);
+	if (ret) {
+		print_err("unable to accept host connect");
+		print_err("run_pseudo_target returned %d", ret);
+		goto err;
+	}
+
+	pthread_attr_init(&pthread_attr);
+	ret = pthread_create(&pthread, &pthread_attr, host_thread, child_ctx);
+	if (ret) {
+		print_err("failed to start host thread");
+		goto err;
+	}
+
+	return 0;
+err:
+	free(child_ctx);
+	return ret;
+}
+
+static void refresh_log_pages(struct controller *ctrl)
+{
+	for (; ctrl; ctrl = ctrl->next) {
+		if (!ctrl->refresh)
+			continue;
+
+		ctrl->refresh_countdown--;
+		if (!ctrl->refresh_countdown) {
+			fetch_log_pages(ctrl);
+			ctrl->refresh_countdown = ctrl->refresh / IDLE_TIMEOUT;
+		}
+	}
+}
+
 static void *xport_thread(void *this_interface)
 {
-	pthread_attr_t		 pthread_attr;
-	pthread_t		 pthread;
 	struct controller	*ctrl;
-	struct context		ctx;
-	int			ret;
+	struct context		 ctx = { 0 };
+	int			 ret;
 
 	ctx.iface = (struct interface *)this_interface;
 
@@ -370,8 +417,10 @@ static void *xport_thread(void *this_interface)
 		return NULL;
 	}
 
-	for (ctrl = ctx.iface->controller_list; ctrl; ctrl = ctrl->next)
+	for (ctrl = ctx.iface->controller_list; ctrl; ctrl = ctrl->next) {
 		fetch_log_pages(ctrl);
+		ctrl->refresh_countdown = ctrl->refresh / IDLE_TIMEOUT;
+	}
 
 	ret = start_pseudo_target(&ctx, ctx.iface->trtype,
 				  ctx.iface->hostaddr, ctx.iface->port);
@@ -381,21 +430,17 @@ static void *xport_thread(void *this_interface)
 	}
 
 	while (!stopped) {
-
-		/* wait_for_connect */
 		ret = pseudo_target_check_for_host(&ctx);
-		if (ret == 0) {
-			pthread_attr_init(&pthread_attr);
-			run_pseudo_target(&ctx);
-			if (pthread_create(&pthread, &pthread_attr,
-			    host_thread, &ctx)) {
-				print_err("failed to start host thread");
-				return NULL;
-			}
-		} else if (ret != -EAGAIN && ret != -EINTR)
+		if (ret == 0)
+			ret = run_pseudo_target_for_host(&ctx);
+		else if (ret != -EAGAIN && ret != -EINTR)
 			print_err("Host connection failed %d\n", ret);
 
-		/* TODO: Timer refresh on log-pages */
+		if (stopped)
+			break;
+
+		refresh_log_pages(ctx.iface->controller_list);
+
 		/* TODO: Handle RESTful request to force log-page refresh */
 		/* TODO: Handle changes to JSON context */
 		}
@@ -547,7 +592,6 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
 	if (!pthreads)
 		return -ENOMEM;
 
-	signal(SIGSEGV, signal_handler);
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
@@ -572,8 +616,7 @@ int main(int argc, char *argv[])
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
 	pthread_t		*xport_pthread;
-	struct interface	*interfaces;
-	int			 num_interfaces;
+	int			 ret = 1;
 
 /* TODO: Do we want to restrict to root if daemenized  */
 #if 0
@@ -583,18 +626,18 @@ int main(int argc, char *argv[])
 	}
 #endif
 	if (init_dem(argc, argv, &ssl_cert))
-		return 1;
+		goto out1;
 
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
-		return 1;
+		goto out1;
 
 	json_ctx = init_json("config.json");
 	if (!json_ctx)
-		return 1;
+		goto out1;
 
 	num_interfaces = init_interfaces(&interfaces);
-	if (num_interfaces <=0)
-		return 1;
+	if (num_interfaces <= 0)
+		goto out2;
 
 	stopped = 0;
 
@@ -602,15 +645,17 @@ int main(int argc, char *argv[])
 		   s_http_port, s_http_server_opts.document_root);
 
 	if (init_threads(&xport_pthread, interfaces, num_interfaces))
-		return 1;
+		goto out3;
 
 	poll_loop(&mgr);
 
 	cleanup_threads(xport_pthread, num_interfaces);
 
-	free(interfaces);
-
+	ret = 0;
+out3:
+	cleanup_interfaces(interfaces);
+out2:
 	cleanup_json(json_ctx);
-
-	return 0;
+out1:
+	return ret;
 }

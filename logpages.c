@@ -227,9 +227,11 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 			}
 			subsys = subsys->next;
 		}
-		if (!subsys)
+		if (!subsys) {
 			print_err("subsystem for log page (%s) not found",
 				  e->subnqn);
+			memset(&subsys->log_page, 0, sizeof(subsys->log_page));
+		}
 	}
 }
 

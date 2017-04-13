@@ -222,10 +222,17 @@ int  post_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
 			sprintf(resp, "Controller %s renamed to %s", ctrl, new);
 		}
 		store_config_file(ctx);
-	} else {
-		// TODO refresh controller
+	} else if (!strcmp(ss, METHOD_REFRESH)) {
+		ret = refresh_ctrl(ctrl);
+		if (ret) {
+			sprintf(resp, "Controller %s not found", ctrl);
+			ret = HTTP_ERR_INTERNAL;
+			goto out;
+		}
+
+		sprintf(resp, "Controller %s refreshed", ctrl);
+	} else
 		ret = bad_request(resp);
-	}
 out:
 	return ret;
 }

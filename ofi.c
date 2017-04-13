@@ -432,32 +432,65 @@ out:
 
 void cleanup_fabric(struct context *ctx)
 {
-	if (ctx->state == CONNECTED) {
+	int had_an_ep = 0;
+
+	if (ctx->state != DISCONNECTED)
 		fi_shutdown(ctx->ep, 0);
-		ctx->state = DISCONNECTED;
-	}
-	if (ctx->ep)
-		fi_close(&ctx->ep->fid);
-	if (ctx->rcq)
-		fi_close(&ctx->rcq->fid);
-	if (ctx->scq)
-		fi_close(&ctx->scq->fid);
-	if (ctx->eq)
-		fi_close(&ctx->eq->fid);
-	if (ctx->info)
-		fi_freeinfo(ctx->info);
-	if (ctx->pep)
-		fi_close(&ctx->pep->fid);
-	if (ctx->peq)
-		fi_close(&ctx->peq->fid);
-	if (ctx->send_mr)
+
+	if (ctx->send_mr) {
 		fi_close(&ctx->send_mr->fid);
-	if (ctx->dom)
+		ctx->send_mr = NULL;
+	}
+	if (ctx->ep) {
+		fi_close(&ctx->ep->fid);
+		ctx->ep = NULL;
+		had_an_ep = 1;
+	}
+	if (ctx->rcq) {
+		fi_close(&ctx->rcq->fid);
+		ctx->rcq = NULL;
+	}
+	if (ctx->scq) {
+		fi_close(&ctx->scq->fid);
+		ctx->scq = NULL;
+	}
+	if (ctx->eq) {
+		fi_close(&ctx->eq->fid);
+		ctx->eq = NULL;
+	}
+
+	/* if a pseudo target is connected to a host, stop here and
+	 * do not cleanup the listening part of the context yet
+	 */
+	if (ctx->pep && had_an_ep)
+		return;
+
+	if (ctx->info) {
+		fi_freeinfo(ctx->info);
+		ctx->info = NULL;
+	}
+	if (ctx->pep) {
+		fi_close(&ctx->pep->fid);
+		ctx->pep = NULL;
+	}
+	if (ctx->peq) {
+		fi_close(&ctx->peq->fid);
+		ctx->peq = NULL;
+	}
+	if (ctx->dom) {
 		fi_close(&ctx->dom->fid);
-	if (ctx->fab)
+		ctx->dom = NULL;
+	}
+	if (ctx->fab && ctx->pep) {
 		fi_close(&ctx->fab->fid);
-	if (ctx->prov)
+		ctx->fab = NULL;
+	}
+	if (ctx->prov) {
 		fi_freeinfo(ctx->prov);
+		ctx->prov = NULL;
+	}
+
+	ctx->state = DISCONNECTED;
 }
 
 static inline void put_unaligned_le24(u32 val, u8 *p)
@@ -634,7 +667,7 @@ int send_get_log_page(struct context *ctx, int log_size,
 	bytes = sizeof(*cmd);
 
 	data = alloc_buffer(ctx, log_size, &mr);
-	if (!cmd)
+	if (!data)
 		return -ENOMEM;
 
 	memset(cmd, 0, BUF_SIZE);
@@ -759,9 +792,10 @@ void disconnect_controller(struct context *ctx)
 
 	if (ctx->qe)
 		free(ctx->qe);
-
 	if (ctx->cmd)
 		free(ctx->cmd);
+	if (ctx->data)
+		free(ctx->data);
 }
 
 int connect_controller(struct context *ctx, char *type, char *node, char *port)
