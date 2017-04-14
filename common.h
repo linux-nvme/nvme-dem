@@ -54,6 +54,7 @@ extern int		 debug;
 extern int		 stopped;
 extern struct interface	*interfaces;
 extern int		 num_interfaces;
+extern void		*json_ctx;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -220,6 +221,7 @@ int ipv6_equal(int *addr, int *dest, int *mask);
 void print_eq_error(struct fid_eq *eq, int n);
 
 int init_interfaces(struct interface **interfaces);
+void *iface_thread(void *this_interface);
 void cleanup_interfaces(struct interface *interfaces);
 
 int start_pseudo_target(struct context *ctx, char *addr_family, char *addr,
