@@ -23,9 +23,6 @@
 #include "curl.h"
 #include "tags.h"
 
-// TODO consider all puts/posts doing json formatted data
-// TODO configer including json.h to get tags
-
 enum { CTRL = 0, HOST, DEM, END = -1 };
 static char *group[] = { TARGET_CTRL, TARGET_HOST, TARGET_DEM };
 

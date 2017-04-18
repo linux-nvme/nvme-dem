@@ -26,17 +26,12 @@
 int refresh_ctrl(char *alias)
 {
 	struct controller	*ctrl;
-	int			 i;
 
-	for (i = 0; i < num_interfaces; i++) {
-		ctrl = interfaces[i].controller_list;
-		for (; ctrl; ctrl = ctrl->next) {
-			if (!strcmp(ctrl->alias, alias)) {
-				fetch_log_pages(ctrl);
-				return 0;
-			}
+	klist_for_each_entry(ctrl,ctrl_list, node)
+		if (!strcmp(ctrl->alias, alias)) {
+			fetch_log_pages(ctrl);
+			return 0;
 		}
-	}
 
 	return -EINVAL;
 }
@@ -63,11 +58,9 @@ static void check_host(struct subsystem *subsys, struct json_object *nqn,
 
 				memset(host, 0, sizeof(*host));
 				host->subsystem = subsys;
-				host->next = subsys->host_list;
 				strcpy(host->nqn, json_object_get_string(obj));
 				host->access = json_object_get_int(access);
-				subsys->host_list = host;
-				subsys->num_hosts++;
+				klist_add(&host->node, &subsys->host_list);
 			}
 		}
 	}
@@ -112,10 +105,10 @@ static void check_subsystems(struct controller *ctrl,
 
 		memset(subsys, 0, sizeof(*subsys));
 		subsys->ctrl = ctrl;
-		subsys->next = ctrl->subsystem_list;
 		strcpy(subsys->nqn, json_object_get_string(nqn));
-		ctrl->subsystem_list = subsys;
-		ctrl->num_subsystems++;
+
+		INIT_KLIST_HEAD(&subsys->host_list);
+		klist_add(&subsys->node, &ctrl->subsys_list);
 
 		json_object_object_get_ex(iter, TAG_ALLOW_ALL, &obj);
 		if (obj && json_object_get_int(obj))
@@ -214,11 +207,11 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 
 	memset(ctrl, 0, sizeof(*ctrl));
 
-	ctrl->next = iface->controller_list;
-	ctrl->interface = iface;
+	ctrl->iface = iface;
 
-	iface->controller_list = ctrl;
-	iface->num_controllers++;
+	INIT_KLIST_HEAD(&ctrl->subsys_list);
+
+	klist_add(&ctrl->node, ctrl_list);
 
 	json_object_object_get_ex(parent, TAG_REFRESH, &obj);
 	if (obj)
@@ -316,11 +309,11 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 	else if (strcasecmp(tag, TAG_FAMILY) == 0)
 		strncpy(iface->addrfam, val, CONFIG_FAMILY_SIZE);
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
-		strncpy(iface->hostaddr, val, CONFIG_ADDRESS_SIZE);
+		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
 	else if (strcasecmp(tag, TAG_NETMASK) == 0)
 		strncpy(iface->netmask, val, CONFIG_ADDRESS_SIZE);
 	else if (strcasecmp(tag, TAG_PORT) == 0)
-		strncpy(iface->port, val, CONFIG_PORT_SIZE);
+		strncpy(iface->pseudo_target_port, val, CONFIG_PORT_SIZE);
 }
 
 /* TODO: Support FC and other transports */
@@ -329,7 +322,7 @@ static void translate_addr_to_array(struct interface *iface)
 	char default_port[CONFIG_PORT_SIZE] = {0};
 
 	if (strcmp(iface->addrfam, "ipv4") == 0) {
-		ipv4_to_addr(iface->hostaddr, iface->addr);
+		ipv4_to_addr(iface->address, iface->addr);
 		if (iface->netmask[0] == 0)
 			ipv4_mask(iface->mask, 24);
 		else
@@ -337,7 +330,7 @@ static void translate_addr_to_array(struct interface *iface)
 
 		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
-		ipv6_to_addr(iface->hostaddr, iface->addr);
+		ipv6_to_addr(iface->address, iface->addr);
 		if (iface->netmask[0] == 0)
 			ipv6_mask(iface->mask, 48);
 		else
@@ -349,8 +342,8 @@ static void translate_addr_to_array(struct interface *iface)
 		return;
 	}
 
-	if (!strlen(iface->port))
-		strcpy(iface->port, default_port);
+	if (!strlen(iface->pseudo_target_port))
+		strcpy(iface->pseudo_target_port, default_port);
 }
 
 int read_dem_config_files(struct interface *iface)
@@ -373,9 +366,7 @@ int read_dem_config_files(struct interface *iface)
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
-		if ((fid = fopen(config_file,"r")) != NULL){
-			iface[count].interface_id = count;
-
+		if ((fid = fopen(config_file,"r")) != NULL) {
 			while (!feof(fid))
 				read_dem_config(fid, &iface[count]);
 
@@ -383,7 +374,7 @@ int read_dem_config_files(struct interface *iface)
 
 			if ((!strcmp(iface[count].trtype, "")) ||
 			    (!strcmp(iface[count].addrfam, "")) ||
-			    (!strcmp(iface[count].hostaddr, "")))
+			    (!strcmp(iface[count].address, "")))
 				print_err("%s: bad config file. "
 					  "Ignoring interface.", config_file);
 			else {
@@ -402,15 +393,13 @@ int read_dem_config_files(struct interface *iface)
 		ret = -ENODATA;
 	}
 
-	/* TODO: Validate no two ifaces share the same subnet/mask */
-
 	ret = 0;
 out:
 	closedir(dir);
 	return ret;
 }
 
-void cleanup_interfaces(struct interface *interfaces)
+void cleanup_controllers()
 {
 	struct controller	*ctrl;
 	struct controller	*next_ctrl;
@@ -419,27 +408,23 @@ void cleanup_interfaces(struct interface *interfaces)
 	struct host		*host;
 	struct host		*next_host;
 
-	for (ctrl = interfaces->controller_list; ctrl; ctrl = next_ctrl) {
-		for (subsys = ctrl->subsystem_list; subsys;
-		     subsys = next_subsys) {
-			for (host = subsys->host_list; host;
-			     host = next_host) {
-				next_host = host->next;
+
+	klist_for_each_entry_safe(ctrl, next_ctrl, ctrl_list, node) {
+		klist_for_each_entry_safe(subsys, next_subsys,
+					  &ctrl->subsys_list, node) {
+			klist_for_each_entry_safe(host, next_host,
+						  &subsys->host_list, node)
 				free(host);
-			}
-			next_subsys = subsys->next;
+
 			free(subsys);
 		}
-		next_ctrl = ctrl->next;
 		free(ctrl);
 	}
-
-	free(interfaces);
 }
 
-int init_interfaces(struct interface **iface)
+int init_interfaces()
 {
-	struct interface	*interfaces;
+	struct interface	*table;
 	int			count;
 	int			ret;
 
@@ -448,19 +433,19 @@ int init_interfaces(struct interface **iface)
 	if (count < 0)
 		return count;
 
-	interfaces = calloc(count, sizeof(struct interface));
-	if (!interfaces)
+	table = calloc(count, sizeof(struct interface));
+	if (!table)
 		return -ENOMEM;
 
-	memset(interfaces, 0, count * sizeof(struct interface));
+	memset(table, 0, count * sizeof(struct interface));
 
-	ret = read_dem_config_files(interfaces);
+	ret = read_dem_config_files(table);
 	if (ret) {
-		free(interfaces);
+		free(table);
 		return -1;
 	}
 
-	*iface = interfaces;
+	interfaces = table;
 
 	return count;
 }

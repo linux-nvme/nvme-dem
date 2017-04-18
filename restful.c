@@ -50,6 +50,7 @@ int  bad_request(char *resp)
 int get_dem_request(char *resp)
 {
 	// TODO build real config info in resp
+	// TODO Ping Sujoy - Rackscale may need info / provide input
 
 	strcpy(resp, "Config of DEM");
 

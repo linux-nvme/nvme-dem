@@ -19,11 +19,15 @@
 
 #include <sys/types.h>
 #include <stdbool.h>
+#include "incl/klist.h"
 #include "nvme.h"	/* NOTE: Using linux kernel include here */
 
 #define BUF_SIZE	4096
-#define NVMF_DQ_DEPTH	32
+#define NVMF_DQ_DEPTH	2
 #define CTIMEOUT	100
+#define SECS		1000 /* convert ms to sec */
+
+#define FI_VER		FI_VERSION(1, 0)
 
 #define print_debug(f, x...) do { \
 	if (debug) { \
@@ -50,11 +54,12 @@
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
 #endif
 
-extern int		 debug;
-extern int		 stopped;
+extern int			 debug;
+extern int			 stopped;
 extern struct interface	*interfaces;
-extern int		 num_interfaces;
-extern void		*json_ctx;
+extern int			 num_interfaces;
+extern void			*json_ctx;
+extern struct klist_head	*ctrl_list;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -125,21 +130,40 @@ static inline u32 get_unaligned_le32(const u8 *p)
 enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
 enum {RESTRICTED = 0, ALOW_ALL = 1};
 
+struct listener {
+	struct fi_info		*prov;
+	struct fi_info		*info;
+	struct fid_fabric	*fab;
+	struct fid_domain	*dom;
+	struct fid_pep		*pep;
+	struct fid_eq		*peq;
+};
+
+struct interface {
+	char			 trtype[CONFIG_TYPE_SIZE + 1];
+	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[IPV6_ADDR_LEN];
+	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
+	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
+	int			 mask[IPV6_ADDR_LEN];
+	struct listener		 listener;
+};
+
 struct host {
-	struct host		*next;
+	struct klist_head	 node;
 	struct subsystem	*subsystem;
-	char			nqn[MAX_NQN_SIZE + 1];
-	int			access;
+	char			 nqn[MAX_NQN_SIZE + 1];
+	int			 access;
 };
 
 struct subsystem {
-	struct subsystem		*next;
+	struct klist_head		 node;
+	struct klist_head		 host_list;
 	struct controller		*ctrl;
 	char				 nqn[MAX_NQN_SIZE + 1];
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
-	struct host			*host_list;
-	int				 num_hosts;
 };
 
 struct qe {
@@ -147,30 +171,29 @@ struct qe {
 	u8			*buf;
 };
 
-struct context {
+struct endpoint {
 	struct fi_info		*prov;
 	struct fi_info		*info;
 	struct fid_fabric	*fab;
 	struct fid_domain	*dom;
-	struct fid_mr		*send_mr;
-	struct fid_mr		*data_mr;
-	struct fid_pep		*pep;
 	struct fid_ep		*ep;
 	struct fid_eq		*eq;
-	struct fid_eq		*peq;
 	struct fid_cq		*rcq;
 	struct fid_cq		*scq;
+	struct fid_mr		*send_mr;
+	struct fid_mr		*data_mr;
 	struct nvme_command	*cmd;
 	void			*data;
 	struct qe		*qe;
-	int			state;
-	int			csts;
-	struct interface	*iface;
+	int			 state;
+	int			 csts;
 };
 
 struct controller {
-	struct controller	*next;
-	struct interface	*interface;
+	struct klist_head	 node;
+	struct klist_head	 subsys_list;
+	struct endpoint		 ep;
+	struct interface	*iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 trtype[CONFIG_TYPE_SIZE + 1];
 	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
@@ -180,22 +203,7 @@ struct controller {
 	int			 addr[IPV6_ADDR_LEN];
 	int			 refresh;
 	int			 refresh_countdown;
-	struct subsystem	*subsystem_list;
 	int			 num_subsystems;
-	struct context		 ctx;
-};
-
-struct  interface {
-	int			 interface_id;
-	char			 trtype[CONFIG_TYPE_SIZE + 1];
-	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
-	char			 hostaddr[CONFIG_ADDRESS_SIZE + 1];
-	int			 addr[IPV6_ADDR_LEN];
-	char			 port[CONFIG_PORT_SIZE + 1];
-	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
-	int			 mask[IPV6_ADDR_LEN];
-	struct controller	*controller_list;
-	int			 num_controllers;
 };
 
 struct mg_connection;
@@ -220,26 +228,28 @@ int ipv6_equal(int *addr, int *dest, int *mask);
 
 void print_eq_error(struct fid_eq *eq, int n);
 
-int init_interfaces(struct interface **interfaces);
-void *iface_thread(void *this_interface);
-void cleanup_interfaces(struct interface *interfaces);
-
-int start_pseudo_target(struct context *ctx, char *addr_family, char *addr,
+int init_interfaces(void);
+void *interface_thread(void *arg);
+void init_controllers(void);
+void cleanup_controllers(void);
+int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
-int run_pseudo_target(struct context *ctx);
-int pseudo_target_check_for_host(struct context *ctx);
-int connect_controller(struct context *ctx, char *addr_family, char *addr,
+int run_pseudo_target(struct endpoint *ep);
+int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info);
+int connect_controller(struct endpoint *ep, char *addr_family, char *addr,
 		       char *port);
-void disconnect_controller(struct context *ctx);
-void cleanup_fabric(struct context *ctx);
-int send_get_log_page(struct context *ctx, int log_size,
+void disconnect_controller(struct endpoint *ep);
+void cleanup_listener(struct listener *pep);
+void cleanup_endpoint(struct endpoint *ep);
+void shutdown_ep(struct endpoint *ep);
+int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 void fetch_log_pages(struct controller *ctrl);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);
 int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	      void *desc, u64 addr, u64 key);
-int send_msg_and_repost(struct context *c, struct qe *qe, void *msg, int len);
+int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
 int refresh_ctrl(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);

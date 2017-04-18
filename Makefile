@@ -9,8 +9,8 @@ GDB_OPTS = -g -O0
 CLI_SRC = cli.c curl.c show.c
 CLI_INC = curl.h show.h tags.h
 DAEMON_SRC = daemon.c json.c restful.c mongoose.c \
-	     parse.c interfaces.c ofi.c logpages.c \
-	     pseudo_target.c
+	     parse.c ofi.c logpages.c \
+	     interfaces.c pseudo_target.c
 DAEMON_INC = json.h common.h mongoose.h tags.h
 
 all: demd dem config.json

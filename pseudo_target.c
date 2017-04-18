@@ -64,20 +64,19 @@ static int handle_property_get(struct nvme_command *cmd,
 	return ret;
 }
 
-static int handle_connect(struct context *ctx, u64 length, u64 addr, u64 key,
+static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 			  void *desc)
 {
+	struct nvmf_connect_data *data = (void *) ep->data;
 	int ret;
 
 	print_debug("nvme_fabrics_type_connect");
 
-	ret = rma_read(ctx->ep, ctx->scq, ctx->data, length, desc, addr, key);
+	ret = rma_read(ep->ep, ep->scq, data, length, desc, addr, key);
 	if (ret) {
 		print_err("rma_read returned %d", ret);
 		return ret;
 	}
-
-	struct nvmf_connect_data *data = (void *) ctx->data;
 
 	print_info("host '%s' connected", data->hostnqn);
 
@@ -95,10 +94,10 @@ static int handle_connect(struct context *ctx, u64 length, u64 addr, u64 key,
 	return ret;
 }
 
-static int handle_identify(struct context *ctx, struct nvme_command *cmd,
+static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 			   u64 length, u64 addr, u64 key, void *desc)
 {
-	struct nvme_id_ctrl *id = (void *) ctx->data;
+	struct nvme_id_ctrl *id = (void *) ep->data;
 	int ret;
 
 	if (htole32(cmd->identify.cns) != NVME_NQN_DISC) {
@@ -125,101 +124,81 @@ static int handle_identify(struct context *ctx, struct nvme_command *cmd,
 	if (length > sizeof(*id))
 		length = sizeof(*id);
 
-	ret = rma_write(ctx->ep, ctx->scq, id, length, desc, addr, key);
+	ret = rma_write(ep->ep, ep->scq, id, length, desc, addr, key);
 	if (ret)
 		print_err("rma_write returned %d", ret);
 
 	return ret;
 }
 
-static int handle_get_log_page_count(struct context *ctx,
-				     struct interface *iface, u64 length,
-				     u64 addr, u64 key, void *desc)
+static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
+				     u64 key, void *desc)
 {
-	struct nvmf_disc_rsp_page_hdr *log = (void *) ctx->data;
+	struct nvmf_disc_rsp_page_hdr *log = (void *) ep->data;
 	struct controller	*ctrl;
 	struct subsystem	*subsys;
-	int			ret;
-	int			numrec = 0;
+	int			 numrec = 0;
+	int			 ret;
 
 	print_debug("get_log_page_count");
 
-	for (ctrl = iface->controller_list; ctrl; ctrl = ctrl->next) {
-		subsys = ctrl->subsystem_list;
-		while (subsys) {
+	klist_for_each_entry(ctrl, ctrl_list, node)
+		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
 			if (subsys->access)
 				numrec++;
-			subsys = subsys->next;
-		}
-	}
 
 	log->numrec = numrec;
 	log->genctr = 1;
 
-	ret = rma_write(ctx->ep, ctx->scq, log, length, desc, addr, key);
-	if (ret) {
+	ret = rma_write(ep->ep, ep->scq, log, length, desc, addr, key);
+	if (ret)
 		print_err("rma_write returned %d", ret);
-	}
 
 	return ret;
 }
 
-static int handle_get_log_pages(struct context *ctx, struct interface *iface,
-				u64 length, u64 addr, u64 key, void *desc)
+static int handle_get_log_pages(struct endpoint *ep, u64 length, u64 addr,
+				u64 key, void *desc)
 {
-	struct nvmf_disc_rsp_page_hdr *log = (void *) ctx->data;
-	struct nvmf_disc_rsp_page_entry *page = (void *) &log[1];
-	struct controller	*ctrl;
-	struct subsystem	*subsys;
-	int ret;
-	int numrec = 0;
+	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
+	struct nvmf_disc_rsp_page_entry *plogpage = (void *) &log[1];
+	struct controller		*ctrl;
+	struct subsystem		*subsys;
+	int				 numrec = 0;
+	int				 ret;
 
 	print_debug("get_log_pages");
 
-	for (ctrl = iface->controller_list; ctrl; ctrl = ctrl->next) {
-		subsys = ctrl->subsystem_list;
-		while (subsys) {
+	klist_for_each_entry(ctrl, ctrl_list, node)
+		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
 			if (subsys->access) {
-				memcpy(page, &subsys->log_page, sizeof(*page));
+				memcpy(plogpage, &subsys->log_page,
+				       sizeof(*plogpage));
 				numrec++;
-				page++;
+				plogpage++;
 			}
-			subsys = subsys->next;
-		}
-	}
 
 	log->numrec = numrec;
 	log->genctr = 1;
 
-	ret = rma_write(ctx->ep, ctx->scq, log, length, desc, addr, key);
-	if (ret) {
+	ret = rma_write(ep->ep, ep->scq, log, length, desc, addr, key);
+	if (ret)
 		print_err("rma_write returned %d", ret);
-	}
 
 	return ret;
 }
 
-static void handle_request(struct interface *iface, struct context *ctx,
-			   struct qe *qe, int length)
+static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 {
-	struct nvme_command	*cmd;
-	struct nvme_completion	*resp;
-	struct nvmf_connect_command *c;
-	int			ret;
-	u64			len;
-	void			*desc;
-	u64			addr;
-	u64			key;
+	struct nvme_command	*cmd = (struct nvme_command *) qe->buf;
+	struct nvmf_connect_command *c = &cmd->connect;
+	struct nvme_completion	*resp = (void *) ep->cmd;
+	int			 ret;
+	u64			 len  = get_unaligned_le24(c->dptr.ksgl.length);
+	void			*desc = fi_mr_desc(ep->data_mr);
+	u64			 addr = c->dptr.ksgl.addr;
+	u64			 key  = get_unaligned_le32(c->dptr.ksgl.key);
 
-	cmd = (struct nvme_command *) qe->buf;
-	c = &cmd->connect;
-
-	len = get_unaligned_le24(c->dptr.ksgl.length);
-	key = get_unaligned_le32(c->dptr.ksgl.key);
-	desc = fi_mr_desc(ctx->data_mr);
-	addr = c->dptr.ksgl.addr;
-
-	resp = (void *) ctx->cmd;
 	memset(resp, 0, sizeof(*resp));
 
 	resp->command_id = c->command_id;
@@ -233,27 +212,26 @@ static void handle_request(struct interface *iface, struct context *ctx,
 	if (cmd->common.opcode == nvme_fabrics_command) {
 		switch (cmd->fabrics.fctype) {
 		case nvme_fabrics_type_property_set:
-			ret = handle_property_set(cmd, &ctx->csts);
+			ret = handle_property_set(cmd, &ep->csts);
 			break;
 		case nvme_fabrics_type_property_get:
-			ret = handle_property_get(cmd, resp, ctx->csts);
+			ret = handle_property_get(cmd, resp, ep->csts);
 			break;
 		case nvme_fabrics_type_connect:
-			ret = handle_connect(ctx, len, addr, key, desc);
+			ret = handle_connect(ep, len, addr, key, desc);
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
 		}
 	} else if (cmd->common.opcode == nvme_admin_identify)
-		ret = handle_identify(ctx, cmd, len, addr, key, desc);
+		ret = handle_identify(ep, cmd, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
-			ret = handle_get_log_page_count(ctx, iface, len, addr,
-							key, desc);
+			ret = handle_get_log_page_count(ep, len, addr, key,
+							desc);
 		else
-			ret = handle_get_log_pages(ctx, iface, len, addr, key,
-						   desc);
+			ret = handle_get_log_pages(ep, len, addr, key, desc);
 	} else {
 		print_err("unknown nvme opcode %d\n", cmd->common.opcode);
 		ret = -EINVAL;
@@ -262,12 +240,12 @@ static void handle_request(struct interface *iface, struct context *ctx,
 	if (ret)
 		resp->status = NVME_SC_DNR;
 
-	send_msg_and_repost(ctx, qe, resp, sizeof(*resp));
+	send_msg_and_repost(ep, qe, resp, sizeof(*resp));
 }
 
-static void *host_thread(void *this_interface)
+static void *host_thread(void *arg)
 {
-	struct context		*ctx = (struct context *)this_interface;
+	struct endpoint		*ep = arg;
 	struct fi_cq_err_entry	 comp;
 	struct fi_eq_cm_entry	 entry;
 	uint32_t		 event;
@@ -277,48 +255,50 @@ static void *host_thread(void *this_interface)
 	while (!stopped) {
 		/* Listen and service Host requests */
 
-		ret = fi_eq_read(ctx->eq, &event, &entry, sizeof(entry), 0);
+		ret = fi_eq_read(ep->eq, &event, &entry, sizeof(entry), 0);
 		if (ret == sizeof(entry))
 			if (event == FI_SHUTDOWN)
 				goto out;
 
-		ret = fi_cq_sread(ctx->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
+		ret = fi_cq_sread(ep->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
 		if (ret > 0)
-			handle_request(ctx->iface, ctx, comp.op_context,
-				       comp.len);
+			handle_request(ep, comp.op_context, comp.len);
 		else if (ret == -EAGAIN) {
 			retry_count--;
 			if (!retry_count)
 				goto out;
 		} else if (ret != -EINTR) {
-			print_cq_error(ctx->rcq, ret);
+			print_cq_error(ep->rcq, ret);
 			break;
 		}
 	}
 
 out:
-	cleanup_fabric(ctx);
-	free(ctx);
+	cleanup_endpoint(ep);
+
+	pthread_exit(NULL);
 
 	return NULL;
 }
 
-static int run_pseudo_target_for_host(struct context *ctx)
+static int run_pseudo_target_for_host(struct fi_info *prov)
 {
-	struct context	*child_ctx;
-	pthread_attr_t	 pthread_attr;
-	pthread_t	 pthread;
-	int		 ret;
+	struct endpoint		*ep;
+	pthread_attr_t		 pthread_attr;
+	pthread_t		 pthread;
+	int			 ret;
 
-
-	child_ctx = malloc(sizeof(*ctx));
-	if (!child_ctx) {
+	ep = malloc(sizeof(*ep));
+	if (!ep) {
 		print_err("malloc failed");
 		return -ENOMEM;
 	}
-	memcpy(child_ctx, ctx, sizeof(*ctx));
 
-	ret = run_pseudo_target(child_ctx);
+	memset(ep, 0, sizeof(*ep));
+
+	ep->prov = prov;
+
+	ret = run_pseudo_target(ep);
 	if (ret) {
 		print_err("unable to accept host connect");
 		print_err("run_pseudo_target returned %d", ret);
@@ -326,7 +306,7 @@ static int run_pseudo_target_for_host(struct context *ctx)
 	}
 
 	pthread_attr_init(&pthread_attr);
-	ret = pthread_create(&pthread, &pthread_attr, host_thread, child_ctx);
+	ret = pthread_create(&pthread, &pthread_attr, host_thread, ep);
 	if (ret) {
 		print_err("failed to start host thread");
 		goto err;
@@ -334,67 +314,78 @@ static int run_pseudo_target_for_host(struct context *ctx)
 
 	return 0;
 err:
-	free(child_ctx);
+	cleanup_endpoint(ep);
+
 	return ret;
 }
 
-static void refresh_log_pages(struct controller *ctrl)
+static void refresh_log_pages(struct interface *iface)
 {
-	for (; ctrl; ctrl = ctrl->next) {
-		if (!ctrl->refresh)
+	struct controller *ctrl;
+
+	klist_for_each_entry(ctrl, ctrl_list, node) {
+		if (!ctrl->refresh || (ctrl->iface != iface))
 			continue;
 
 		ctrl->refresh_countdown--;
 		if (!ctrl->refresh_countdown) {
 			fetch_log_pages(ctrl);
-			ctrl->refresh_countdown = ctrl->refresh / IDLE_TIMEOUT;
+			ctrl->refresh_countdown = ctrl->refresh *
+						  SECS / IDLE_TIMEOUT;
 		}
 	}
 }
 
-void *iface_thread(void *this_interface)
+void init_controllers()
 {
 	struct controller	*ctrl;
-	struct context		 ctx = { 0 };
+	int			i;
+
+	/* TODO: Untie host interfaces to target interfaces */
+	for (i = 0; i < num_interfaces; i++)
+		if (get_transport(&interfaces[i], json_ctx))
+			print_err("Failed to get transport for iface %d", i);
+
+	klist_for_each_entry(ctrl, ctrl_list, node) {
+		fetch_log_pages(ctrl);
+		ctrl->refresh_countdown = ctrl->refresh * SECS / IDLE_TIMEOUT;
+	}
+}
+
+void *interface_thread(void *arg)
+{
+	struct interface	*iface = arg;
+	struct listener		*listener = &iface->listener;
+	struct fi_info		*info;
 	int			 ret;
 
-	ctx.iface = (struct interface *)this_interface;
-
-	if (get_transport(ctx.iface, json_ctx)) {
-		print_err("failed to get transport for iface %d",
-			  ctx.iface->interface_id);
-		return NULL;
-	}
-
-	for (ctrl = ctx.iface->controller_list; ctrl; ctrl = ctrl->next) {
-		fetch_log_pages(ctrl);
-		ctrl->refresh_countdown = ctrl->refresh / IDLE_TIMEOUT;
-	}
-
-	ret = start_pseudo_target(&ctx, ctx.iface->trtype,
-				  ctx.iface->hostaddr, ctx.iface->port);
+	ret = start_pseudo_target(listener, iface->trtype, iface->address,
+				  iface->pseudo_target_port);
 	if (ret) {
-		print_err("failed to start pseudo target");
-		return NULL;
+		print_err("Failed to start pseudo target");
+		goto out;
 	}
 
 	while (!stopped) {
-		ret = pseudo_target_check_for_host(&ctx);
+		ret = pseudo_target_check_for_host(listener, &info);
 		if (ret == 0)
-			ret = run_pseudo_target_for_host(&ctx);
+			ret = run_pseudo_target_for_host(info);
 		else if (ret != -EAGAIN && ret != -EINTR)
 			print_err("Host connection failed %d\n", ret);
 
 		if (stopped)
 			break;
 
-		refresh_log_pages(ctx.iface->controller_list);
+		refresh_log_pages(iface);
 
-		/* TODO: Handle RESTful request to force log-page refresh */
 		/* TODO: Handle changes to JSON context */
-		}
+	}
 
-	cleanup_fabric(&ctx);
+	cleanup_listener(listener);
+out:
+	num_interfaces--;
+
+	pthread_exit(NULL);
 
 	return NULL;
 }

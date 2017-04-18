@@ -21,6 +21,8 @@
 
 #include "common.h"
 
+//#define DEBUG_LOG_PAGES
+
 static const char *arg_str(const char * const *strings, size_t array_size,
 			   size_t idx)
 {
@@ -114,7 +116,7 @@ static int get_logpages(struct controller *ctrl,
 	int				 ret = 0;
 	size_t				 offset;
 
-	ret = connect_controller(&ctrl->ctx, ctrl->trtype,
+	ret = connect_controller(&ctrl->ep, ctrl->trtype,
 				 ctrl->address, ctrl->port);
 	if (ret)
 		return ret;
@@ -123,7 +125,7 @@ static int get_logpages(struct controller *ctrl,
 	log_size = offset + sizeof(log->numrec);
 	log_size = round_up(log_size, sizeof(u32));
 
-	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
+	ret = send_get_log_page(&ctrl->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch number of discovery log entries");
 		ret = -ENODATA;
@@ -148,7 +150,7 @@ static int get_logpages(struct controller *ctrl,
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	ret = send_get_log_page(&ctrl->ctx, log_size, &log);
+	ret = send_get_log_page(&ctrl->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch discovery log entries");
 		ret = -ENODATA;
@@ -165,7 +167,7 @@ static int get_logpages(struct controller *ctrl,
 	*logp = log;
 
 err:
-	disconnect_controller(&ctrl->ctx);
+	disconnect_controller(&ctrl->ep);
 	return ret;
 }
 
@@ -214,24 +216,22 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 			   struct controller *ctrl)
 {
 	int			i;
+	int			found;
 	struct subsystem	*subsys;
 	struct nvmf_disc_rsp_page_entry *e;
 
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];
-		subsys = ctrl->subsystem_list;
-		while (subsys) {
+		found = 0;
+		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
 			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
 				subsys->log_page = *e;
+				found = 1;
 				break;
 			}
-			subsys = subsys->next;
-		}
-		if (!subsys) {
+		if (!found)
 			print_err("subsystem for log page (%s) not found",
-				  e->subnqn);
-			memset(&subsys->log_page, 0, sizeof(subsys->log_page));
-		}
+			e->subnqn);
 	}
 }
 

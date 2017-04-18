@@ -32,6 +32,8 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
+KLIST_HEAD(controller_list);
+
 struct mg_serve_http_opts	 s_http_server_opts;
 char				*s_http_port = "22345";
 void				*json_ctx;
@@ -40,6 +42,7 @@ int				 poll_timeout = 100;
 int				 debug;
 struct interface		*interfaces;
 int				 num_interfaces;
+struct klist_head		*ctrl_list = &controller_list;
 
 void shutdown_dem()
 {
@@ -86,6 +89,14 @@ static void *poll_loop(struct mg_mgr *mgr)
 static int daemonize(void)
 {
 	pid_t pid, sid;
+
+/* TODO: Do we want to restrict to root if daemenized  */
+#if 0
+	if (getuid() != 0) {
+		print_err("must be root to run dem");
+		return -1;
+	}
+#endif
 
 	pid = fork();
 	if (pid < 0) {
@@ -204,24 +215,34 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	return 0;
 }
 
-void cleanup_threads(pthread_t *xport_pthread, int count)
+void cleanup_threads(pthread_t *listen_threads)
 {
 	int i;
 
-	for (i = 0; i < count; i++)
-		pthread_kill(xport_pthread[i], SIGTERM);
+	for (i = 0; i < num_interfaces; i++)
+		pthread_kill(listen_threads[i], SIGTERM);
 
-	free(xport_pthread);
+	/* wait for threads to cleanup before exiting so they can properly
+	 * cleanup the ofi interface. otherwise there is a race condition
+	 * that shows up as an assertion from fastlock_aquire from libfabric
+	 * fi_fabric_find(). retry countdown value is *arbitrary* since the
+	 * threads *should* shutdown gracefully.
+	 */
+	i = 100;
+
+	while (num_interfaces && i--)
+		usleep(100);
+
+	free(listen_threads);
 }
 
-int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
-		 int count)
+int init_interface_threads(pthread_t **listen_threads)
 {
 	pthread_attr_t		 pthread_attr;
 	pthread_t		*pthreads;
 	int			 i;
 
-	pthreads = calloc(count, sizeof(pthread_t));
+	pthreads = calloc(num_interfaces, sizeof(pthread_t));
 	if (!pthreads)
 		return -ENOMEM;
 
@@ -230,8 +251,9 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
 
 	pthread_attr_init(&pthread_attr);
 
-	for (i = 0; i < count; i++) {
-		if (pthread_create(&pthreads[i], &pthread_attr, iface_thread,
+	for (i = 0; i < num_interfaces; i++) {
+		if (pthread_create(&pthreads[i], &pthread_attr,
+				   interface_thread,
 				   &(interfaces[i]))) {
 			print_err("failed to start transport thread");
 			free(pthreads);
@@ -239,7 +261,7 @@ int init_threads(pthread_t **xport_pthread, struct interface *interfaces,
 		}
 	}
 
-	*xport_pthread = pthreads;
+	*listen_threads = pthreads;
 
 	return 0;
 }
@@ -248,16 +270,9 @@ int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
-	pthread_t		*xport_pthread;
+	pthread_t		*listen_threads;
 	int			 ret = 1;
 
-/* TODO: Do we want to restrict to root if daemenized  */
-#if 0
-	if (getuid() != 0) {
-		print_err("must be root to run dem");
-		return -1;
-	}
-#endif
 	if (init_dem(argc, argv, &ssl_cert))
 		goto out1;
 
@@ -268,25 +283,27 @@ int main(int argc, char *argv[])
 	if (!json_ctx)
 		goto out1;
 
-	num_interfaces = init_interfaces(&interfaces);
+	num_interfaces = init_interfaces();
 	if (num_interfaces <= 0)
 		goto out2;
+
+	init_controllers();
 
 	stopped = 0;
 
 	print_info("Starting server on port %s, serving '%s'",
 		   s_http_port, s_http_server_opts.document_root);
 
-	if (init_threads(&xport_pthread, interfaces, num_interfaces))
+	if (init_interface_threads(&listen_threads))
 		goto out3;
 
 	poll_loop(&mgr);
 
-	cleanup_threads(xport_pthread, num_interfaces);
+	cleanup_threads(listen_threads);
 
 	ret = 0;
 out3:
-	cleanup_interfaces(interfaces);
+	free(interfaces);
 out2:
 	cleanup_json(json_ctx);
 out1:
