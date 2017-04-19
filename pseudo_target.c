@@ -319,33 +319,14 @@ err:
 	return ret;
 }
 
-static void refresh_log_pages(struct interface *iface)
-{
-	struct controller *ctrl;
-
-	klist_for_each_entry(ctrl, ctrl_list, node) {
-		if (!ctrl->refresh || (ctrl->iface != iface))
-			continue;
-
-		ctrl->refresh_countdown--;
-		if (!ctrl->refresh_countdown) {
-			fetch_log_pages(ctrl);
-			ctrl->refresh_countdown = ctrl->refresh *
-						  SECS / IDLE_TIMEOUT;
-		}
-	}
-}
-
 void init_controllers()
 {
 	struct controller	*ctrl;
-	int			i;
 
-	/* TODO: Untie host interfaces to target interfaces */
-
-	for (i = 0; i < num_interfaces; i++)
-		if (get_transport(&interfaces[i], json_ctx))
-			print_err("Failed to get transport for iface %d", i);
+	if (build_ctrl_list(json_ctx)) {
+		print_err("Failed to build controller list");
+		return;
+	}
 
 	klist_for_each_entry(ctrl, ctrl_list, node) {
 		fetch_log_pages(ctrl);
@@ -373,11 +354,6 @@ void *interface_thread(void *arg)
 			ret = run_pseudo_target_for_host(info);
 		else if (ret != -EAGAIN && ret != -EINTR)
 			print_err("Host connection failed %d\n", ret);
-
-		if (stopped)
-			break;
-
-		refresh_log_pages(iface);
 	}
 
 	cleanup_listener(listener);

@@ -119,63 +119,44 @@ static void check_subsystems(struct controller *ctrl,
 	}
 }
 
-static int match_transport(struct interface *iface, struct json_object *ctrl,
-			   char *type, char *fam, char *address, char *port,
-			   int *_addr)
+static int get_transport_info(struct json_object *ctrl, char *type,
+			      char *fam, char *address, char *port,
+			      int *_addr)
 {
-	struct json_object *obj;
-	char *str;
-	int family;
-	int addr[ADDR_LEN];
-	int ret;
-
-	family = (strcmp(iface->addrfam, "ipv4") == 0) ? AF_IPV4 :
-		(strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 :
-		(strcmp(iface->addrfam, "fc") == 0) ? AF_FC : -1;
-	if (family == -1) {
-		print_err("Address family not supported\n");
-		goto out;
-	}
+	struct json_object	*obj;
+	char			*str;
+	int			 addr[ADDR_LEN];
+	int			 ret;
 
 	json_object_object_get_ex(ctrl, TAG_TYPE, &obj);
 	if (!obj)
 		goto out;
 	str = (char *) json_object_get_string(obj);
-	if (strcmp(str, iface->trtype))
-		goto out;
 	strncpy(type, str, CONFIG_TYPE_SIZE);
 
 	json_object_object_get_ex(ctrl, TAG_FAMILY, &obj);
 	if (!obj)
 		goto out;
 	str = (char *) json_object_get_string(obj);
-	if (strcmp(str, iface->addrfam))
-		goto out;
 	strncpy(fam, str, CONFIG_FAMILY_SIZE);
 
 	json_object_object_get_ex(ctrl, TAG_ADDRESS, &obj);
 	if (!obj)
 		goto out;
 	str = (char *) json_object_get_string(obj);
-	if (family == AF_IPV4) {
+
+	if (strcmp(fam, "ipv4") == 0)
 		ret = ipv4_to_addr(str, addr);
-		if (ret)
-			goto out;
-		if (!ipv4_equal(addr, iface->addr, iface->mask))
-			goto out;
-	} else if (family == AF_IPV6) {
+	else if (strcmp(fam, "ipv6") == 0)
 		ret = ipv6_to_addr(str, addr);
-		if (ret)
-			goto out;
-		if (!ipv6_equal(addr, iface->addr, iface->mask))
-			goto out;
-	} else {  /* if (family == AF_FC) */
-		ret = ipv6_to_addr(str, addr);
-		if (ret)
-			goto out;
-		if (!ipv6_equal(addr, iface->addr, iface->mask))
-			goto out;
-	}
+	else if (strcmp(fam, "fc") == 0)
+		ret = fc_to_addr(str, addr);
+	else
+		goto out;
+
+	if (ret < 0)
+		goto out;
+
 	memcpy(_addr, addr, sizeof(addr[0]) * ADDR_LEN);
 	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
@@ -191,8 +172,9 @@ out:
 	return 0;
 }
 
-static int check_transport(struct interface *iface, struct json_context *ctx,
-			   struct json_object *grp, struct json_object *parent)
+static int add_to_ctrl_list(struct json_context *ctx,
+			    struct json_object *grp,
+			    struct json_object *parent)
 {
 	struct controller *ctrl;
 	struct json_object *subgroup;
@@ -204,7 +186,7 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 	char type[CONFIG_TYPE_SIZE + 1];
 	int refresh = 0;
 
-	if (!match_transport(iface, grp, type, fam, address, port, addr))
+	if (!get_transport_info(grp, type, fam, address, port, addr))
 		goto err1;
 
 	ctrl = malloc(sizeof(*ctrl));
@@ -212,8 +194,6 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 		goto err1;
 
 	memset(ctrl, 0, sizeof(*ctrl));
-
-	ctrl->iface = iface;
 
 	INIT_KLIST_HEAD(&ctrl->subsys_list);
 
@@ -251,7 +231,7 @@ err1:
 	return 0;
 }
 
-int get_transport(struct interface *iface, void *context)
+int build_ctrl_list(void *context)
 {
 	struct json_context *ctx = context;
 	struct json_object *array = ctx->ctrls;
@@ -259,8 +239,6 @@ int get_transport(struct interface *iface, void *context)
 	struct json_object *iter;
 	int i, n;
 
-	if (!iface)
-		return -1;
 	if (!array)
 		return -1;
 
@@ -269,7 +247,7 @@ int get_transport(struct interface *iface, void *context)
 		iter = json_object_array_get_idx(array, i);
 		json_object_object_get_ex(iter, TAG_TRANSPORT, &subgroup);
 		if (subgroup)
-			check_transport(iface, ctx, subgroup, iter);
+			add_to_ctrl_list(ctx, subgroup, iter);
 	}
 
 	return 0;

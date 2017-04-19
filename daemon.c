@@ -40,7 +40,6 @@ struct mg_serve_http_opts	 s_http_server_opts;
 char				*s_http_port = "22345";
 void				*json_ctx;
 int				 stopped;
-int				 poll_timeout = 100;
 int				 debug;
 struct interface		*interfaces;
 int				 num_interfaces;
@@ -79,10 +78,31 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	}
 }
 
+static inline void refresh_log_pages()
+{
+	struct controller *ctrl;
+
+	klist_for_each_entry(ctrl, ctrl_list, node) {
+		if (!ctrl->refresh)
+			continue;
+
+		ctrl->refresh_countdown--;
+		if (!ctrl->refresh_countdown) {
+			fetch_log_pages(ctrl);
+			ctrl->refresh_countdown =
+				ctrl->refresh * SECS / IDLE_TIMEOUT;
+		}
+	}
+}
+
 static void *poll_loop(struct mg_mgr *mgr)
 {
-	while (stopped != 1)
-		mg_mgr_poll(mgr, poll_timeout);
+	while (stopped != 1) {
+		mg_mgr_poll(mgr, IDLE_TIMEOUT);
+
+		if (!stopped)
+			refresh_log_pages();
+	}
 
 	mg_mgr_free(mgr);
 

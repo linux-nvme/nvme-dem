@@ -213,8 +213,6 @@ void handle_http_request(void *json_ctx, struct mg_connection *c,
 void *init_json(char *filename);
 void cleanup_json(void *context);
 
-int get_transport(struct interface *iface, void *context);
-
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
 int ipv4_to_addr(char *p, int *addr);
@@ -236,8 +234,11 @@ void print_eq_error(struct fid_eq *eq, int n);
 
 int init_interfaces(void);
 void *interface_thread(void *arg);
+
+int build_ctrl_list(void *context);
 void init_controllers(void);
 void cleanup_controllers(void);
+
 int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
 int run_pseudo_target(struct endpoint *ep);
