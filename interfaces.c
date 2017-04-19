@@ -432,6 +432,7 @@ void cleanup_controllers()
 
 			free(subsys);
 		}
+		klist_del(&ctrl->node);
 		free(ctrl);
 	}
 }

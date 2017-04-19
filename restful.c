@@ -85,11 +85,24 @@ int post_dem_request(struct http_message *hm, char *resp)
 	if (strcmp(body, METHOD_SHUTDOWN) == 0) {
 		shutdown_dem();
 		strcpy(resp, "DEM shutting down");
+	} else if (strcmp(body, METHOD_APPLY) == 0) {
+		ret = restart_dem();
+		if (ret < 0) {
+			sprintf(resp, "DEM config apply failed %d", ret);
+			ret = HTTP_ERR_INTERNAL;
+			goto out;
+		}
+		if (ret == 0)
+			strcpy(resp,
+			       "DEM config applied but no interdaces defined");
+		else
+
+		strcpy(resp, "DEM config applied");
 	} else {
 		ret = HTTP_ERR_NOT_IMPLEMENTED;
 		strcpy(resp, "Method Not Implemented");
 	}
-
+out:
 	return ret;
 }
 

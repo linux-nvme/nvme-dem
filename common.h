@@ -206,6 +206,7 @@ struct controller {
 struct mg_connection;
 
 void shutdown_dem(void);
+int restart_dem(void);
 void handle_http_request(void *json_ctx, struct mg_connection *c,
 			 void *ev_data);
 

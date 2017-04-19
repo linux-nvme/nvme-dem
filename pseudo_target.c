@@ -342,6 +342,7 @@ void init_controllers()
 	int			i;
 
 	/* TODO: Untie host interfaces to target interfaces */
+
 	for (i = 0; i < num_interfaces; i++)
 		if (get_transport(&interfaces[i], json_ctx))
 			print_err("Failed to get transport for iface %d", i);
@@ -377,8 +378,6 @@ void *interface_thread(void *arg)
 			break;
 
 		refresh_log_pages(iface);
-
-		/* TODO: Handle changes to JSON context */
 	}
 
 	cleanup_listener(listener);

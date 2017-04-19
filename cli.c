@@ -296,6 +296,11 @@ static int dem_shutdown(void *ctx, char *base, int n, char **p)
 	return exec_post(ctx, base, METHOD_SHUTDOWN, sizeof(METHOD_SHUTDOWN));
 }
 
+static int dem_apply(void *ctx, char *base, int n, char **p)
+{
+	return exec_post(ctx, base, METHOD_APPLY, sizeof(METHOD_APPLY));
+}
+
 static int dem_config(void *ctx, char *base, int n, char **p)
 {
 	char url[128];
@@ -346,6 +351,7 @@ struct verbs verb_list[] = {
 	{ del_array,	HOST, -2, "delete",  "acl",
 		"<host_nqn> <ss_nqn> ..." },
 	{ dem_shutdown,	DEM,   0, "shutdown", NULL,   NULL },
+	{ dem_apply,	DEM,   0, "apply", NULL,   NULL },
 	{ dem_config,	DEM,   0, "config", NULL,   NULL },
 	{ NULL,		END,   0,  NULL,  NULL,   NULL },
 };
@@ -368,14 +374,17 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("  -f -- force - do not verify deletes\n");
 	printf("  -s -- specify server (default %s)\n", dem_server);
 	printf("  -p -- specify port (default %s)\n", dem_port);
-	printf("allow_all -- 0 : use acl -- 1 allow all hosts access to ss\n");
-	printf("access -- 0 : no access -- 1 : read only -- 2"
-	       " : write only -- 3 : read/write\n");
-	printf("  verb : list | set | show | rename | delete");
-	printf(" | refresh | config | shutdown\n");
+	printf("  verb : list | set | show | rename | delete | refresh\n");
+	printf("         | config | apply | shutdown\n");
 	printf("       : shorthand verbs may be use (first 3 characters)\n");
 	printf("object : ctrl | ss | host | acl\n");
 	printf("       : shorthand objects may be used (first character)\n");
+	printf("allow_all -- 0 : use acl\n");
+	printf("          -- 1 : allow all hosts access to ss\n");
+	printf("   access -- 0 : no access\n");
+	printf("          -- 1 : read only\n");
+	printf("          -- 2 : write only\n");
+	printf("          -- 3 : read/write\n");
 	printf("commands:\n");
 
 	for (p = verb_list; p->verb; p++) {

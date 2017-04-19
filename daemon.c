@@ -45,6 +45,7 @@ int				 debug;
 struct interface		*interfaces;
 int				 num_interfaces;
 struct klist_head		*ctrl_list = &controller_list;
+pthread_t			*listen_threads;
 
 void shutdown_dem()
 {
@@ -80,7 +81,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static void *poll_loop(struct mg_mgr *mgr)
 {
-	while (!stopped)
+	while (stopped != 1)
 		mg_mgr_poll(mgr, poll_timeout);
 
 	mg_mgr_free(mgr);
@@ -302,11 +303,38 @@ int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
+int restart_dem()
+{
+	int			ret;
+
+	stopped = 2;
+
+	cleanup_threads(listen_threads);
+
+	free(interfaces);
+
+	cleanup_controllers();
+
+	stopped = 0;
+
+	ret = init_interfaces();
+	if (ret <= 0)
+		return ret;
+
+	num_interfaces = ret;
+
+	init_controllers();
+
+	if (init_interface_threads(&listen_threads))
+		ret = -ENODATA;
+
+	return ret;
+}
+
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
-	pthread_t		*listen_threads;
 	int			 ret = 1;
 
 	if (init_dem(argc, argv, &ssl_cert))

@@ -37,6 +37,7 @@
 #define DEM_LEN			(sizeof(TARGET_DEM)-1)
 
 #define METHOD_SHUTDOWN		"shutdown"
+#define METHOD_APPLY		"apply"
 #define METHOD_REFRESH		"refresh"
 
 #define ACCESS_NONE		0
