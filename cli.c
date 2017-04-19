@@ -453,7 +453,7 @@ int main(int argc, char *argv[])
 
 	formatted = HUMAN;
 
-	while ((opt = getopt(argc, argv, "jrfp:s:")) != -1) {
+	while ((opt = getopt(argc, argv, "?jrfp:s:")) != -1) {
 		switch (opt) {
 		case 'r':
 			formatted = RAW;
@@ -470,6 +470,9 @@ int main(int argc, char *argv[])
 		case 's':
 			dem_server = optarg;
 			break;
+		case '?':
+			show_help(argv[0], NULL, NULL);
+			return 0;
 		default:
 			show_help(argv[0], "Unknown option", NULL);
 			return 1;

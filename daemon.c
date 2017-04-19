@@ -30,6 +30,8 @@
 #define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
 
+#define DEV_DEBUG
+
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 KLIST_HEAD(controller_list);
@@ -128,25 +130,59 @@ static int daemonize(void)
 
 int init_dem(int argc, char *argv[], char **ssl_cert)
 {
-	int	opt;
-	int	run_as_daemon = 0;
+	int		 opt;
+	int		 run_as_daemon;
+#ifdef DEV_DEBUG
+	const char	*opt_list = "?qdp:r:c:";
+	const char	*arg_list =
+		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
+		"-q - quite mode, no debug prints\n"
+		"-d - run as a daemon process (default is standalone)"
+		"-p - port from RESTful interface (default 22345)\n"
+		"-r - root for RESTful interface (default .)\n"
+		"-c - cert file for RESTful interface use with ssl";
+#else
+	const char	*opt_list = "?dsp:r:c:";
+	const char	*arg_list =
+		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
+		"-d - enable debug prints in log files\n"
+		"-s - run as a standalone process (default is daemon)\n"
+		"-p - port from RESTful interface (default 22345)\n"
+		"-r - root for RESTful interface (default .)\n"
+		"-c - cert file for RESTful interface use with ssl";
+#endif
 
 	*ssl_cert = NULL;
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
 
+#ifdef DEV_DEBUG
 	debug = 1;
+	run_as_daemon = 0;
+#else
+	debug = 0;
+	run_as_daemon = 1;
+#endif
 
 	/* Process CLI options for HTTP server */
-	while ((opt = getopt(argc, argv, "qdp:s:r:")) != -1) {
+	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
+#ifdef DEV_DEBUG
 		case 'q':
 			debug = 0;
 			break;
 		case 'd':
 			run_as_daemon = 1;
 			break;
+#else
+		case 'd':
+			debug = 0;
+			break;
+		case 's':
+			run_as_daemon = 1;
+			break;
+#endif
 		case 'r':
 			s_http_server_opts.document_root = optarg;
 			break;
@@ -154,13 +190,13 @@ int init_dem(int argc, char *argv[], char **ssl_cert)
 			s_http_port = optarg;
 			print_info("Using port %s", s_http_port);
 			break;
-		case 's':
+		case 'c':
 			*ssl_cert = optarg;
 			break;
+		case '?':
 		default:
 help:
-			print_info("Usage: %s %s", argv[0],
-				  "{-r <root>} {-p <port>} {-s <ssl_cert>}");
+			print_info("Usage: %s %s", argv[0], arg_list);
 			return 1;
 		}
 	}

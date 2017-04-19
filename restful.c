@@ -49,10 +49,27 @@ int  bad_request(char *resp)
 
 int get_dem_request(char *resp)
 {
-	// TODO build real config info in resp
+	struct interface	*iface = interfaces;
+	int			i;
+	int			n = 0;
+
 	// TODO Ping Sujoy - Rackscale may need info / provide input
 
 	strcpy(resp, "Config of DEM");
+	for (i = 0; i < num_interfaces; i++, iface++) {
+		n = sprintf(resp, "interface #%d:\r\n", i);
+		resp += n;
+
+		n = sprintf(resp, "  trtype '%s' addess family '%s'",
+			    iface->trtype, iface->addrfam);
+		resp += n;
+
+		n = sprintf(resp, " address '%s' pseudo target port '%s'",
+			    iface->address, iface->pseudo_target_port);
+		resp += n;
+
+		n = sprintf(resp, " netmask '%s'\r\n", iface->netmask);
+	}
 
 	return 0;
 }
