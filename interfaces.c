@@ -303,10 +303,10 @@ int count_dem_config_files()
 static void read_dem_config(FILE *fid, struct interface *iface)
 {
 	int ret;
-	char tag[LARGEST_TAG];
-	char val[LARGEST_VAL];
+	char tag[LARGEST_TAG + 1];
+	char val[LARGEST_VAL + 1];
 
-	ret = parse_line(fid, tag, sizeof(tag) -1, val, sizeof(val) -1);
+	ret = parse_line(fid, tag, LARGEST_TAG, val, LARGEST_VAL);
 	if (ret)
 		return;
 
@@ -324,40 +324,36 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 
 static void translate_addr_to_array(struct interface *iface)
 {
-	char default_port[CONFIG_PORT_SIZE] = {0};
 	int mask_bits;
 
 	if (strcmp(iface->addrfam, "ipv4") == 0) {
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
+
 		if (iface->netmask[0] == 0)
 			ipv4_mask(iface->mask, (mask_bits) ?: 24);
 		else
 			ipv4_to_addr(iface->netmask, iface->mask);
-
-		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
 		mask_bits = ipv6_to_addr(iface->address, iface->addr);
+
 		if (iface->netmask[0] == 0)
 			ipv6_mask(iface->mask, (mask_bits) ?: 48);
 		else
 			ipv6_to_addr(iface->netmask, iface->mask);
-
-		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else if (strcmp(iface->addrfam, "fc") == 0) {
 		mask_bits = fc_to_addr(iface->address, iface->addr);
+
 		if (iface->netmask[0] == 0)
 			fc_mask(iface->mask, (mask_bits) ?: 48);
 		else
 			fc_to_addr(iface->netmask, iface->mask);
-
-		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else {
 		print_err("unsupported or unspecified address family");
 		return;
 	}
 
 	if (!strlen(iface->pseudo_target_port))
-		strcpy(iface->pseudo_target_port, default_port);
+		sprintf(iface->pseudo_target_port, "%d", NVME_RDMA_IP_PORT);
 }
 
 int read_dem_config_files(struct interface *iface)
@@ -365,7 +361,7 @@ int read_dem_config_files(struct interface *iface)
 	struct dirent	*entry;
 	DIR		*dir;
 	FILE		*fid;
-	char		 config_file[FILENAME_MAX+1];
+	char		 config_file[FILENAME_MAX + 1];
 	int		 count = 0;
 	int		 ret;
 
