@@ -1,5 +1,5 @@
 /*
- * Distributed Endpoint Manager.
+ * NVMe over Fabrics Distributed Endpoint Manager (NVMe-oF DEM).
  * Copyright (c) 2017 Intel Corporation., Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
