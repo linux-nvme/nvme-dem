@@ -126,11 +126,12 @@ static int match_transport(struct interface *iface, struct json_object *ctrl,
 	struct json_object *obj;
 	char *str;
 	int family;
-	int addr[IPV6_ADDR_LEN];
+	int addr[ADDR_LEN];
 	int ret;
 
 	family = (strcmp(iface->addrfam, "ipv4") == 0) ? AF_IPV4 :
-		(strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 : -1;
+		(strcmp(iface->addrfam, "ipv6") == 0) ? AF_IPV6 :
+		(strcmp(iface->addrfam, "fc") == 0) ? AF_FC : -1;
 	if (family == -1) {
 		print_err("Address family not supported\n");
 		goto out;
@@ -162,15 +163,20 @@ static int match_transport(struct interface *iface, struct json_object *ctrl,
 			goto out;
 		if (!ipv4_equal(addr, iface->addr, iface->mask))
 			goto out;
-		memcpy(_addr, addr, sizeof(addr[0]) * IPV4_ADDR_LEN);
-	} else {
+	} else if (family == AF_IPV6) {
 		ret = ipv6_to_addr(str, addr);
 		if (ret)
 			goto out;
 		if (!ipv6_equal(addr, iface->addr, iface->mask))
 			goto out;
-		memcpy(_addr, addr, sizeof(addr[0]) * IPV6_ADDR_LEN);
+	} else {  /* if (family == AF_FC) */
+		ret = ipv6_to_addr(str, addr);
+		if (ret)
+			goto out;
+		if (!ipv6_equal(addr, iface->addr, iface->mask))
+			goto out;
 	}
+	memcpy(_addr, addr, sizeof(addr[0]) * ADDR_LEN);
 	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
 	json_object_object_get_ex(ctrl, TAG_PORT, &obj);
@@ -191,7 +197,7 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 	struct controller *ctrl;
 	struct json_object *subgroup;
 	struct json_object *obj;
-	int addr[IPV6_ADDR_LEN];
+	int addr[ADDR_LEN];
 	char address[CONFIG_ADDRESS_SIZE + 1];
 	char port[CONFIG_PORT_SIZE + 1];
 	char fam[CONFIG_FAMILY_SIZE + 1];
@@ -229,7 +235,7 @@ static int check_transport(struct interface *iface, struct json_context *ctx,
 	strncpy(ctrl->address, address, CONFIG_ADDRESS_SIZE);
 	strncpy(ctrl->port, port, CONFIG_PORT_SIZE);
 
-	memcpy(ctrl->addr, addr, IPV6_ADDR_LEN);
+	memcpy(ctrl->addr, addr, ADDR_LEN);
 
 	ctrl->port_num = atoi(port);
 	ctrl->refresh = refresh;

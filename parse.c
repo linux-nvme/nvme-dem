@@ -142,15 +142,17 @@ out:
 	return ret;
 }
 
-int ipv4_to_addr(char *p, int *addr)
+static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 {
-	char nibble[IPV4_WIDTH];
+	char nibble[8];
 	int i, j, n, z;
 
 	n = strlen(p) + 1;
-	for (z = j = i = 0; i < n && j < IPV4_ADDR_LEN; i++, p++) {
-		if (*p == '.' || *p == 0 || *p == '/') {
+	for (z = j = i = 0; i < n && j < len; i++, p++) {
+		if (*p == delim || *p == 0 || *p == '/') {
 			if (z) {
+				if (z > width)
+					return -1;
 				nibble[z] = 0;
 				z = 0;
 				addr[j] = atoi(nibble);
@@ -163,85 +165,112 @@ int ipv4_to_addr(char *p, int *addr)
 			nibble[z++] = *p;
 	}
 
-	for (; j < IPV4_ADDR_LEN; j++)
+	for (; j < len; j++)
 		addr[j] = 0;
 
 	if (*p == '/')
 		return atoi(++p);
 
 	return 0;
+}
+
+static void print_addr(int *addr, int len, char delim, char *format)
+{
+	int i;
+	char d[2] = { delim, 0 };
+
+	for (i = 0; i < len; i++)
+		printf(format, i ? d : "", addr[i]);
+	printf("\n");
+}
+
+static void addr_mask(int *mask, int bits, int len, int width)
+{
+	int i, j;
+
+	for (i = 0; i < len; i++) {
+		mask[i] = 0;
+		for (j = 0; j < width; j++, bits--)
+			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0);
+	}
+}
+
+static int addr_equal(int *addr, int *dest, int *mask, int len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		if ((addr[i] & mask[i]) != (dest[i] & mask[i]))
+			return 0;
+
+	return 1;
+}
+
+#define IPV4_LEN	4
+#define IPV4_BITS	8
+#define IPV4_WIDTH	3
+#define IPV4_DELIM	'.'
+#define IPV4_FORMAT	"%s%d"
+
+#define IPV6_LEN	8
+#define IPV6_BITS	16
+#define IPV6_WIDTH	4
+#define IPV6_DELIM	':'
+#define IPV6_FORMAT	"%s%x"
+
+#define FC_LEN		8
+#define FC_BITS		8
+#define FC_WIDTH	2
+#define FC_DELIM	':'
+#define FC_FORMAT	"%s%02x"
+
+int ipv4_to_addr(char *p, int *addr)
+{
+	return string_to_addr(p, addr, IPV4_LEN, IPV4_WIDTH, IPV4_DELIM);
+}
+void print_ipv4(int *addr)
+{
+	print_addr(addr, IPV4_LEN, IPV4_DELIM, IPV4_FORMAT);
+}
+void ipv4_mask(int *mask, int bits)
+{
+	addr_mask(mask, bits, IPV4_LEN, IPV4_BITS);
+}
+int ipv4_equal(int *addr, int *dest, int *mask)
+{
+	return addr_equal(addr, dest, mask, IPV4_LEN);
 }
 
 int ipv6_to_addr(char *p, int *addr)
 {
-	char nibble[IPV6_WIDTH];
-	int i, j, n, z;
-
-	n = strlen(p) + 1;
-	for (z = j = i = 0; i < n && j < IPV6_ADDR_LEN; i++, p++) {
-		if (*p == ':' || *p == 0 || *p == '/') {
-			if (z) {
-				nibble[z] = 0;
-				z = 0;
-				sscanf(nibble, "%x", &addr[j]);
-			} else
-				addr[j] = 0;
-			j++;
-			if (*p == '/')
-				break;
-		} else
-			nibble[z++] = *p;
-	}
-
-	for (; j < IPV6_ADDR_LEN; j++)
-		addr[j] = 0;
-
-	if (*p == '/')
-		return atoi(++p);
-
-	return 0;
+	return string_to_addr(p, addr, IPV6_LEN, IPV6_WIDTH, IPV6_DELIM);
 }
-
-void ipv4_mask(int *mask, int bits)
+void print_ipv6(int *addr)
 {
-	int i, j;
-
-	for (i = 0; i < IPV4_ADDR_LEN; i++) {
-		mask[i] = 0;
-		for (j = 0; j < IPV4_BITS; j++, bits--)
-			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0);
-	}
+	print_addr(addr, IPV6_LEN, IPV6_DELIM, IPV6_FORMAT);
 }
-
 void ipv6_mask(int *mask, int bits)
 {
-	int i, j;
-
-	for (i = 0; i < IPV6_ADDR_LEN; i++) {
-		mask[i] = 0;
-		for (j = 0; j < IPV6_BITS; j++, bits--)
-			mask[i] = (mask[i] * 2) + ((bits > 0) ? 1 : 0);
-	}
+	addr_mask(mask, bits, IPV6_LEN, IPV6_BITS);
 }
-
-int ipv4_equal(int *addr, int *dest, int *mask)
-{
-	int i;
-
-	for (i = 0; i < IPV4_ADDR_LEN; i++)
-		if ((addr[i] & mask[i]) != (dest[i] & mask[i]))
-			return 0;
-
-	return 1;
-}
-
 int ipv6_equal(int *addr, int *dest, int *mask)
 {
-	int i;
+	return addr_equal(addr, dest, mask, IPV6_LEN);
+}
 
-	for (i = 0; i < IPV6_ADDR_LEN; i++)
-		if ((addr[i] & mask[i]) != (dest[i] & mask[i]))
-			return 0;
-
-	return 1;
+int fc_to_addr(char *p, int *addr)
+{
+	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_DELIM);
+}
+void print_fc(int *addr)
+{
+	print_addr(addr, FC_LEN, FC_DELIM, FC_FORMAT);
+}
+void fc_mask(int *mask, int bits)
+{
+	addr_mask(mask, bits, FC_LEN, FC_BITS);
+}
+int fc_equal(int *addr, int *dest, int *mask)
+{
+	return addr_equal(addr, dest, mask, FC_LEN);
 }

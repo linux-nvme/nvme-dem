@@ -103,6 +103,7 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define CONFIG_PORT_SIZE	8
 #define LARGEST_TAG		8
 #define LARGEST_VAL		40
+#define ADDR_LEN		16 /* IPV6 is current longest address */
 
 #define MAX_NQN_SIZE		64
 #define MAX_ALIAS_SIZE		64
@@ -112,13 +113,9 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define AF_IPV6			2
 #endif
 
-#define IPV4_ADDR_LEN		4
-#define IPV6_ADDR_LEN		8
-#define FC_ADDR_LEN		8
-#define IPV4_BITS		8
-#define IPV6_BITS		16
-#define IPV4_WIDTH		3
-#define IPV6_WIDTH		4
+#ifndef AF_FC
+#define AF_FC			3
+#endif
 
 /* HACK - Figure out which of these we need */
 #define DISC_BUF_SIZE		4096
@@ -143,10 +140,10 @@ struct interface {
 	char			 trtype[CONFIG_TYPE_SIZE + 1];
 	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	int			 addr[IPV6_ADDR_LEN];
+	int			 addr[ADDR_LEN];
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
 	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
-	int			 mask[IPV6_ADDR_LEN];
+	int			 mask[ADDR_LEN];
 	struct listener		 listener;
 };
 
@@ -200,7 +197,7 @@ struct controller {
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
-	int			 addr[IPV6_ADDR_LEN];
+	int			 addr[ADDR_LEN];
 	int			 refresh;
 	int			 refresh_countdown;
 	int			 num_subsystems;
@@ -220,11 +217,19 @@ int get_transport(struct interface *iface, void *context);
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
 int ipv4_to_addr(char *p, int *addr);
-int ipv6_to_addr(char *p, int *addr);
+void print_ipv4(int *addr);
 void ipv4_mask(int *mask, int bits);
-void ipv6_mask(int *mask, int bits);
 int ipv4_equal(int *addr, int *dest, int *mask);
+
+int ipv6_to_addr(char *p, int *addr);
+void print_ipv6(int *addr);
+void ipv6_mask(int *mask, int bits);
 int ipv6_equal(int *addr, int *dest, int *mask);
+
+int fc_to_addr(char *p, int *addr);
+void print_fc(int *addr);
+void fc_mask(int *mask, int bits);
+int fc_equal(int *addr, int *dest, int *mask);
 
 void print_eq_error(struct fid_eq *eq, int n);
 
@@ -253,10 +258,5 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
 int refresh_ctrl(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
-
-// TODO make these real function since FC Bits are only 8 not 16
-#define fc_to_addr	ipv6_to_addr
-#define fc_mask		ipv6_mask
-#define fc_equal	ipv6_equal
 
 #endif
