@@ -322,25 +322,33 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 		strncpy(iface->pseudo_target_port, val, CONFIG_PORT_SIZE);
 }
 
-/* TODO: Support FC and other transports */
 static void translate_addr_to_array(struct interface *iface)
 {
 	char default_port[CONFIG_PORT_SIZE] = {0};
+	int mask_bits;
 
 	if (strcmp(iface->addrfam, "ipv4") == 0) {
-		ipv4_to_addr(iface->address, iface->addr);
+		mask_bits = ipv4_to_addr(iface->address, iface->addr);
 		if (iface->netmask[0] == 0)
-			ipv4_mask(iface->mask, 24);
+			ipv4_mask(iface->mask, (mask_bits) ?: 24);
 		else
 			ipv4_to_addr(iface->netmask, iface->mask);
 
 		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
-		ipv6_to_addr(iface->address, iface->addr);
+		mask_bits = ipv6_to_addr(iface->address, iface->addr);
 		if (iface->netmask[0] == 0)
-			ipv6_mask(iface->mask, 48);
+			ipv6_mask(iface->mask, (mask_bits) ?: 48);
 		else
 			ipv6_to_addr(iface->netmask, iface->mask);
+
+		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
+	} else if (strcmp(iface->addrfam, "fc") == 0) {
+		mask_bits = fc_to_addr(iface->address, iface->addr);
+		if (iface->netmask[0] == 0)
+			fc_mask(iface->mask, (mask_bits) ?: 48);
+		else
+			fc_to_addr(iface->netmask, iface->mask);
 
 		sprintf(default_port, "%d", NVME_RDMA_IP_PORT);
 	} else {
