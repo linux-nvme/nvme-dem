@@ -306,6 +306,7 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 	char url[128];
 	char *alias = *p;
 	char *result;
+	struct json_object *parent;
 	int ret;
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
@@ -314,7 +315,15 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (formatted == RAW)
+		printf("%s\n", result);
+	else {
+		parent = json_tokener_parse(result);
+		if (parent)
+			show_config(parent, formatted);
+		else
+			printf("%s\n", result);
+	}
 
 	free(result);
 
@@ -332,13 +341,13 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 struct verbs verb_list[] = {
 	{ list_ctrl,	CTRL,  0, "list",    "ctrl",  NULL },
 	{ set_ctrl,	CTRL,  6, "set",     "ctrl",
-		"<alias> <trtype> <addrfam> <traddr> <trport> <refresh>" },
+	    "<alias> <trtype> <addrfam> <traddr> <trport> <refresh (mins)>" },
 	{ show_ctrl,	CTRL,  1, "show",    "ctrl", "<alias>" },
 	{ del_entry,	CTRL,  1, "delete",  "ctrl", "<alias>" },
 	{ rename_entry,	CTRL,  2, "rename",  "ctrl", "<old> <new>" },
 	{ refresh_ctrl,	CTRL,  1, "refresh", "ctrl", "<alias>" },
 	{ set_subsys,	CTRL,  3, "set",     "ss",
-		"<alias> <nqn> <allow_all>" },
+	    "<alias> <nqn> <allow_all>" },
 	{ del_array,	CTRL, -2, "delete",  "ss",   "<alias> <nqn> ..." },
 	{ rename_array,	CTRL,  3, "rename",  "ss",   "<alias> <old> <new>" },
 	{ list_host,	HOST,  0, "list",    "host",  NULL },
@@ -347,9 +356,9 @@ struct verbs verb_list[] = {
 	{ del_entry,	HOST,  1, "delete",  "host", "<nqn>" },
 	{ rename_entry,	HOST,  2, "rename",  "host", "<old> <new>" },
 	{ set_acl,	HOST,  3, "set",     "acl",
-		"<host_nqn> <ss_nqn> <access>" },
+	    "<host_nqn> <ss_nqn> <access>" },
 	{ del_array,	HOST, -2, "delete",  "acl",
-		"<host_nqn> <ss_nqn> ..." },
+	    "<host_nqn> <ss_nqn> ..." },
 	{ dem_shutdown,	DEM,   0, "shutdown", NULL,   NULL },
 	{ dem_apply,	DEM,   0, "apply", NULL,   NULL },
 	{ dem_config,	DEM,   0, "config", NULL,   NULL },
@@ -370,8 +379,10 @@ static void show_help(char *prog, char *msg, char *opt)
 	}
 
 	printf("Usage: %s {options} <verb> <object> {value ...}\n", prog);
-	printf("obtions: {-f} {-s <server>} {-p <port>}");
+	printf("options: {-f} {-j | -r} {-s <server>} {-p <port>}\n");
 	printf("  -f -- force - do not verify deletes\n");
+	printf("  -j -- show output in json mode (less human readable)\n");
+	printf("  -r -- show output in raw mode (unformatted)\n");
 	printf("  -s -- specify server (default %s)\n", dem_server);
 	printf("  -p -- specify port (default %s)\n", dem_port);
 	printf("  verb : list | set | show | rename | delete | refresh\n");

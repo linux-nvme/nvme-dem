@@ -23,9 +23,9 @@
 #include "nvme.h"	/* NOTE: Using linux kernel include here */
 
 #define BUF_SIZE	4096
-#define NVMF_DQ_DEPTH	2
+#define NVMF_DQ_DEPTH	1
 #define CTIMEOUT	100
-#define SECS		1000 /* convert ms to sec */
+#define MINUTES		(60 * 1000) /* convert ms to minutes */
 
 #define FI_VER		FI_VERSION(1, 0)
 
@@ -216,16 +216,19 @@ void cleanup_json(void *context);
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
 int ipv4_to_addr(char *p, int *addr);
+void ipv4_to_string(int *addr, char *p);
 void print_ipv4(int *addr);
 void ipv4_mask(int *mask, int bits);
 int ipv4_equal(int *addr, int *dest, int *mask);
 
 int ipv6_to_addr(char *p, int *addr);
+void ipv6_to_string(int *addr, char *p);
 void print_ipv6(int *addr);
 void ipv6_mask(int *mask, int bits);
 int ipv6_equal(int *addr, int *dest, int *mask);
 
 int fc_to_addr(char *p, int *addr);
+void fc_to_string(int *addr, char *p);
 void print_fc(int *addr);
 void fc_mask(int *mask, int bits);
 int fc_equal(int *addr, int *dest, int *mask);

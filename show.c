@@ -350,3 +350,98 @@ void show_host_data(struct json_object *parent, int formatted)
 
 	printf("\n");
 }
+
+void show_config(struct json_object *parent, int formatted)
+{
+	struct json_object *array;
+	struct json_object *iter;
+	struct json_object *obj;
+	int i, n, cnt;
+
+	json_object_object_get_ex(parent, TAG_INTERFACES, &array);
+	if (!array)
+		goto err;
+
+	cnt = json_object_array_length(array);
+
+	if (cnt == 0)
+		goto err;
+
+	if (formatted)
+		printf("{\n  \"%s\": [", TAG_INTERFACES);
+
+	for (i = 0; i < cnt; i++) {
+		iter = json_object_array_get_idx(array, i);
+
+		json_object_object_get_ex(iter, TAG_ID, &obj);
+		if (!obj)
+			continue;
+
+		if (formatted)
+			printf("%s{\n    \"%s\": %d,\n", (i) ? ", " : "",
+			       TAG_ID, json_object_get_int(obj));
+		else
+			printf("%s%d: ", (i) ? "\n" : "",
+			       json_object_get_int(obj));
+
+		json_object_object_get_ex(iter, TAG_TYPE, &obj);
+		if (obj) {
+			if (formatted)
+				printf("    \"%s\": \"%s\",\n", TAG_TYPE,
+				       json_object_get_string(obj));
+			else
+				printf("%s ", json_object_get_string(obj));
+		}
+
+		json_object_object_get_ex(iter, TAG_FAMILY, &obj);
+		if (obj) {
+			if (formatted)
+				printf("    \"%s\": \"%s\",\n", TAG_FAMILY,
+				       json_object_get_string(obj));
+			else
+				printf("%s ", json_object_get_string(obj));
+		}
+
+		json_object_object_get_ex(iter, TAG_ADDRESS, &obj);
+		if (obj) {
+			if (formatted)
+				printf("    \"%s\": \"%s\",\n", TAG_ADDRESS,
+				       json_object_get_string(obj));
+			else
+				printf("%s", json_object_get_string(obj));
+		}
+
+		json_object_object_get_ex(iter, TAG_PORT, &obj);
+		if (obj) {
+			if (formatted)
+				printf("    \"%s\": %d,\n", TAG_PORT,
+				       json_object_get_int(obj));
+			else
+				printf(":%d ", json_object_get_int(obj));
+		} else if (!formatted)
+			printf(" ");
+
+		json_object_object_get_ex(iter, TAG_NETMASK, &obj);
+		if (obj) {
+			if (formatted)
+				printf("    \"%s\": \"%s\"\n  }", TAG_NETMASK,
+				       json_object_get_string(obj));
+			else
+				printf("%s %s", TAG_NETMASK,
+				       json_object_get_string(obj));
+		}
+	}
+
+out:
+	if (formatted)
+		printf("]\n}");
+
+	printf("\n");
+	return;
+
+err:
+	if (formatted)
+		printf("  \"%s\" : [ ]", TAG_INTERFACES);
+	else
+		printf("No Interfaces defined\n");
+}

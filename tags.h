@@ -27,6 +27,8 @@
 #define TAG_ALLOW_ALL		"AllowAllHosts"
 #define TAG_ACL			"ACL"
 #define TAG_ACCESS		"Access"
+#define TAG_INTERFACES		"Inferfaces"
+#define TAG_ID			"ID"
 
 #define TARGET_CTRL		"controller"
 #define TARGET_HOST		"host"

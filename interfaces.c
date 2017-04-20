@@ -307,27 +307,35 @@ static void translate_addr_to_array(struct interface *iface)
 	if (strcmp(iface->addrfam, "ipv4") == 0) {
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
 
-		if (iface->netmask[0] == 0)
+		if (iface->netmask[0] == 0) {
 			ipv4_mask(iface->mask, (mask_bits) ?: 24);
-		else
+			ipv4_to_string(iface->mask, iface->netmask);
+		 } else
 			ipv4_to_addr(iface->netmask, iface->mask);
 	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
 		mask_bits = ipv6_to_addr(iface->address, iface->addr);
 
-		if (iface->netmask[0] == 0)
+		if (iface->netmask[0] == 0) {
 			ipv6_mask(iface->mask, (mask_bits) ?: 48);
-		else
+			ipv6_to_string(iface->mask, iface->netmask);
+		} else
 			ipv6_to_addr(iface->netmask, iface->mask);
 	} else if (strcmp(iface->addrfam, "fc") == 0) {
 		mask_bits = fc_to_addr(iface->address, iface->addr);
 
-		if (iface->netmask[0] == 0)
+		if (iface->netmask[0] == 0) {
 			fc_mask(iface->mask, (mask_bits) ?: 48);
-		else
+			fc_to_string(iface->mask, iface->netmask);
+		} else
 			fc_to_addr(iface->netmask, iface->mask);
 	} else {
 		print_err("unsupported or unspecified address family");
 		return;
+	}
+
+	if (mask_bits) {
+		char *p = strchr(iface->address, '/');
+		p[0] = 0;
 	}
 
 	if (!strlen(iface->pseudo_target_port))

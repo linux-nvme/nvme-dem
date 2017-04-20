@@ -55,21 +55,34 @@ int get_dem_request(char *resp)
 
 	// TODO Ping Sujoy - Rackscale may need info / provide input
 
-	strcpy(resp, "Config of DEM");
+	n = sprintf(resp, "{\"%s\":[", TAG_INTERFACES);
+	resp += n;
+
 	for (i = 0; i < num_interfaces; i++, iface++) {
-		n = sprintf(resp, "interface #%d:\r\n", i);
+		n = sprintf(resp, "%s{\"%s\":%d,", (i) ? "," : "", TAG_ID, i);
 		resp += n;
 
-		n = sprintf(resp, "  trtype '%s' addess family '%s'",
-			    iface->trtype, iface->addrfam);
+		n = sprintf(resp, "\"%s\":\"%s\",", TAG_TYPE, iface->trtype);
 		resp += n;
 
-		n = sprintf(resp, " address '%s' pseudo target port '%s'",
-			    iface->address, iface->pseudo_target_port);
+		n = sprintf(resp, "\"%s\":\"%s\",", TAG_FAMILY,
+			    iface->addrfam);
 		resp += n;
 
-		n = sprintf(resp, " netmask '%s'\r\n", iface->netmask);
+		n = sprintf(resp, "\"%s\":\"%s\",", TAG_ADDRESS,
+			    iface->address);
+		resp += n;
+
+		n = sprintf(resp, "\"%s\":%s,", TAG_PORT,
+			    iface->pseudo_target_port);
+		resp += n;
+
+		n = sprintf(resp, "\"%s\":\"%s\"}", TAG_NETMASK,
+			    iface->netmask);
+		resp += n;
 	}
+
+	sprintf(resp, "]}");
 
 	return 0;
 }

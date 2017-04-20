@@ -444,7 +444,7 @@ int client_connect(struct endpoint *ep)
 
 	priv->recfmt = htole16(NVME_RDMA_CM_FMT_1_0);
 	priv->hrqsize = htole16(NVMF_DQ_DEPTH);
-	priv->hsqsize = htole16(NVMF_DQ_DEPTH - 1);
+	priv->hsqsize = htole16(NVMF_DQ_DEPTH);
 
 	data = (void *) &priv[1];
 

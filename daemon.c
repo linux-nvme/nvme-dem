@@ -90,7 +90,7 @@ static inline void refresh_log_pages()
 		if (!ctrl->refresh_countdown) {
 			fetch_log_pages(ctrl);
 			ctrl->refresh_countdown =
-				ctrl->refresh * SECS / IDLE_TIMEOUT;
+				ctrl->refresh * MINUTES / IDLE_TIMEOUT;
 		}
 	}
 }

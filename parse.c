@@ -142,6 +142,17 @@ out:
 	return ret;
 }
 
+static void addr_to_string(int *addr, char *p, int len, char delim, char *fmt)
+{
+	int i, n;
+	char d[2] = { delim, 0 };
+
+	for (i = 0; i < len; i++) {
+		n = sprintf(p, fmt, (i) ? d : "", addr[i]);
+		p += n;
+	}
+}
+
 static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 {
 	char nibble[8];
@@ -174,13 +185,13 @@ static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 	return 0;
 }
 
-static void print_addr(int *addr, int len, char delim, char *format)
+static void print_addr(int *addr, int len, char delim, char *fmt)
 {
 	int i;
 	char d[2] = { delim, 0 };
 
 	for (i = 0; i < len; i++)
-		printf(format, i ? d : "", addr[i]);
+		printf(fmt, i ? d : "", addr[i]);
 	printf("\n");
 }
 
@@ -228,6 +239,10 @@ int ipv4_to_addr(char *p, int *addr)
 {
 	return string_to_addr(p, addr, IPV4_LEN, IPV4_WIDTH, IPV4_DELIM);
 }
+void ipv4_to_string(int *addr, char *p)
+{
+	addr_to_string(addr, p, IPV4_LEN, IPV4_DELIM, IPV4_FORMAT);
+}
 void print_ipv4(int *addr)
 {
 	print_addr(addr, IPV4_LEN, IPV4_DELIM, IPV4_FORMAT);
@@ -245,6 +260,10 @@ int ipv6_to_addr(char *p, int *addr)
 {
 	return string_to_addr(p, addr, IPV6_LEN, IPV6_WIDTH, IPV6_DELIM);
 }
+void ipv6_to_string(int *addr, char *p)
+{
+	addr_to_string(addr, p, IPV6_LEN, IPV6_DELIM, IPV6_FORMAT);
+}
 void print_ipv6(int *addr)
 {
 	print_addr(addr, IPV6_LEN, IPV6_DELIM, IPV6_FORMAT);
@@ -261,6 +280,10 @@ int ipv6_equal(int *addr, int *dest, int *mask)
 int fc_to_addr(char *p, int *addr)
 {
 	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_DELIM);
+}
+void fc_to_string(int *addr, char *p)
+{
+	addr_to_string(addr, p, FC_LEN, FC_DELIM, FC_FORMAT);
 }
 void print_fc(int *addr)
 {

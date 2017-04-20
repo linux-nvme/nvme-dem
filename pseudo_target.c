@@ -330,7 +330,8 @@ void init_controllers()
 
 	klist_for_each_entry(ctrl, ctrl_list, node) {
 		fetch_log_pages(ctrl);
-		ctrl->refresh_countdown = ctrl->refresh * SECS / IDLE_TIMEOUT;
+		ctrl->refresh_countdown =
+			ctrl->refresh * MINUTES / IDLE_TIMEOUT;
 	}
 }
 
