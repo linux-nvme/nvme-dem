@@ -414,21 +414,10 @@ void show_config(struct json_object *parent, int formatted)
 		json_object_object_get_ex(iter, TAG_PORT, &obj);
 		if (obj) {
 			if (formatted)
-				printf("    \"%s\": %d,\n", TAG_PORT,
+				printf("    \"%s\": %d\n  }", TAG_PORT,
 				       json_object_get_int(obj));
 			else
-				printf(":%d ", json_object_get_int(obj));
-		} else if (!formatted)
-			printf(" ");
-
-		json_object_object_get_ex(iter, TAG_NETMASK, &obj);
-		if (obj) {
-			if (formatted)
-				printf("    \"%s\": \"%s\"\n  }", TAG_NETMASK,
-				       json_object_get_string(obj));
-			else
-				printf("%s %s", TAG_NETMASK,
-				       json_object_get_string(obj));
+				printf(":%d", json_object_get_int(obj));
 		}
 	}
 

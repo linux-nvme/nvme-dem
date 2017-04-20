@@ -294,8 +294,6 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 		strncpy(iface->addrfam, val, CONFIG_FAMILY_SIZE);
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
 		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
-	else if (strcasecmp(tag, TAG_NETMASK) == 0)
-		strncpy(iface->netmask, val, CONFIG_ADDRESS_SIZE);
 	else if (strcasecmp(tag, TAG_PORT) == 0)
 		strncpy(iface->pseudo_target_port, val, CONFIG_PORT_SIZE);
 }
@@ -304,31 +302,13 @@ static void translate_addr_to_array(struct interface *iface)
 {
 	int mask_bits;
 
-	if (strcmp(iface->addrfam, "ipv4") == 0) {
+	if (strcmp(iface->addrfam, "ipv4") == 0)
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
-
-		if (iface->netmask[0] == 0) {
-			ipv4_mask(iface->mask, (mask_bits) ?: 24);
-			ipv4_to_string(iface->mask, iface->netmask);
-		 } else
-			ipv4_to_addr(iface->netmask, iface->mask);
-	} else if (strcmp(iface->addrfam, "ipv6") == 0) {
+	else if (strcmp(iface->addrfam, "ipv6") == 0)
 		mask_bits = ipv6_to_addr(iface->address, iface->addr);
-
-		if (iface->netmask[0] == 0) {
-			ipv6_mask(iface->mask, (mask_bits) ?: 48);
-			ipv6_to_string(iface->mask, iface->netmask);
-		} else
-			ipv6_to_addr(iface->netmask, iface->mask);
-	} else if (strcmp(iface->addrfam, "fc") == 0) {
+	else if (strcmp(iface->addrfam, "fc") == 0)
 		mask_bits = fc_to_addr(iface->address, iface->addr);
-
-		if (iface->netmask[0] == 0) {
-			fc_mask(iface->mask, (mask_bits) ?: 48);
-			fc_to_string(iface->mask, iface->netmask);
-		} else
-			fc_to_addr(iface->netmask, iface->mask);
-	} else {
+	else {
 		print_err("unsupported or unspecified address family");
 		return;
 	}

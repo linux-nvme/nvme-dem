@@ -142,8 +142,6 @@ struct interface {
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	int			 addr[ADDR_LEN];
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
-	char			 netmask[CONFIG_ADDRESS_SIZE + 1];
-	int			 mask[ADDR_LEN];
 	struct listener		 listener;
 };
 
@@ -216,22 +214,8 @@ void cleanup_json(void *context);
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
 int ipv4_to_addr(char *p, int *addr);
-void ipv4_to_string(int *addr, char *p);
-void print_ipv4(int *addr);
-void ipv4_mask(int *mask, int bits);
-int ipv4_equal(int *addr, int *dest, int *mask);
-
 int ipv6_to_addr(char *p, int *addr);
-void ipv6_to_string(int *addr, char *p);
-void print_ipv6(int *addr);
-void ipv6_mask(int *mask, int bits);
-int ipv6_equal(int *addr, int *dest, int *mask);
-
 int fc_to_addr(char *p, int *addr);
-void fc_to_string(int *addr, char *p);
-void print_fc(int *addr);
-void fc_mask(int *mask, int bits);
-int fc_equal(int *addr, int *dest, int *mask);
 
 void print_eq_error(struct fid_eq *eq, int n);
 

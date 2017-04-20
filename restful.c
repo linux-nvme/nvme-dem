@@ -73,12 +73,8 @@ int get_dem_request(char *resp)
 			    iface->address);
 		resp += n;
 
-		n = sprintf(resp, "\"%s\":%s,", TAG_PORT,
+		n = sprintf(resp, "\"%s\":%s}", TAG_PORT,
 			    iface->pseudo_target_port);
-		resp += n;
-
-		n = sprintf(resp, "\"%s\":\"%s\"}", TAG_NETMASK,
-			    iface->netmask);
 		resp += n;
 	}
 
