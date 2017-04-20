@@ -113,13 +113,10 @@ static int daemonize(void)
 {
 	pid_t pid, sid;
 
-/* TODO: Do we want to restrict to root if daemenized  */
-#if 0
 	if (getuid() != 0) {
-		print_err("must be root to run dem");
+		print_err("must be root to run demd as a daemon");
 		return -1;
 	}
-#endif
 
 	pid = fork();
 	if (pid < 0) {

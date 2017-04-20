@@ -25,7 +25,7 @@ demd: ${DAEMON_SRC} ${DAEMON_INC} Makefile
 	gcc ${DAEMON_SRC} -o $@ -ljson-c ${CFLAGS}
 
 clean:
-	rm -f dem demd unittest config.json
+	rm -f dem demd config.json
 	echo Done.
 
 config.json:
