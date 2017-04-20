@@ -182,19 +182,13 @@ static int rename_entry(void *ctx, char *base, int n, char **p)
 static int set_host(void *ctx, char *base, int n, char **p)
 {
 	char url[128];
-	char data[256];
 	char *alias = *p++;
 	char *nqn = *p++;
 	int access = atoi(*p);
-	int len;
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	len = snprintf(data, sizeof(data),
-			"{ \"%s\" : \"%s\", \"%s\" : %d }",
-			TAG_NQN, nqn, TAG_ACCESS, access);
-
-	return exec_put(ctx, url, data, len);
+	return exec_put(ctx, url, NULL, 0);
 }
 
 static int set_ctrl(void *ctx, char *base, int n, char **p)
