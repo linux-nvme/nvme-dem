@@ -1,5 +1,8 @@
 archive/
+jansson/
+mongoose/
 config.json
+libjansson.a
 dem
 demd
 .*.sw?

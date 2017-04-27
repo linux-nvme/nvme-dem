@@ -223,15 +223,16 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];
 		found = 0;
-		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
+		list_for_each_entry(subsys, &ctrl->subsys_list, node)
 			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
 				subsys->log_page = *e;
+				subsys->log_page_valid = 1;
 				found = 1;
 				break;
 			}
 		if (!found)
 			print_err("subsystem for log page (%s) not found",
-			e->subnqn);
+				  e->subnqn);
 	}
 }
 

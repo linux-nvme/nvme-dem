@@ -18,8 +18,17 @@
 #define unlikely __glibc_unlikely
 
 #include <sys/types.h>
+#include <unistd.h>
+#include <errno.h>
+#include <signal.h>
+#include <pthread.h>
 #include <stdbool.h>
-#include "incl/klist.h"
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <string.h>
+
+#include "incl/list.h"
 #include "nvme.h"	/* NOTE: Using linux kernel include here */
 
 #define BUF_SIZE	4096
@@ -59,7 +68,7 @@ extern int			 stopped;
 extern struct interface	*interfaces;
 extern int			 num_interfaces;
 extern void			*json_ctx;
-extern struct klist_head	*ctrl_list;
+extern struct list_head	*ctrl_list;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -146,19 +155,20 @@ struct interface {
 };
 
 struct host {
-	struct klist_head	 node;
+	struct list_head	 node;
 	struct subsystem	*subsystem;
 	char			 nqn[MAX_NQN_SIZE + 1];
 	int			 access;
 };
 
 struct subsystem {
-	struct klist_head		 node;
-	struct klist_head		 host_list;
+	struct list_head		 node;
+	struct list_head		 host_list;
 	struct controller		*ctrl;
 	char				 nqn[MAX_NQN_SIZE + 1];
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
+	int				 log_page_valid;
 };
 
 struct qe {
@@ -167,6 +177,7 @@ struct qe {
 };
 
 struct endpoint {
+	char			 nqn[MAX_NQN_SIZE + 1];
 	struct fi_info		*prov;
 	struct fi_info		*info;
 	struct fid_fabric	*fab;
@@ -185,8 +196,8 @@ struct endpoint {
 };
 
 struct controller {
-	struct klist_head	 node;
-	struct klist_head	 subsys_list;
+	struct list_head	 node;
+	struct list_head	 subsys_list;
 	struct endpoint		 ep;
 	struct interface	*iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
@@ -243,6 +254,7 @@ int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);
 int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	      void *desc, u64 addr, u64 key);
+void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
 int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
 int refresh_ctrl(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);

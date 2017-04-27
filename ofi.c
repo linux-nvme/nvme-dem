@@ -101,7 +101,7 @@ void print_eq_error(struct fid_eq *eq, int n)
 	}
 }
 
-static void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr)
+void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr)
 {
 	void			*buf;
 	int			ret;
@@ -126,7 +126,7 @@ out:
 	return NULL;
 }
 
-int init_fabric(struct endpoint *ep)
+static int init_fabric(struct endpoint *ep)
 {
 	struct qe		*qe;
 	int			i;
@@ -415,7 +415,7 @@ static int create_endpoint(struct endpoint *ep, struct fi_info *info)
 	return 0;
 }
 
-int client_connect(struct endpoint *ep)
+static int client_connect(struct endpoint *ep)
 {
 	struct fi_eq_cm_entry	entry;
 	uint32_t		event;
@@ -573,17 +573,17 @@ void cleanup_listener(struct listener *pep)
 
 static inline void put_unaligned_le24(u32 val, u8 *p)
 {
-	*p++ = val;
-	*p++ = val >> 8;
-	*p++ = val >> 16;
+	*p++ = val & 0xff;
+	*p++ = (val >> 8) & 0xff;
+	*p++ = (val >> 16) & 0xff;
 }
 
 static inline void put_unaligned_le32(u32 val, u8 *p)
 {
-	*p++ = val;
-	*p++ = val >> 8;
-	*p++ = val >> 16;
-	*p++ = val >> 24;
+	*p++ = val & 0xff;
+	*p++ = (val >> 8) & 0xff;
+	*p++ = (val >> 16) & 0xff;
+	*p++ = (val >> 24) & 0xff;
 }
 
 static int send_cmd(struct endpoint *ep, struct nvme_command *cmd, int bytes)
@@ -604,7 +604,7 @@ static int send_cmd(struct endpoint *ep, struct nvme_command *cmd, int bytes)
 			break;
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
-		print_err("fabric connect failed");
+		print_err("fi_send failed");
 		print_cq_error(ep->scq, ret);
 		return ret;
 	}
@@ -796,7 +796,7 @@ int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 			return 0;
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
-		print_err("fabric connect failed");
+		print_err("fi_read failed");
 		print_cq_error(scq, ret);
 		break;
 	}
@@ -820,7 +820,7 @@ int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 			return 0;
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
-		print_err("fabric connect failed");
+		print_err("fi_write failed");
 		print_cq_error(scq, ret);
 		break;
 	}
@@ -853,7 +853,7 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *msg, int len)
 			break;
 		if (ret == -EAGAIN || ret == -EINTR)
 			continue;
-		print_err("fabric connect failed");
+		print_err("fi_send failed");
 		print_cq_error(ep->scq, ret);
 		return ret;
 	}

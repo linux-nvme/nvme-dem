@@ -25,8 +25,7 @@
 #define COMMENT '#'
 #define EQUAL '='
 
-int consume_line(FILE *fd)
-{
+static int consume_line(FILE *fd) {
 	char c;
 
 	while (!feof(fd)) {
@@ -37,8 +36,7 @@ int consume_line(FILE *fd)
 	return 1;
 }
 
-int consume_whitespace(FILE *fd)
-{
+static int consume_whitespace(FILE *fd) {
 	char c;
 
 	while (!feof(fd)) {
@@ -54,8 +52,7 @@ int consume_whitespace(FILE *fd)
 	return 1;
 }
 
-int parse_word(FILE *fd, char *word, int n)
-{
+static int parse_word(FILE *fd, char *word, int n) {
 	char c, *p = word;
 	int quoted = 0;
 
@@ -84,8 +81,7 @@ int parse_word(FILE *fd, char *word, int n)
 	return 0;
 }
 
-int parse_equal(FILE *fd, char *word, int n)
-{
+static int parse_equal(FILE *fd, char *word, int n) {
 	char c, *p = word;
 
 	while (!feof(fd)) {
@@ -111,8 +107,7 @@ int parse_equal(FILE *fd, char *word, int n)
 
 #define MAX_EQUAL 2
 
-int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max)
-{
+int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max) {
 	char equal[MAX_EQUAL + 1];
 	int ret;
 
@@ -136,14 +131,12 @@ int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max)
 	if (ret)
 		goto out;
 	ret = parse_word(fd, value, value_max);
-out:
-	consume_line(fd);
+	out: consume_line(fd);
 
 	return ret;
 }
 
-static int string_to_addr(char *p, int *addr, int len, int width, char delim)
-{
+static int string_to_addr(char *p, int *addr, int len, int width, char delim) {
 	char nibble[8];
 	int i, j, n, z;
 
@@ -186,17 +179,14 @@ static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 #define FC_WIDTH	2
 #define FC_DELIM	':'
 
-int ipv4_to_addr(char *p, int *addr)
-{
+int ipv4_to_addr(char *p, int *addr) {
 	return string_to_addr(p, addr, IPV4_LEN, IPV4_WIDTH, IPV4_DELIM);
 }
 
-int ipv6_to_addr(char *p, int *addr)
-{
+int ipv6_to_addr(char *p, int *addr) {
 	return string_to_addr(p, addr, IPV6_LEN, IPV6_WIDTH, IPV6_DELIM);
 }
 
-int fc_to_addr(char *p, int *addr)
-{
+int fc_to_addr(char *p, int *addr) {
 	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_DELIM);
 }

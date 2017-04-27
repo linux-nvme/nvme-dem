@@ -27,7 +27,7 @@ int refresh_ctrl(char *alias)
 {
 	struct controller	*ctrl;
 
-	klist_for_each_entry(ctrl,ctrl_list, node)
+	list_for_each_entry(ctrl,ctrl_list, node)
 		if (!strcmp(ctrl->alias, alias)) {
 			fetch_log_pages(ctrl);
 			return 0;
@@ -36,66 +36,70 @@ int refresh_ctrl(char *alias)
 	return -EINVAL;
 }
 
-static void check_host(struct subsystem *subsys, struct json_object *nqn,
-		       struct json_object *array)
+static void check_host(struct subsystem *subsys, json_t *nqn,
+		       json_t *array, const char *host_nqn)
 {
-	struct json_object *obj;
-	struct json_object *access;
-	struct json_object *iter;
+	json_t *obj;
+	json_t *access;
+	json_t *iter;
 	struct host *host;
 	int i, n;
 
-	n = json_object_array_length(array);
+	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
-		iter = json_object_array_get_idx(array, i);
-		json_object_object_get_ex(iter, TAG_NQN, &obj);
-		if (obj && json_object_equal(nqn, obj)) {
-			json_object_object_get_ex(iter, TAG_ACCESS, &access);
-			if (access && json_object_get_int(access)) {
+		iter = json_array_get(array, i);
+		obj = json_object_get(iter, TAG_NQN);
+		if (obj && json_equal(nqn, obj)) {
+			access = json_object_get(iter, TAG_ACCESS);
+			if (access && json_integer_value(access)) {
 				host = malloc(sizeof(*host));
 				if (!host)
 					return;
 
 				memset(host, 0, sizeof(*host));
 				host->subsystem = subsys;
-				strcpy(host->nqn, json_object_get_string(obj));
-				host->access = json_object_get_int(access);
-				klist_add(&host->node, &subsys->host_list);
+				strcpy(host->nqn, host_nqn);
+				host->access = json_integer_value(access);
+				list_add(&host->node, &subsys->host_list);
 			}
 		}
 	}
 }
 
-static void check_hosts(struct subsystem *subsys, struct json_object *array,
-			struct json_object *nqn)
+static void check_hosts(struct subsystem *subsys, json_t *array,
+			json_t *nqn)
 {
-	struct json_object *grp;
-	struct json_object *iter;
+	json_t *grp;
+	json_t *iter;
+	json_t *host;
 	int i, n;
 
-	n = json_object_array_length(array);
+	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
-		iter = json_object_array_get_idx(array, i);
-		json_object_object_get_ex(iter, TAG_ACL, &grp);
+		iter = json_array_get(array, i);
+		host = json_object_get(iter, TAG_NQN);
+		if (unlikely(!host))
+			continue;
+		grp = json_object_get(iter, TAG_ACL);
 		if (grp)
-			check_host(subsys, nqn, grp);
+			check_host(subsys, nqn, grp, json_string_value(host));
 	}
 }
 
 static void check_subsystems(struct controller *ctrl,
 			     struct json_context *ctx,
-			     struct json_object *array)
+			     json_t *array)
 {
-	struct json_object *obj;
-	struct json_object *iter;
-	struct json_object *nqn;
+	json_t *obj;
+	json_t *iter;
+	json_t *nqn;
 	struct subsystem *subsys;
 	int i, n;
 
-	n = json_object_array_length(array);
+	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
-		iter = json_object_array_get_idx(array, i);
-		json_object_object_get_ex(iter, TAG_NQN, &nqn);
+		iter = json_array_get(array, i);
+		nqn = json_object_get(iter, TAG_NQN);
 		if (!nqn)
 			continue;
 
@@ -105,45 +109,45 @@ static void check_subsystems(struct controller *ctrl,
 
 		memset(subsys, 0, sizeof(*subsys));
 		subsys->ctrl = ctrl;
-		strcpy(subsys->nqn, json_object_get_string(nqn));
+		strcpy(subsys->nqn, json_string_value(nqn));
 
-		INIT_KLIST_HEAD(&subsys->host_list);
-		klist_add(&subsys->node, &ctrl->subsys_list);
+		INIT_LIST_HEAD(&subsys->host_list);
+		list_add(&subsys->node, &ctrl->subsys_list);
 
-		json_object_object_get_ex(iter, TAG_ALLOW_ALL, &obj);
-		if (obj && json_object_get_int(obj))
-			subsys->access = json_object_get_int(obj);
+		obj = json_object_get(iter, TAG_ALLOW_ALL);
+		if (obj && json_is_integer(obj))
+			subsys->access = json_integer_value(obj);
 
 		if (ctx->hosts)
 			check_hosts(subsys, ctx->hosts, nqn);
 	}
 }
 
-static int get_transport_info(struct json_object *ctrl, char *type,
+static int get_transport_info(json_t *ctrl, char *type,
 			      char *fam, char *address, char *port,
 			      int *_addr)
 {
-	struct json_object	*obj;
+	json_t	*obj;
 	char			*str;
 	int			 addr[ADDR_LEN];
 	int			 ret;
 
-	json_object_object_get_ex(ctrl, TAG_TYPE, &obj);
+	obj = json_object_get(ctrl, TAG_TYPE);
 	if (!obj)
 		goto out;
-	str = (char *) json_object_get_string(obj);
+	str = (char *) json_string_value(obj);
 	strncpy(type, str, CONFIG_TYPE_SIZE);
 
-	json_object_object_get_ex(ctrl, TAG_FAMILY, &obj);
+	obj = json_object_get(ctrl, TAG_FAMILY);
 	if (!obj)
 		goto out;
-	str = (char *) json_object_get_string(obj);
+	str = (char *) json_string_value(obj);
 	strncpy(fam, str, CONFIG_FAMILY_SIZE);
 
-	json_object_object_get_ex(ctrl, TAG_ADDRESS, &obj);
+	obj = json_object_get(ctrl, TAG_ADDRESS);
 	if (!obj)
 		goto out;
-	str = (char *) json_object_get_string(obj);
+	str = (char *) json_string_value(obj);
 
 	if (strcmp(fam, "ipv4") == 0)
 		ret = ipv4_to_addr(str, addr);
@@ -160,10 +164,10 @@ static int get_transport_info(struct json_object *ctrl, char *type,
 	memcpy(_addr, addr, sizeof(addr[0]) * ADDR_LEN);
 	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
-	json_object_object_get_ex(ctrl, TAG_PORT, &obj);
+	obj = json_object_get(ctrl, TAG_PORT);
 	if (obj)
-		strncpy(port, (char *) json_object_get_string(obj),
-			CONFIG_PORT_SIZE);
+		sprintf(port, "%*lld", CONFIG_PORT_SIZE,
+			json_integer_value(obj));
 	else
 		sprintf(port, "%d", NVME_RDMA_IP_PORT);
 
@@ -173,12 +177,12 @@ out:
 }
 
 static int add_to_ctrl_list(struct json_context *ctx,
-			    struct json_object *grp,
-			    struct json_object *parent)
+			    json_t *grp,
+			    json_t *parent)
 {
 	struct controller *ctrl;
-	struct json_object *subgroup;
-	struct json_object *obj;
+	json_t *subgroup;
+	json_t *obj;
 	int addr[ADDR_LEN];
 	char address[CONFIG_ADDRESS_SIZE + 1];
 	char port[CONFIG_PORT_SIZE + 1];
@@ -195,19 +199,19 @@ static int add_to_ctrl_list(struct json_context *ctx,
 
 	memset(ctrl, 0, sizeof(*ctrl));
 
-	INIT_KLIST_HEAD(&ctrl->subsys_list);
+	INIT_LIST_HEAD(&ctrl->subsys_list);
 
-	klist_add(&ctrl->node, ctrl_list);
+	list_add(&ctrl->node, ctrl_list);
 
-	json_object_object_get_ex(parent, TAG_REFRESH, &obj);
+	obj = json_object_get(parent, TAG_REFRESH);
 	if (obj)
-		refresh = json_object_get_int(obj);
+		refresh = json_integer_value(obj);
 
-	json_object_object_get_ex(parent, TAG_ALIAS, &obj);
+	obj = json_object_get(parent, TAG_ALIAS);
 	if (!obj)
 		goto err2;
 
-	strncpy(ctrl->alias, (char *) json_object_get_string(obj),
+	strncpy(ctrl->alias, (char *) json_string_value(obj),
 		MAX_ALIAS_SIZE);
 
 	strncpy(ctrl->trtype, type, CONFIG_TYPE_SIZE);
@@ -220,7 +224,7 @@ static int add_to_ctrl_list(struct json_context *ctx,
 	ctrl->port_num = atoi(port);
 	ctrl->refresh = refresh;
 
-	json_object_object_get_ex(parent, TAG_SUBSYSTEMS, &subgroup);
+	subgroup = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (subgroup)
 		check_subsystems(ctrl, ctx, subgroup);
 
@@ -234,18 +238,18 @@ err1:
 int build_ctrl_list(void *context)
 {
 	struct json_context *ctx = context;
-	struct json_object *array = ctx->ctrls;
-	struct json_object *subgroup;
-	struct json_object *iter;
+	json_t *array = ctx->ctrls;
+	json_t *subgroup;
+	json_t *iter;
 	int i, n;
 
 	if (!array)
 		return -1;
 
-	n = json_object_array_length(array);
+	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
-		iter = json_object_array_get_idx(array, i);
-		json_object_object_get_ex(iter, TAG_TRANSPORT, &subgroup);
+		iter = json_array_get(array, i);
+		subgroup = json_object_get(iter, TAG_TRANSPORT);
 		if (subgroup)
 			add_to_ctrl_list(ctx, subgroup, iter);
 	}
@@ -253,7 +257,7 @@ int build_ctrl_list(void *context)
 	return 0;
 }
 
-int count_dem_config_files()
+static int count_dem_config_files(void)
 {
 	struct dirent	*entry;
 	DIR		*dir;
@@ -322,7 +326,7 @@ static void translate_addr_to_array(struct interface *iface)
 		sprintf(iface->pseudo_target_port, "%d", NVME_RDMA_IP_PORT);
 }
 
-int read_dem_config_files(struct interface *iface)
+static int read_dem_config_files(struct interface *iface)
 {
 	struct dirent	*entry;
 	DIR		*dir;
@@ -375,7 +379,7 @@ out:
 	return ret;
 }
 
-void cleanup_controllers()
+void cleanup_controllers(void)
 {
 	struct controller	*ctrl;
 	struct controller	*next_ctrl;
@@ -385,21 +389,21 @@ void cleanup_controllers()
 	struct host		*next_host;
 
 
-	klist_for_each_entry_safe(ctrl, next_ctrl, ctrl_list, node) {
-		klist_for_each_entry_safe(subsys, next_subsys,
+	list_for_each_entry_safe(ctrl, next_ctrl, ctrl_list, node) {
+		list_for_each_entry_safe(subsys, next_subsys,
 					  &ctrl->subsys_list, node) {
-			klist_for_each_entry_safe(host, next_host,
+			list_for_each_entry_safe(host, next_host,
 						  &subsys->host_list, node)
 				free(host);
 
 			free(subsys);
 		}
-		klist_del(&ctrl->node);
+		list_del(&ctrl->node);
 		free(ctrl);
 	}
 }
 
-int init_interfaces()
+int init_interfaces(void)
 {
 	struct interface	*table;
 	int			count;

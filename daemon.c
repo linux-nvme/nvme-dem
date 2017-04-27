@@ -16,6 +16,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <sys/stat.h>
 
 #include <rdma/fabric.h>
 #include <rdma/fi_errno.h>
@@ -34,19 +35,19 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-KLIST_HEAD(controller_list);
+static LIST_HEAD(controller_list);
 
-struct mg_serve_http_opts	 s_http_server_opts;
-char				*s_http_port = "22345";
-void				*json_ctx;
-int				 stopped;
-int				 debug;
-struct interface		*interfaces;
-int				 num_interfaces;
-struct klist_head		*ctrl_list = &controller_list;
-pthread_t			*listen_threads;
+static struct mg_serve_http_opts	 s_http_server_opts;
+static char				*s_http_port = "22345";
+void					*json_ctx;
+int					 stopped;
+int					 debug;
+struct interface			*interfaces;
+int					 num_interfaces;
+struct list_head			*ctrl_list = &controller_list;
+static pthread_t			*listen_threads;
 
-void shutdown_dem()
+void shutdown_dem(void)
 {
 	stopped = 1;
 }
@@ -78,11 +79,11 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	}
 }
 
-static inline void refresh_log_pages()
+static inline void refresh_log_pages(void)
 {
 	struct controller *ctrl;
 
-	klist_for_each_entry(ctrl, ctrl_list, node) {
+	list_for_each_entry(ctrl, ctrl_list, node) {
 		if (!ctrl->refresh)
 			continue;
 
@@ -146,7 +147,7 @@ static int daemonize(void)
 	return 0;
 }
 
-int init_dem(int argc, char *argv[], char **ssl_cert)
+static int init_dem(int argc, char *argv[], char **ssl_cert)
 {
 	int		 opt;
 	int		 run_as_daemon;
@@ -227,7 +228,7 @@ help:
 	return 0;
 }
 
-int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
+static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 {
 	struct mg_bind_opts	 bind_opts;
 	struct mg_connection	*c;
@@ -269,7 +270,7 @@ int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	return 0;
 }
 
-void cleanup_threads(pthread_t *listen_threads)
+static void cleanup_threads(pthread_t *listen_threads)
 {
 	int i;
 
@@ -290,7 +291,7 @@ void cleanup_threads(pthread_t *listen_threads)
 	free(listen_threads);
 }
 
-int init_interface_threads(pthread_t **listen_threads)
+static int init_interface_threads(pthread_t **listen_threads)
 {
 	pthread_attr_t		 pthread_attr;
 	pthread_t		*pthreads;
@@ -313,6 +314,7 @@ int init_interface_threads(pthread_t **listen_threads)
 			free(pthreads);
 			return 1;
 		}
+		usleep(25); // allow new thread to get started
 	}
 
 	*listen_threads = pthreads;
@@ -320,7 +322,7 @@ int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
-int restart_dem()
+int restart_dem(void)
 {
 	int			ret;
 

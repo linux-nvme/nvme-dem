@@ -67,10 +67,9 @@ static size_t write_cb(void *contents, size_t size, size_t n, void *p)
 	return bytes;
 }
 
-void *init_curl()
+void *init_curl(void)
 {
 	CURL *curl;
-	CURLcode res;
 	struct curl_context *ctx;
 
 	ctx = malloc(sizeof(*ctx));
@@ -107,7 +106,6 @@ void cleanup_curl(void *p)
 {
 	struct curl_context *ctx = p;
 	CURL *curl = ctx->curl;
-	CURLcode res;
 
 	curl_easy_cleanup(curl);
 
@@ -206,6 +204,7 @@ int exec_post(void *p, char *url, char *data, int len)
 	printf("%s\n", result);
 	free(result);
 
+	return 0;
 }
 
 int exec_delete(void *p, char *url)
@@ -227,4 +226,5 @@ int exec_delete(void *p, char *url)
 	printf("%s\n", result);
 	free(result);
 
+	return 0;
 }

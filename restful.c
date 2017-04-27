@@ -40,14 +40,14 @@ static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 	return s1->len == s2->len && memcmp(s1->p, s2->p, s2->len) == 0;
 }
 
-int  bad_request(char *resp)
+static int  bad_request(char *resp)
 {
 	strcpy(resp, "Method Not Implemented");
 
 	return HTTP_ERR_NOT_IMPLEMENTED;
 }
 
-int get_dem_request(char *resp)
+static int get_dem_request(char *resp)
 {
 	struct interface	*iface = interfaces;
 	int			i;
@@ -83,7 +83,7 @@ int get_dem_request(char *resp)
 	return 0;
 }
 
-int post_dem_request(struct http_message *hm, char *resp)
+static int post_dem_request(struct http_message *hm, char *resp)
 {
 	char body[SMALL_RSP+1];
 	int ret = 0;
@@ -115,7 +115,7 @@ out:
 	return ret;
 }
 
-int handle_dem_requests(struct http_message *hm, char *resp)
+static int handle_dem_requests(struct http_message *hm, char *resp)
 {
 	int ret;
 
@@ -129,7 +129,7 @@ int handle_dem_requests(struct http_message *hm, char *resp)
 	return ret;
 }
 
-int  get_ctrl_request(void *ctx, char *ctrl, char *resp)
+static int get_ctrl_request(void *ctx, char *ctrl, char *resp)
 {
 	int ret;
 
@@ -150,9 +150,15 @@ int  get_ctrl_request(void *ctx, char *ctrl, char *resp)
 	return ret;
 }
 
-int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *resp)
+static int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *resp)
 {
 	int ret = 0;
+
+	if (!ctrl) {
+		sprintf(resp, "Controller alias NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	if (ss) {
 		ret = del_subsys(ctx, ctrl, ss);
@@ -181,12 +187,18 @@ out:
 	return ret;
 }
 
-int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
+static int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
 		     char *resp)
 {
 	char data[LARGE_RSP+1];
 	int ret;
 	int n;
+
+	if (!ctrl) {
+		sprintf(resp, "Controller alias NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
@@ -227,11 +239,17 @@ out:
 	return ret;
 }
 
-int  post_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
+static int  post_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
 		       char *resp)
 {
 	char new[SMALL_RSP+1];
 	int ret;
+
+	if (!ctrl) {
+		sprintf(resp, "Controller alias NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	if (body->len) {
 		memset(new, 0, sizeof(new));
@@ -277,7 +295,7 @@ out:
 	return ret;
 }
 
-int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
+static int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 {
 	char *url;
 	char *ctrl = NULL;
@@ -312,7 +330,7 @@ int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 	return ret;
 }
 
-int get_host_request(void *ctx, char *host, char *resp)
+static int get_host_request(void *ctx, char *host, char *resp)
 {
 	int ret;
 
@@ -333,9 +351,15 @@ int get_host_request(void *ctx, char *host, char *resp)
 	return ret;
 }
 
-int delete_host_request(void *ctx, char *host, char *ss, char *resp)
+static int delete_host_request(void *ctx, char *host, char *ss, char *resp)
 {
 	int ret;
+
+	if (!host) {
+		sprintf(resp, "Host NQN NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	if (ss) {
 		ret = del_acl(ctx, host, ss);
@@ -364,12 +388,18 @@ out:
 	return ret;
 }
 
-int put_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
+static int put_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
 		     char *resp)
 {
 	char data[LARGE_RSP+1];
 	int ret;
 	int n;
+
+	if (!host) {
+		sprintf(resp, "Host NQN NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	if (ss) {
 		memset(data, 0, sizeof(data));
@@ -409,11 +439,17 @@ out:
 	return ret;
 }
 
-int post_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
+static int post_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
 		      char *resp)
 {
 	char new[SMALL_RSP+1];
 	int ret;
+
+	if (!host) {
+		sprintf(resp, "Host NQN NULL");
+			ret = HTTP_ERR_NOT_FOUND;
+			goto out;
+	}
 
 	memset(new, 0, sizeof(new));
 	strncpy(new, body->p, min(LARGE_RSP, body->len));
@@ -438,7 +474,7 @@ out:
 	return ret;
 }
 
-int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
+static int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
 {
 	char *url;
 	char *host;
@@ -479,6 +515,9 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	char *target = (char *) &hm->uri.p[1];
 	char *resp;
 	int ret;
+	struct json_context *context = ctx;
+
+	pthread_spin_lock(&context->lock);
 
 	if (!hm->uri.len) {
 		mg_printf(c, "HTTP/1.1 %d Page Not Found\r\n\r\n",
@@ -522,7 +561,10 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	mg_printf(c, "Content-Length: %ld\r\n\r\n%s",
 		  strlen(resp), resp);
 out2:
-	free(resp);
+// TODO add to garbage list for cleanup later
+//	free(resp);
 out1:
 	c->flags = MG_F_SEND_AND_CLOSE;
+
+	pthread_spin_unlock(&context->lock);
 }

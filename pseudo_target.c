@@ -36,8 +36,10 @@ static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
 	int ret = 0;
 
+#ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_property_set %x = %llx",
 		   cmd->prop_set.offset, cmd->prop_set.value);
+#endif
 	if (cmd->prop_set.offset == NVME_REG_CC)
 		*csts = (cmd->prop_set.value == 0x460001) ? 1 : 8;
 	else
@@ -51,11 +53,13 @@ static int handle_property_get(struct nvme_command *cmd,
 {
 	int ret = 0;
 
+#ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_property_get %x", cmd->prop_get.offset);
+#endif
 	if (cmd->prop_get.offset == NVME_REG_CSTS)
 		resp->result = htole32(csts);
 	else if (cmd->prop_get.offset == NVME_REG_CAP)
-		resp->result64 = htole64(0x200f0003ff);
+		resp->result64 = htole64(0x200f0003ffL);
 	else if (cmd->prop_get.offset == NVME_REG_VS)
 		resp->result = htole32(NVME_VER);
 	else
@@ -79,6 +83,7 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 	}
 
 	print_info("host '%s' connected", data->hostnqn);
+	strncpy(ep->nqn, data->hostnqn, MAX_NQN_SIZE);
 
 	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME)) {
 		print_err("bad subsystem '%s', expecting '%s'",
@@ -131,6 +136,20 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	return ret;
 }
 
+static int host_access(struct subsystem *subsys, char *nqn)
+{
+	struct host *entry;
+
+	/* check if host is in subsys host_list it has non-zero access */
+	/* return: 0 if no access; else access rights */
+
+	list_for_each_entry(entry, &subsys->host_list, node)
+		if (strcmp(entry->nqn, nqn) == 0)
+			return entry->access;
+
+	return subsys->access ? READ_WRITE : NONE;
+}
+
 static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 				     u64 key, void *desc)
 {
@@ -142,10 +161,13 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 
 	print_debug("get_log_page_count");
 
-	klist_for_each_entry(ctrl, ctrl_list, node)
-		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
-			if (subsys->access)
+	list_for_each_entry(ctrl, ctrl_list, node)
+		list_for_each_entry(subsys, &ctrl->subsys_list, node) {
+			if (!subsys->log_page_valid)
+				continue;
+			if (host_access(subsys, ep->nqn))
 				numrec++;
+		}
 
 	log->numrec = numrec;
 	log->genctr = 1;
@@ -157,33 +179,45 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 	return ret;
 }
 
-static int handle_get_log_pages(struct endpoint *ep, u64 length, u64 addr,
-				u64 key, void *desc)
+static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
+				u64 key)
 {
-	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
-	struct nvmf_disc_rsp_page_entry *plogpage = (void *) &log[1];
+	struct nvmf_disc_rsp_page_hdr	*log;
+	struct nvmf_disc_rsp_page_entry *plogpage;
 	struct controller		*ctrl;
 	struct subsystem		*subsys;
+	struct fid_mr			*mr;
 	int				 numrec = 0;
 	int				 ret;
 
 	print_debug("get_log_pages");
 
-	klist_for_each_entry(ctrl, ctrl_list, node)
-		klist_for_each_entry(subsys, &ctrl->subsys_list, node)
-			if (subsys->access) {
+	log = alloc_buffer(ep, len, &mr);
+	if (!log)
+		return -ENOMEM;
+
+	plogpage = (void *) (&log[1]);
+
+	list_for_each_entry(ctrl, ctrl_list, node)
+		list_for_each_entry(subsys, &ctrl->subsys_list, node) {
+			if (!subsys->log_page_valid)
+				continue;
+			if (host_access(subsys, ep->nqn)) {
 				memcpy(plogpage, &subsys->log_page,
 				       sizeof(*plogpage));
 				numrec++;
 				plogpage++;
 			}
+		}
 
 	log->numrec = numrec;
 	log->genctr = 1;
 
-	ret = rma_write(ep->ep, ep->scq, log, length, desc, addr, key);
+	ret = rma_write(ep->ep, ep->scq, log, len, fi_mr_desc(mr), addr, key);
 	if (ret)
 		print_err("rma_write returned %d", ret);
+
+	fi_close(&mr->fid);
 
 	return ret;
 }
@@ -231,7 +265,7 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 			ret = handle_get_log_page_count(ep, len, addr, key,
 							desc);
 		else
-			ret = handle_get_log_pages(ep, len, addr, key, desc);
+			ret = handle_get_log_pages(ep, len, addr, key);
 	} else {
 		print_err("unknown nvme opcode %d\n", cmd->common.opcode);
 		ret = -EINVAL;
@@ -319,7 +353,7 @@ err:
 	return ret;
 }
 
-void init_controllers()
+void init_controllers(void)
 {
 	struct controller	*ctrl;
 
@@ -328,7 +362,7 @@ void init_controllers()
 		return;
 	}
 
-	klist_for_each_entry(ctrl, ctrl_list, node) {
+	list_for_each_entry(ctrl, ctrl_list, node) {
 		fetch_log_pages(ctrl);
 		ctrl->refresh_countdown =
 			ctrl->refresh * MINUTES / IDLE_TIMEOUT;

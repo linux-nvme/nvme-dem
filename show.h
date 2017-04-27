@@ -12,9 +12,12 @@
  * more details.
  */
 
-void show_ctrl_data(struct json_object *parent, int formatted);
-void show_ctrl_list(struct json_object *parent, int formatted);
-void show_host_data(struct json_object *parent, int formatted);
-void show_host_list(struct json_object *parent, int formatted);
-void show_config(struct json_object *parent, int formatted);
+void show_ctrl_data(json_t *parent, int formatted);
+void show_ctrl_list(json_t *parent, int formatted);
+void show_host_data(json_t *parent, int formatted);
+void show_host_list(json_t *parent, int formatted);
+void show_config(json_t *parent, int formatted);
 
+#ifndef UNUSED
+#define UNUSED(x) (void) x
+#endif

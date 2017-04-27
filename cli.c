@@ -18,31 +18,33 @@
 #include <unistd.h>
 #include <errno.h>
 #include <curl/curl.h>
-#include <json-c/json.h>
+
+#include "jansson.h"
 
 #include "curl.h"
 #include "tags.h"
+#include "show.h"
 
 enum { CTRL = 0, HOST, DEM, END = -1 };
 static char *group[] = { TARGET_CTRL, TARGET_HOST, TARGET_DEM };
 
-char *dem_server = "127.0.0.1";
-char *dem_port = "22345";
-int prompt_deletes = 1;
+static char *dem_server = "127.0.0.1";
+static char *dem_port = "22345";
+static int prompt_deletes = 1;
 int formatted;
 
 enum { HUMAN = 0, RAW = -1, JSON = 1 };
 
 struct verbs {
-	int (*function)(void *ctx, char *base, int n, char **p);
-	int target;
-	int num_args;
-	char *verb;
-	char *object;
-	char *args;
+	int		(*function)(void *ctx, char *base, int n, char **p);
+	int		 target;
+	int		 num_args;
+	char		*verb;
+	char		*object;
+	char		*args;
 };
 
-char *error(int ret)
+static char *error(int ret)
 {
 	if (ret == -EEXIST)
 		return "already exists";
@@ -55,9 +57,13 @@ char *error(int ret)
 
 static int list_ctrl(void *ctx, char *url, int n, char **p)
 {
-	int ret;
-	char *result;
-	struct json_object *parent;
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
+	UNUSED(p);
 
 	ret = exec_get(ctx, url, &result);
 	if (ret)
@@ -66,7 +72,7 @@ static int list_ctrl(void *ctx, char *url, int n, char **p)
 	if (formatted == RAW)
 		printf("%s\n", result);
 	else {
-		parent = json_tokener_parse(result);
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
 			show_ctrl_list(parent, formatted);
 		else
@@ -79,11 +85,14 @@ static int list_ctrl(void *ctx, char *url, int n, char **p)
 
 static int show_ctrl(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
-	int ret;
-	char *result;
-	struct json_object *parent;
+	char			 url[128];
+	char			*alias = *p;
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -94,7 +103,7 @@ static int show_ctrl(void *ctx, char *base, int n, char **p)
 	if (formatted == RAW)
 		printf("%s\n", result);
 	else {
-		parent = json_tokener_parse(result);
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
 			show_ctrl_data(parent, formatted);
 		else
@@ -107,9 +116,13 @@ static int show_ctrl(void *ctx, char *base, int n, char **p)
 
 static int list_host(void *ctx, char *url, int n, char **p)
 {
-	int ret;
-	char *result;
-	struct json_object *parent;
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
+	UNUSED(p);
 
 	ret = exec_get(ctx, url, &result);
 	if (ret)
@@ -118,7 +131,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	if (formatted == RAW)
 		printf("%s\n", result);
 	else {
-		parent = json_tokener_parse(result);
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
 			show_host_list(parent, formatted);
 		else
@@ -132,11 +145,14 @@ static int list_host(void *ctx, char *url, int n, char **p)
 
 static int show_host(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
-	int ret;
-	char *result;
-	struct json_object *parent;
+	char			 url[128];
+	char			*alias = *p;
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -147,7 +163,7 @@ static int show_host(void *ctx, char *base, int n, char **p)
 	if (formatted == RAW)
 		printf("%s\n", result);
 	else {
-		parent = json_tokener_parse(result);
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
 			show_host_data(parent, formatted);
 		else
@@ -160,8 +176,10 @@ static int show_host(void *ctx, char *base, int n, char **p)
 
 static int del_entry(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
+	char			 url[128];
+	char			*alias = *p;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -170,9 +188,11 @@ static int del_entry(void *ctx, char *base, int n, char **p)
 
 static int rename_entry(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *old = *p++;
-	char *new = *p;
+	char			 url[128];
+	char			*old = *p++;
+	char			*new = *p;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, old);
 
@@ -181,10 +201,10 @@ static int rename_entry(void *ctx, char *base, int n, char **p)
 
 static int set_host(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p++;
-	char *nqn = *p++;
-	int access = atoi(*p);
+	char			 url[128];
+	char			*alias = *p++;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -193,15 +213,17 @@ static int set_host(void *ctx, char *base, int n, char **p)
 
 static int set_ctrl(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char data[256];
-	char *alias = *p++;
-	char *type = *p++;
-	char *family = *p++;
-	char *address = *p++;
-	int port = atoi(*p++);
-	int refresh = atoi(*p);
-	int len;
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*type = *p++;
+	char			*family = *p++;
+	char			*address = *p++;
+	int			 port = atoi(*p++);
+	int			 refresh = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -217,12 +239,14 @@ static int set_ctrl(void *ctx, char *base, int n, char **p)
 
 static int set_subsys(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char data[256];
-	char *alias = *p++;
-	char *nqn = *p++;
-	int allow_all = atoi(*p);
-	int len;
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*nqn = *p++;
+	int			 allow_all = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
@@ -234,12 +258,14 @@ static int set_subsys(void *ctx, char *base, int n, char **p)
 
 static int set_acl(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char data[256];
-	char *alias = *p++;
-	char *nqn = *p++;
-	int access = atoi(*p);
-	int len;
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*nqn = *p++;
+	int			 access = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
@@ -251,8 +277,10 @@ static int set_acl(void *ctx, char *base, int n, char **p)
 
 static int refresh_ctrl(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
+	char			 url[128];
+	char			*alias = *p;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_REFRESH);
 
@@ -261,9 +289,9 @@ static int refresh_ctrl(void *ctx, char *base, int n, char **p)
 
 static int del_array(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
-	int i;
+	char			 url[128];
+	char			*alias = *p;
+	int			 i;
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s", base, alias, *++p);
@@ -275,10 +303,13 @@ static int del_array(void *ctx, char *base, int n, char **p)
 
 static int rename_array(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p++;
-	char *old = *p++;
-	char *new = *p;
+	char			 url[128];
+	char			*alias = *p++;
+	char			*old = *p++;
+	char			*new = *p;
+
+	UNUSED(n);
+	UNUSED(p);
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, old);
 
@@ -287,21 +318,30 @@ static int rename_array(void *ctx, char *base, int n, char **p)
 
 static int dem_shutdown(void *ctx, char *base, int n, char **p)
 {
+	UNUSED(n);
+	UNUSED(p);
+
 	return exec_post(ctx, base, METHOD_SHUTDOWN, sizeof(METHOD_SHUTDOWN));
 }
 
 static int dem_apply(void *ctx, char *base, int n, char **p)
 {
+	UNUSED(n);
+	UNUSED(p);
+
 	return exec_post(ctx, base, METHOD_APPLY, sizeof(METHOD_APPLY));
 }
 
 static int dem_config(void *ctx, char *base, int n, char **p)
 {
-	char url[128];
-	char *alias = *p;
-	char *result;
-	struct json_object *parent;
-	int ret;
+	char			 url[128];
+	char			*alias = *p;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+	int			 ret;
+
+	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -312,7 +352,7 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 	if (formatted == RAW)
 		printf("%s\n", result);
 	else {
-		parent = json_tokener_parse(result);
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
 			show_config(parent, formatted);
 		else
@@ -332,7 +372,7 @@ static int dem_config(void *ctx, char *base, int n, char **p)
  * Object	- Sub-entity action addresses
  * Args		- Can be NULL, fixed, or variable based on "Num Args"
 */
-struct verbs verb_list[] = {
+static struct verbs verb_list[] = {
 	{ list_ctrl,	CTRL,  0, "list",    "ctrl",  NULL },
 	{ set_ctrl,	CTRL,  6, "set",     "ctrl",
 	    "<alias> <trtype> <addrfam> <traddr> <trport> <refresh (mins)>" },
@@ -363,7 +403,7 @@ struct verbs verb_list[] = {
 
 static void show_help(char *prog, char *msg, char *opt)
 {
-	struct verbs *p;
+	struct verbs		*p;
 
 	if (msg) {
 		if (opt)
@@ -404,16 +444,17 @@ static void show_help(char *prog, char *msg, char *opt)
 
 static struct verbs *find_verb(char *verb, char *object)
 {
-	struct verbs *p;
-	int verb_len = strlen(verb);
-	int object_len = (object) ? strlen(object) : 0;
+	struct verbs		*p;
+	int			 verb_len = strlen(verb);
+	int			 object_len = (object) ? strlen(object) : 0;
 
 	for (p = verb_list; p->verb; p++) {
-		if (strcmp(verb, p->verb))
+		if (strcmp(verb, p->verb)) {
 			if (verb_len == 3 && strncmp(verb, p->verb, 3) == 0)
 				; // short version of verb matches
 			else
 				continue;
+		}
 		if (!p->object)
 			return p;
 		if (!object)
@@ -429,8 +470,8 @@ static struct verbs *find_verb(char *verb, char *object)
 
 static int valid_arguments(char *prog, int argc, int target, int expect)
 {
-	const int base = (target == DEM) ? 1 : 2;
-	int ret = 0;
+	const int		 base = (target == DEM) ? 1 : 2;
+	int			 ret = 0;
 
 	if (expect < 0) {
 		expect = -expect; // get absolute value
@@ -451,14 +492,14 @@ static int valid_arguments(char *prog, int argc, int target, int expect)
 
 int main(int argc, char *argv[])
 {
-	struct verbs *p;
-	char **args;
-	char **opts;
-	int n;
-	int opt;
-	int ret = -1;
-	char url[128];
-	void *ctx;
+	struct verbs		*p;
+	char			**args;
+	char			**opts;
+	int			 n;
+	int			 opt;
+	int			 ret = -1;
+	char			 url[128];
+	void			*ctx;
 
 	if (argc <= 1 || strcmp(argv[1], "--help") == 0) {
 		show_help(argv[0], NULL, NULL);

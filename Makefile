@@ -1,39 +1,61 @@
 .SILENT:
 
-CFLAGS = -g -W -Wall -Werror -Wno-unused-function -Iincl
-CFLAGS += -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
-CFLAGS += -lpthread -lfabric -luuid
+CFLAGS = -W -Wall -Werror -Wno-unused-function
+CFLAGS += -Iincl -Imongoose -Ijansson/src
+
+DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
+DEM_CFLAGS += -lpthread -lfabric -luuid libjansson.a
+
+CLI_CFLAGS = -lcurl libjansson.a
 
 GDB_OPTS = -g -O0
 
 CLI_SRC = cli.c curl.c show.c
 CLI_INC = curl.h show.h tags.h
-DAEMON_SRC = daemon.c json.c restful.c mongoose.c \
-	     parse.c ofi.c logpages.c \
-	     interfaces.c pseudo_target.c
-DAEMON_INC = json.h common.h mongoose.h tags.h
+DEM_SRC = daemon.c json.c restful.c mongoose/mongoose.c \
+	  parse.c ofi.c logpages.c interfaces.c pseudo_target.c
+DEM_INC = json.h common.h mongoose/mongoose.h tags.h
 
-all: demd dem config.json
+all: mongoose/ libjansson.a demd dem
 	echo Done.
 
-dem: ${CLI_SRC} ${CLI_INC} Makefile
+dem: ${CLI_SRC} ${CLI_INC} Makefile libjansson.a
 	echo CC $@
-	gcc ${CLI_SRC} -o $@ -lcurl -ljson-c ${GDB_OPTS}
+	gcc ${CLI_SRC} -o $@ ${CLI_CFLAGS} ${CFLAGS} ${GDB_OPTS}
 
-demd: ${DAEMON_SRC} ${DAEMON_INC} Makefile
+demd: ${DEM_SRC} ${DEM_INC} Makefile libjansson.a
 	echo CC $@
-	gcc ${DAEMON_SRC} -o $@ -ljson-c ${CFLAGS}
+	gcc ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS}
 
 clean:
 	rm -f dem demd config.json
 	echo Done.
 
+mongoose/:
+	echo cloning github.com/cesanta/mongoose.git
+	git clone https://github.com/cesanta/mongoose.git
+	cd mongoose ; patch -p 1 < ../mongoose.patch
+
+jansson/Makefile.am:
+	echo cloning github.com/akheron/jansson.git
+	git clone https://github.com/akheron/jansson.git >/dev/null
+jansson/configure: jansson/Makefile.am
+	echo configuring jansson
+	cd jansson ; autoreconf -i >/dev/null 2>&1
+jansson/Makefile: jansson/configure
+	cd jansson ; ./configure >/dev/null
+jansson/src/.libs/libjansson.a: jansson/Makefile
+	echo building libjansson
+	cd jansson/src ; make libjansson.la >/dev/null
+libjansson.a: jansson/src/.libs/libjansson.a
+	cp jansson/src/.libs/libjansson.a .
+
 config.json:
-	cp archive/config.json .
+	sh archive/make_config.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
-	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile *.c *.h
+	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile *.c *.h *.patch
 
 test_cli: dem
 	./dem list ctrl
@@ -53,14 +75,77 @@ test_cli: dem
 	./dem shutdown
 	./dem config
 
+show_hosts:
+	for i in `./dem lis h |grep -v ^http:`; do ./dem $$fmt sho h $$i ; done
+
+show_ctrls:
+	for i in `./dem lis c |grep -v ^http:`; do ./dem $$fmt sho c $$i ; done
+
+del_hosts:
+	for i in `./dem lis h |grep -v ^http:`; do ./dem del h $$i ; done
+
+del_ctrls:
+	for i in `./dem lis c |grep -v ^http:`; do ./dem del c $$i ; done
+
 put:
-	curl -X PUT -d bar -d foo http://127.0.0.1:12345/host/host01 --verbose
+	echo PUT Commands
+	curl -X PUT -d '' http://127.0.0.1:22345/host/host01
+	echo
+	curl -X PUT -d '' http://127.0.0.1:22345/host/host02
+	echo
+	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl1
+	echo
+	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl2
+	echo
+	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl1/subsys1
+	echo
+	echo
 get:
-	curl http://127.0.0.1:12345/host/host01 --verbose
-del:
-	curl -X DELETE -d bar http://127.0.0.1:12345/host/host01 --verbose
+	echo GET Commands
+	curl http://127.0.0.1:22345/controller
+	echo
+	curl http://127.0.0.1:22345/controller/ctrl1
+	echo
+	curl http://127.0.0.1:22345/host
+	echo
+	curl http://127.0.0.1:22345/host/host01
+	echo
+	echo
+
+del: delhost01 delhost02 delctrl1 delctrl2
+
+delctrl2:
+	echo DELETE Commands
+	curl -X DELETE  http://127.0.0.1:22345/controller/ctrl2
+	echo
+delctrl1:
+	echo DELETE Commands
+	curl -X DELETE  http://127.0.0.1:22345/controller/ctrl1
+	echo
+delhost01:
+	curl -X DELETE  http://127.0.0.1:22345/host/host01
+	echo
+delhost02:
+	curl -X DELETE  http://127.0.0.1:22345/host/host02
+	echo
+	echo
 post:
-	curl -d bar -d foo http://127.0.0.1:12345/host/host01 --verbose
-opt:
-	curl -X OPTION -d bar http://127.0.0.1:12345/dem --verbose
-test: get put del post opt url
+	echo POST Commands
+	curl -d 'host02' http://127.0.0.1:22345/host/host01
+	echo
+	echo
+
+get16:
+	for i in `seq 1 16` ; do make get ; done
+
+test: put get16 post get
+
+run: dem
+	./dem del c ctrl1 || echo -n
+	./dem del c ctrl2 || echo -n
+	./dem del h host01 || echo -n
+	./dem del h host02 || echo -n
+	sh archive/make_config.sh
+	./dem apply
+	./dem list c
+	./dem list h

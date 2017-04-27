@@ -1,0 +1,244 @@
+diff --git a/mongoose.c b/mongoose.c
+index 3a7ed94..b4c7944 100644
+--- a/mongoose.c
++++ b/mongoose.c
+@@ -9970,11 +9970,11 @@ static void mg_mqtt_session_init(struct mg_mqtt_broker *brk,
+ }
+ 
+ static void mg_mqtt_add_session(struct mg_mqtt_session *s) {
+-  LIST_INSERT_HEAD(&s->brk->sessions, s, link);
++  mLIST_INSERT_HEAD(&s->brk->sessions, s, link);
+ }
+ 
+ static void mg_mqtt_remove_session(struct mg_mqtt_session *s) {
+-  LIST_REMOVE(s, link);
++  mLIST_REMOVE(s, link);
+ }
+ 
+ static void mg_mqtt_destroy_session(struct mg_mqtt_session *s) {
+@@ -9992,7 +9992,7 @@ static void mg_mqtt_close_session(struct mg_mqtt_session *s) {
+ }
+ 
+ void mg_mqtt_broker_init(struct mg_mqtt_broker *brk, void *user_data) {
+-  LIST_INIT(&brk->sessions);
++  mLIST_INIT(&brk->sessions);
+   brk->user_data = user_data;
+ }
+ 
+@@ -10124,7 +10124,7 @@ void mg_mqtt_broker(struct mg_connection *nc, int ev, void *data) {
+ 
+ struct mg_mqtt_session *mg_mqtt_next(struct mg_mqtt_broker *brk,
+                                      struct mg_mqtt_session *s) {
+-  return s == NULL ? LIST_FIRST(&brk->sessions) : LIST_NEXT(s, link);
++  return s == NULL ? mLIST_FIRST(&brk->sessions) : mLIST_NEXT(s, link);
+ }
+ 
+ #endif /* MG_ENABLE_MQTT_BROKER */
+diff --git a/mongoose.h b/mongoose.h
+index 1ec11e5..56f22ef 100644
+--- a/mongoose.h
++++ b/mongoose.h
+@@ -2435,26 +2435,26 @@ struct {								\
+ /*
+  * List declarations.
+  */
+-#define	LIST_HEAD(name, type)						\
++#define	mLIST_HEAD(name, type)						\
+ struct name {								\
+ 	struct type *lh_first;	/* first element */			\
+ }
+ 
+-#define	LIST_CLASS_HEAD(name, type)					\
++#define	mLIST_CLASS_HEAD(name, type)					\
+ struct name {								\
+ 	class type *lh_first;	/* first element */			\
+ }
+ 
+-#define	LIST_HEAD_INITIALIZER(head)					\
++#define	mLIST_HEAD_INITIALIZER(head)					\
+ 	{ NULL }
+ 
+-#define	LIST_ENTRY(type)						\
++#define	mLIST_ENTRY(type)						\
+ struct {								\
+ 	struct type *le_next;	/* next element */			\
+ 	struct type **le_prev;	/* address of previous next element */	\
+ }
+ 
+-#define	LIST_CLASS_ENTRY(type)						\
++#define	mLIST_CLASS_ENTRY(type)						\
+ struct {								\
+ 	class type *le_next;	/* next element */			\
+ 	class type **le_prev;	/* address of previous next element */	\
+@@ -2466,15 +2466,15 @@ struct {								\
+ 
+ #if (defined(_KERNEL) && defined(INVARIANTS))
+ #define	QMD_LIST_CHECK_HEAD(head, field) do {				\
+-	if (LIST_FIRST((head)) != NULL &&				\
+-	    LIST_FIRST((head))->field.le_prev !=			\
+-	     &LIST_FIRST((head)))					\
++	if (mLIST_FIRST((head)) != NULL &&				\
++	    mLIST_FIRST((head))->field.le_prev !=			\
++	     &mLIST_FIRST((head)))					\
+ 		panic("Bad list head %p first->prev != head", (head));	\
+ } while (0)
+ 
+ #define	QMD_LIST_CHECK_NEXT(elm, field) do {				\
+-	if (LIST_NEXT((elm), field) != NULL &&				\
+-	    LIST_NEXT((elm), field)->field.le_prev !=			\
++	if (mLIST_NEXT((elm), field) != NULL &&				\
++	    mLIST_NEXT((elm), field)->field.le_prev !=			\
+ 	     &((elm)->field.le_next))					\
+ 	     	panic("Bad link elm %p next->prev != elm", (elm));	\
+ } while (0)
+@@ -2489,87 +2489,87 @@ struct {								\
+ #define	QMD_LIST_CHECK_PREV(elm, field)
+ #endif /* (_KERNEL && INVARIANTS) */
+ 
+-#define	LIST_EMPTY(head)	((head)->lh_first == NULL)
++#define	mLIST_EMPTY(head)	((head)->lh_first == NULL)
+ 
+-#define	LIST_FIRST(head)	((head)->lh_first)
++#define	mLIST_FIRST(head)	((head)->lh_first)
+ 
+-#define	LIST_FOREACH(var, head, field)					\
+-	for ((var) = LIST_FIRST((head));				\
++#define	mLIST_FOREACH(var, head, field)					\
++	for ((var) = mLIST_FIRST((head));				\
+ 	    (var);							\
+-	    (var) = LIST_NEXT((var), field))
++	    (var) = mLIST_NEXT((var), field))
+ 
+-#define	LIST_FOREACH_FROM(var, head, field)				\
+-	for ((var) = ((var) ? (var) : LIST_FIRST((head)));		\
++#define	mLIST_FOREACH_FROM(var, head, field)				\
++	for ((var) = ((var) ? (var) : mLIST_FIRST((head)));		\
+ 	    (var);							\
+-	    (var) = LIST_NEXT((var), field))
++	    (var) = mLIST_NEXT((var), field))
+ 
+-#define	LIST_FOREACH_SAFE(var, head, field, tvar)			\
+-	for ((var) = LIST_FIRST((head));				\
+-	    (var) && ((tvar) = LIST_NEXT((var), field), 1);		\
++#define	mLIST_FOREACH_SAFE(var, head, field, tvar)			\
++	for ((var) = mLIST_FIRST((head));				\
++	    (var) && ((tvar) = mLIST_NEXT((var), field), 1);		\
+ 	    (var) = (tvar))
+ 
+-#define	LIST_FOREACH_FROM_SAFE(var, head, field, tvar)			\
+-	for ((var) = ((var) ? (var) : LIST_FIRST((head)));		\
+-	    (var) && ((tvar) = LIST_NEXT((var), field), 1);		\
++#define	mLIST_FOREACH_FROM_SAFE(var, head, field, tvar)			\
++	for ((var) = ((var) ? (var) : mLIST_FIRST((head)));		\
++	    (var) && ((tvar) = mLIST_NEXT((var), field), 1);		\
+ 	    (var) = (tvar))
+ 
+-#define	LIST_INIT(head) do {						\
+-	LIST_FIRST((head)) = NULL;					\
++#define	mLIST_INIT(head) do {						\
++	mLIST_FIRST((head)) = NULL;					\
+ } while (0)
+ 
+-#define	LIST_INSERT_AFTER(listelm, elm, field) do {			\
++#define	mLIST_INSERT_AFTER(listelm, elm, field) do {			\
+ 	QMD_LIST_CHECK_NEXT(listelm, field);				\
+-	if ((LIST_NEXT((elm), field) = LIST_NEXT((listelm), field)) != NULL)\
+-		LIST_NEXT((listelm), field)->field.le_prev =		\
+-		    &LIST_NEXT((elm), field);				\
+-	LIST_NEXT((listelm), field) = (elm);				\
+-	(elm)->field.le_prev = &LIST_NEXT((listelm), field);		\
++	if ((mLIST_NEXT((elm), field) = mLIST_NEXT((listelm), field)) != NULL)\
++		mLIST_NEXT((listelm), field)->field.le_prev =		\
++		    &mLIST_NEXT((elm), field);				\
++	mLIST_NEXT((listelm), field) = (elm);				\
++	(elm)->field.le_prev = &mLIST_NEXT((listelm), field);		\
+ } while (0)
+ 
+-#define	LIST_INSERT_BEFORE(listelm, elm, field) do {			\
++#define	mLIST_INSERT_BEFORE(listelm, elm, field) do {			\
+ 	QMD_LIST_CHECK_PREV(listelm, field);				\
+ 	(elm)->field.le_prev = (listelm)->field.le_prev;		\
+-	LIST_NEXT((elm), field) = (listelm);				\
++	mLIST_NEXT((elm), field) = (listelm);				\
+ 	*(listelm)->field.le_prev = (elm);				\
+-	(listelm)->field.le_prev = &LIST_NEXT((elm), field);		\
++	(listelm)->field.le_prev = &mLIST_NEXT((elm), field);		\
+ } while (0)
+ 
+-#define	LIST_INSERT_HEAD(head, elm, field) do {				\
++#define	mLIST_INSERT_HEAD(head, elm, field) do {				\
+ 	QMD_LIST_CHECK_HEAD((head), field);				\
+-	if ((LIST_NEXT((elm), field) = LIST_FIRST((head))) != NULL)	\
+-		LIST_FIRST((head))->field.le_prev = &LIST_NEXT((elm), field);\
+-	LIST_FIRST((head)) = (elm);					\
+-	(elm)->field.le_prev = &LIST_FIRST((head));			\
++	if ((mLIST_NEXT((elm), field) = mLIST_FIRST((head))) != NULL)	\
++		mLIST_FIRST((head))->field.le_prev = &mLIST_NEXT((elm), field);\
++	mLIST_FIRST((head)) = (elm);					\
++	(elm)->field.le_prev = &mLIST_FIRST((head));			\
+ } while (0)
+ 
+-#define	LIST_NEXT(elm, field)	((elm)->field.le_next)
++#define	mLIST_NEXT(elm, field)	((elm)->field.le_next)
+ 
+-#define	LIST_PREV(elm, head, type, field)			\
+-	((elm)->field.le_prev == &LIST_FIRST((head)) ? NULL :	\
++#define	mLIST_PREV(elm, head, type, field)			\
++	((elm)->field.le_prev == &mLIST_FIRST((head)) ? NULL :	\
+ 	    __containerof((elm)->field.le_prev,			\
+ 	    QUEUE_TYPEOF(type), field.le_next))
+ 
+-#define	LIST_REMOVE(elm, field) do {					\
++#define	mLIST_REMOVE(elm, field) do {					\
+ 	QMD_SAVELINK(oldnext, (elm)->field.le_next);			\
+ 	QMD_SAVELINK(oldprev, (elm)->field.le_prev);			\
+ 	QMD_LIST_CHECK_NEXT(elm, field);				\
+ 	QMD_LIST_CHECK_PREV(elm, field);				\
+-	if (LIST_NEXT((elm), field) != NULL)				\
+-		LIST_NEXT((elm), field)->field.le_prev = 		\
++	if (mLIST_NEXT((elm), field) != NULL)				\
++		mLIST_NEXT((elm), field)->field.le_prev = 		\
+ 		    (elm)->field.le_prev;				\
+-	*(elm)->field.le_prev = LIST_NEXT((elm), field);		\
++	*(elm)->field.le_prev = mLIST_NEXT((elm), field);		\
+ 	TRASHIT(*oldnext);						\
+ 	TRASHIT(*oldprev);						\
+ } while (0)
+ 
+-#define LIST_SWAP(head1, head2, type, field) do {			\
+-	QUEUE_TYPEOF(type) *swap_tmp = LIST_FIRST(head1);		\
+-	LIST_FIRST((head1)) = LIST_FIRST((head2));			\
+-	LIST_FIRST((head2)) = swap_tmp;					\
+-	if ((swap_tmp = LIST_FIRST((head1))) != NULL)			\
+-		swap_tmp->field.le_prev = &LIST_FIRST((head1));		\
+-	if ((swap_tmp = LIST_FIRST((head2))) != NULL)			\
+-		swap_tmp->field.le_prev = &LIST_FIRST((head2));		\
++#define mLIST_SWAP(head1, head2, type, field) do {			\
++	QUEUE_TYPEOF(type) *swap_tmp = mLIST_FIRST(head1);		\
++	mLIST_FIRST((head1)) = mLIST_FIRST((head2));			\
++	mLIST_FIRST((head2)) = swap_tmp;					\
++	if ((swap_tmp = mLIST_FIRST((head1))) != NULL)			\
++		swap_tmp->field.le_prev = &mLIST_FIRST((head1));		\
++	if ((swap_tmp = mLIST_FIRST((head2))) != NULL)			\
++		swap_tmp->field.le_prev = &mLIST_FIRST((head2));		\
+ } while (0)
+ 
+ /*
+@@ -5200,7 +5200,7 @@ struct mg_mqtt_broker;
+ /* MQTT session (Broker side). */
+ struct mg_mqtt_session {
+   struct mg_mqtt_broker *brk;       /* Broker */
+-  LIST_ENTRY(mg_mqtt_session) link; /* mg_mqtt_broker::sessions linkage */
++  mLIST_ENTRY(mg_mqtt_session) link; /* mg_mqtt_broker::sessions linkage */
+   struct mg_connection *nc;         /* Connection with the client */
+   size_t num_subscriptions;         /* Size of `subscriptions` array */
+   void *user_data;                  /* User data */
+@@ -5209,7 +5209,7 @@ struct mg_mqtt_session {
+ 
+ /* MQTT broker. */
+ struct mg_mqtt_broker {
+-  LIST_HEAD(_mg_sesshead, mg_mqtt_session) sessions; /* Session list */
++  mLIST_HEAD(_mg_sesshead, mg_mqtt_session) sessions; /* Session list */
+   void *user_data;                                   /* User data */
+ };
+ 

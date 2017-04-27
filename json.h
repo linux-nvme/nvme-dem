@@ -12,7 +12,8 @@
  * more details.
  */
 
-#include <json-c/json.h>
+//#include <json-c/json.h>
+#include <jansson.h>
 
 void store_config_file(void *context);
 int del_ctrl(void *context, char *p);
@@ -59,69 +60,72 @@ int del_acl(void *context, char *nqn,  char *ss);
  */
 
 struct json_context {
-	struct json_object *root;
-	struct json_object *ctrls;
-	struct json_object *hosts;
-	char filename[128];
+	pthread_spinlock_t	 lock;
+	json_t			*root;
+	json_t			*ctrls;
+	json_t			*hosts;
+	char			 filename[128];
 };
 
-#define json_add_string(x, y, z) \
-	json_object_object_add(x, y, json_object_new_string(z))
-#define json_add_int(x, y, z) \
-	json_object_object_add(x, y, json_object_new_int(z))
-#define json_set_string(x, y, z) do { \
-	json_object_object_get_ex(x, y, &tmp); \
-	if (tmp) json_object_set_string(tmp, z); \
-	else json_add_string(x, y, z); \
+#define json_set_string(x, y, z) \
+	do { \
+		tmp = json_object_get(x, y); \
+		if (tmp) json_string_set(tmp, z); \
+		else json_object_set_new(x, y, json_string(z)); \
 	} while (0)
-#define json_set_int(x, y, z) do {\
-	json_object_object_get_ex(x, y, &tmp); \
-	if (tmp) json_object_set_int(tmp, z); \
-	else json_add_int(x, y, z); \
+#define json_set_int(x, y, z) \
+	do {\
+		tmp = json_object_get(x, y); \
+		if (tmp) json_integer_set(tmp, z); \
+		else json_object_set_new(x, y, json_integer(z)); \
 	} while (0)
-#define json_get_subgroup(x, y, z) do { \
-	    if (json_object_get_type(x) == json_type_object) { \
-		json_object_object_get_ex(x, y, &z); \
-		if (!z) { \
-			z = json_object_new_object(); \
-			json_object_object_add(x, y, z); \
-		} else if ( json_object_get_type(z) != json_type_object ) \
-			fprintf(stderr, "%s(%d) Bad Target expect object\n", \
-				__func__, __LINE__); \
-	  } else \
-		fprintf(stderr, "%s(%d) Bad Group Object\n", \
-			__func__, __LINE__); \
+#define json_get_subgroup(x, y, z) \
+	do { \
+		if (json_is_object(x)) { \
+			z = json_object_get(x, y); \
+			if (!z) {\
+				z = json_object(); \
+				json_object_set_new(x, y, z); \
+			} else if (!json_is_object(z)) \
+				fprintf(stderr, "%s(%d) Bad Target expect object\n", \
+					__func__, __LINE__), z = NULL; \
+		} else \
+			fprintf(stderr, "%s(%d) Bad Group Object\n", \
+				__func__, __LINE__), z = NULL; \
 	} while (0)
-#define json_get_array(x, y, z) do { \
-	    if (json_object_get_type(x) == json_type_object) { \
-		json_object_object_get_ex(x, y, &z); \
-		if (!z) { \
-			z = json_object_new_array(); \
-			json_object_object_add(x, y, z); \
-		} else if ( json_object_get_type(z) != json_type_array ) \
-			fprintf(stderr, "%s(%d) Bad Target expect array\n", \
-				__func__, __LINE__); \
-	  } else \
-		fprintf(stderr, "%s(%d) Bad Group Object\n", \
-			__func__, __LINE__); \
+#define json_get_array(x, y, z) \
+	do { \
+		if (json_is_object(x)) { \
+			z = json_object_get(x, y); \
+			if (!z) { \
+				z = json_array(); \
+				json_object_set_new(x, y, z); \
+			} else if (!json_is_array(z)) \
+				fprintf(stderr, "%s(%d) Bad Target expect array\n", \
+					__func__, __LINE__), z = NULL; \
+		} else \
+			fprintf(stderr, "%s(%d) Bad Group Object\n", \
+				__func__, __LINE__), z = NULL; \
 	} while (0)
-#define json_update_string(w, x, y, z) do { \
-	  json_object_object_get_ex(x, y, &z); \
-	  if (z) { \
-		if (json_object_get_type(x) == json_type_object) \
-			json_set_string(w, y, json_object_get_string(z)); \
-		else \
-			fprintf(stderr, "%s(%d) Bad type\n", \
-			       __func__, __LINE__); \
-	  } \
+#define json_update_string(w, x, y, z) \
+	do { \
+		z = json_object_get(x, y); \
+		if (z) { \
+			if (json_is_object(w)) \
+				json_set_string(w, y, json_string_value(z)); \
+			else \
+				fprintf(stderr, "%s(%d) Bad type\n", \
+					__func__, __LINE__); \
+		} \
 	} while (0)
-#define json_update_int(w, x, y, z) do { \
-	  json_object_object_get_ex(x, y, &z); \
-	  if (z) { \
-		if (json_object_get_type(x) == json_type_object) \
-			json_set_int(w, y, json_object_get_int(z)); \
-		else \
-			fprintf(stderr, "%s(%d) Bad type\n", \
-			       __func__, __LINE__); \
-	  } \
+#define json_update_int(w, x, y, z) \
+	do { \
+		z = json_object_get(x, y); \
+		if (z) { \
+			if (json_is_object(w)) \
+				json_set_int(w, y, json_integer_value(z)); \
+			else \
+				fprintf(stderr, "%s(%d) Bad type\n", \
+					__func__, __LINE__); \
+		} \
 	} while (0)
