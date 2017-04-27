@@ -327,6 +327,8 @@ static int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 	else
 		ret = bad_request(resp);
 
+	free(url);
+
 	return ret;
 }
 
@@ -506,6 +508,8 @@ static int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
 	else
 		ret = bad_request(resp);
 
+	free(url);
+
 	return ret;
 }
 
@@ -561,8 +565,7 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	mg_printf(c, "Content-Length: %ld\r\n\r\n%s",
 		  strlen(resp), resp);
 out2:
-// TODO add to garbage list for cleanup later
-//	free(resp);
+	free(resp);
 out1:
 	c->flags = MG_F_SEND_AND_CLOSE;
 

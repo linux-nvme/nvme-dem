@@ -387,6 +387,7 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
+	cleanup_controllers();
 out2:
 	cleanup_json(json_ctx);
 out1:

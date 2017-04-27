@@ -168,6 +168,7 @@ static int get_logpages(struct controller *ctrl,
 
 err:
 	disconnect_controller(&ctrl->ep);
+
 	return ret;
 }
 

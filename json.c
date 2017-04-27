@@ -235,8 +235,6 @@ void cleanup_json(void *context)
 {
 	struct json_context	*ctx = context;
 
-	json_decref(ctx->ctrls);
-	json_decref(ctx->hosts);
 	json_decref(ctx->root);
 
 	pthread_spin_destroy(&ctx->lock);

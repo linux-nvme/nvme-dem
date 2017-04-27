@@ -110,6 +110,7 @@ void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr)
 		print_err("no memory for buffer, errno %d", errno);
 		goto out;
 	}
+	memset(buf, 0, size);
 	ret = fi_mr_reg(ep->dom, buf, size, FI_RECV | FI_SEND |
 			FI_REMOTE_READ | FI_REMOTE_WRITE |
 			FI_READ | FI_WRITE,
@@ -327,7 +328,7 @@ static int accept_connection(struct endpoint *ep)
 			      fi_mr_desc(ep->qe[i].recv_mr), 0, &ep->qe[i]);
 		if (ret) {
 			print_err("fi_recv returned %d", ret);
-			return ret;;
+			return ret;
 		}
 	}
 
@@ -436,7 +437,7 @@ static int client_connect(struct endpoint *ep)
 			      fi_mr_desc(ep->qe[i].recv_mr), 0, &ep->qe[i]);
 		if (ret) {
 			print_err("fi_recv returned %d", ret);
-			return ret;;
+			return ret;
 		}
 	}
 
@@ -894,11 +895,11 @@ int connect_controller(struct endpoint *ep, char *type, char *node, char *port)
 
 	ret = create_endpoint(ep, ep->prov);
 	if (ret)
-		return ret;;
+		return ret;
 
 	ret = client_connect(ep);
 	if (ret)
-		return ret;;
+		return ret;
 
 	cmd = alloc_buffer(ep, BUF_SIZE, &ep->send_mr);
 	if (!cmd)

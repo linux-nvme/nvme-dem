@@ -50,8 +50,50 @@ jansson/src/.libs/libjansson.a: jansson/Makefile
 libjansson.a: jansson/src/.libs/libjansson.a
 	cp jansson/src/.libs/libjansson.a .
 
-config.json:
+#must be run as root. hard coded path to nvme-cli
+get_logpages:
+	/home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics -t rdma -a 192.168.22.1 -s 4422
+
+archive/make_config.sh: Makefile
+	[ -d archive ] || mkdir archive
+	echo ./dem set c ctrl1 rdma ipv4 192.168.22.1 4420 20 > $@
+	echo ./dem set c ctrl2 rdma ipv4 192.168.22.2 4420 25 >> $@
+	echo ./dem set s ctrl1 host01subsys1 1 >> $@
+	echo ./dem set s ctrl1 host01subsys2 0 >> $@
+	echo ./dem set s ctrl1 host01subsys3 1 >> $@
+	echo ./dem set s ctrl2 host02subsys1 1 >> $@
+	echo ./dem set s ctrl2 host02subsys2 0 >> $@
+	echo ./dem set h host01 >> $@
+	echo ./dem set h host02 >> $@
+	echo ./dem set a host01 host01subsys2 1 >> $@
+	echo ./dem set a host01 host02subsys2 2 >> $@
+	echo ./dem set a host02 host01subsys2 3 >> $@
+	echo ./dem set a host02 host02subsys2 3 >> $@
+
+archive/run_test.sh: Makefile
+	[ -d archive ] || mkdir archive
+	echo "make del_hosts" > $@
+	echo "make del_ctrls" >> $@
+	echo "./dem apply" >> $@
+	echo "sh archive/make_config.sh" >> $@
+	echo "./dem apply" >> $@
+	echo "sudo make get_logpages" >> $@
+	echo "make show_ctrls" >> $@
+	echo "make show_hosts" >> $@
+	echo "make del_ctrls" >> $@
+	echo "make del_hosts" >> $@
+	echo "./dem apply" >> $@
+	echo "sudo make get_logpages" >> $@
+	echo "fmt=-j make show_ctrls" >> $@
+	echo "make show_hosts" >> $@
+	echo "fmt=-j sh archive/make_config.sh" >> $@
+	echo "./dem apply" >> $@
+
+config.json: archive/make_config.sh
 	sh archive/make_config.sh
+
+run_test: archive/run_test.sh
+	sh archive/run_test.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
@@ -75,17 +117,19 @@ test_cli: dem
 	./dem shutdown
 	./dem config
 
+# show format for raw: fmt=-r make show_hosts
+# show format for pretty json: fmt=-j make show_hosts
 show_hosts:
-	for i in `./dem lis h |grep -v ^http:`; do ./dem $$fmt sho h $$i ; done
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; do ./dem $$fmt sho h $$i ; done
 
 show_ctrls:
-	for i in `./dem lis c |grep -v ^http:`; do ./dem $$fmt sho c $$i ; done
+	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; do ./dem $$fmt sho c $$i ; done
 
 del_hosts:
-	for i in `./dem lis h |grep -v ^http:`; do ./dem del h $$i ; done
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; do ./dem del h $$i ; done
 
 del_ctrls:
-	for i in `./dem lis c |grep -v ^http:`; do ./dem del c $$i ; done
+	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; do ./dem del c $$i ; done
 
 put:
 	echo PUT Commands
@@ -113,6 +157,7 @@ get:
 	echo
 
 del: delhost01 delhost02 delctrl1 delctrl2
+	echo
 
 delctrl2:
 	echo DELETE Commands
@@ -128,7 +173,6 @@ delhost01:
 delhost02:
 	curl -X DELETE  http://127.0.0.1:22345/host/host02
 	echo
-	echo
 post:
 	echo POST Commands
 	curl -d 'host02' http://127.0.0.1:22345/host/host01
@@ -138,7 +182,7 @@ post:
 get16:
 	for i in `seq 1 16` ; do make get ; done
 
-test: put get16 post get
+test: put get16 post get del
 
 run: dem
 	./dem del c ctrl1 || echo -n
@@ -149,3 +193,12 @@ run: dem
 	./dem apply
 	./dem list c
 	./dem list h
+
+memcheck: demd
+	reset
+	valgrind --leak-check=full --show-leak-kinds=all -v --track-origins=yes --log-file=demd.vglog ./demd
+
+post_reboot:
+	sudo ssh root@host02 "cd ~cayton/nvme_scripts; ./rdma_target"
+	cd ~cayton/nvme_scripts; ./rdma_target
+	modprobe nvme_rdma

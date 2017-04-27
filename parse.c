@@ -161,7 +161,7 @@ static int string_to_addr(char *p, int *addr, int len, int width, char delim) {
 	for (; j < len; j++)
 		addr[j] = 0;
 
-	if (*p == '/')
+	if (i < n && *p == '/')
 		return atoi(++p);
 
 	return 0;

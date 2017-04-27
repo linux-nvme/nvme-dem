@@ -6,3 +6,4 @@ libjansson.a
 dem
 demd
 .*.sw?
+*.vglog

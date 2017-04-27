@@ -218,6 +218,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 		print_err("rma_write returned %d", ret);
 
 	fi_close(&mr->fid);
+	free(log);
 
 	return ret;
 }
@@ -308,7 +309,9 @@ static void *host_thread(void *arg)
 	}
 
 out:
-	cleanup_endpoint(ep);
+	ep->state = DISCONNECTED;
+	disconnect_controller(ep);
+	free(ep);
 
 	pthread_exit(NULL);
 
@@ -348,7 +351,9 @@ static int run_pseudo_target_for_host(struct fi_info *prov)
 
 	return 0;
 err:
-	cleanup_endpoint(ep);
+	ep->state = DISCONNECTED;
+	disconnect_controller(ep);
+	free(ep);
 
 	return ret;
 }
