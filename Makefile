@@ -50,9 +50,9 @@ jansson/src/.libs/libjansson.a: jansson/Makefile
 libjansson.a: jansson/src/.libs/libjansson.a
 	cp jansson/src/.libs/libjansson.a .
 
-#must be run as root. hard coded path to nvme-cli
+# hard coded path to nvme-cli
 get_logpages:
-	/home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics -t rdma -a 192.168.22.1 -s 4422
+	sudo /home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics -t rdma -a 192.168.22.1 -s 4422
 
 archive/make_config.sh: Makefile
 	[ -d archive ] || mkdir archive
@@ -77,16 +77,16 @@ archive/run_test.sh: Makefile
 	echo "./dem apply" >> $@
 	echo "sh archive/make_config.sh" >> $@
 	echo "./dem apply" >> $@
-	echo "sudo make get_logpages" >> $@
-	echo "make show_ctrls" >> $@
-	echo "make show_hosts" >> $@
+	echo "make get_logpages" >> $@
+	echo "fmt=-j make show_ctrls" >> $@
+	echo "fmt=-j make show_hosts" >> $@
 	echo "make del_ctrls" >> $@
 	echo "make del_hosts" >> $@
 	echo "./dem apply" >> $@
-	echo "sudo make get_logpages" >> $@
-	echo "fmt=-j make show_ctrls" >> $@
+	echo "make get_logpages" >> $@
+	echo "make show_ctrls" >> $@
 	echo "make show_hosts" >> $@
-	echo "fmt=-j sh archive/make_config.sh" >> $@
+	echo "sh archive/make_config.sh" >> $@
 	echo "./dem apply" >> $@
 
 config.json: archive/make_config.sh
