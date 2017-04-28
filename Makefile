@@ -201,4 +201,4 @@ memcheck: demd
 post_reboot:
 	sudo ssh root@host02 "cd ~cayton/nvme_scripts; ./rdma_target"
 	cd ~cayton/nvme_scripts; ./rdma_target
-	modprobe nvme_rdma
+	sudo modprobe nvme_rdma
