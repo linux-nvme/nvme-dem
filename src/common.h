@@ -114,7 +114,7 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
-#define MAX_NQN_SIZE		64
+#define MAX_NQN_SIZE		128
 #define MAX_ALIAS_SIZE		64
 
 #ifndef AF_IPV4
