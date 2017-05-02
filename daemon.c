@@ -26,7 +26,6 @@
 
 #include "mongoose.h"
 #include "common.h"
-#include "incl/nvme.h"
 
 #define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
@@ -81,7 +80,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static inline void refresh_log_pages(void)
 {
-	struct controller *ctrl;
+	struct controller	*ctrl;
 
 	list_for_each_entry(ctrl, ctrl_list, node) {
 		if (!ctrl->refresh)
@@ -112,7 +111,7 @@ static void *poll_loop(struct mg_mgr *mgr)
 
 static int daemonize(void)
 {
-	pid_t pid, sid;
+	pid_t			 pid, sid;
 
 	if (getuid() != 0) {
 		print_err("must be root to run demd as a daemon");
@@ -149,11 +148,11 @@ static int daemonize(void)
 
 static int init_dem(int argc, char *argv[], char **ssl_cert)
 {
-	int		 opt;
-	int		 run_as_daemon;
+	int			 opt;
+	int			 run_as_daemon;
 #ifdef DEV_DEBUG
-	const char	*opt_list = "?qdp:r:c:";
-	const char	*arg_list =
+	const char		*opt_list = "?qdp:r:c:";
+	const char		*arg_list =
 		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-q - quite mode, no debug prints\n"
 		"-d - run as a daemon process (default is standalone)"
@@ -161,8 +160,8 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"-r - root for RESTful interface (default .)\n"
 		"-c - cert file for RESTful interface use with ssl";
 #else
-	const char	*opt_list = "?dsp:r:c:";
-	const char	*arg_list =
+	const char		*opt_list = "?dsp:r:c:";
+	const char		*arg_list =
 		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
@@ -272,7 +271,7 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 
 static void cleanup_threads(pthread_t *listen_threads)
 {
-	int i;
+	int			i;
 
 	for (i = 0; i < num_interfaces; i++)
 		pthread_kill(listen_threads[i], SIGTERM);
@@ -287,6 +286,13 @@ static void cleanup_threads(pthread_t *listen_threads)
 
 	while (num_interfaces && i--)
 		usleep(100);
+
+	/* even thought the threads are finished, need to call join
+	 * otherwize, it will not release its memory and valgrind indicates
+	 * a leak */
+
+	for (i = 0; i < num_interfaces; i++)
+		pthread_join(listen_threads[i], NULL);
 
 	free(listen_threads);
 }

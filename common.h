@@ -29,7 +29,7 @@
 #include <string.h>
 
 #include "incl/list.h"
-#include "nvme.h"	/* NOTE: Using linux kernel include here */
+#include "incl/nvme.h"	/* NOTE: Using linux kernel include here */
 
 #define BUF_SIZE	4096
 #define NVMF_DQ_DEPTH	1
@@ -57,7 +57,7 @@
 #define min(x, y) ((x < y) ? x : y)
 
 #define __round_mask(x, y) ((__typeof__(x))((y)-1))
-#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+#define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
@@ -228,8 +228,6 @@ int ipv4_to_addr(char *p, int *addr);
 int ipv6_to_addr(char *p, int *addr);
 int fc_to_addr(char *p, int *addr);
 
-void print_eq_error(struct fid_eq *eq, int n);
-
 int init_interfaces(void);
 void *interface_thread(void *arg);
 
@@ -243,10 +241,8 @@ int run_pseudo_target(struct endpoint *ep);
 int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info);
 int connect_controller(struct endpoint *ep, char *addr_family, char *addr,
 		       char *port);
-void disconnect_controller(struct endpoint *ep);
+void disconnect_controller(struct endpoint *ep, int shutdown);
 void cleanup_listener(struct listener *pep);
-void cleanup_endpoint(struct endpoint *ep);
-void shutdown_ep(struct endpoint *ep);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 void fetch_log_pages(struct controller *ctrl);

@@ -25,22 +25,23 @@ static const struct mg_str s_patch_method = MG_MK_STR("PATCH");
 static const struct mg_str s_option_method = MG_MK_STR("OPTION");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 
-#define SMALL_RSP 128
-#define LARGE_RSP 512
-#define BODY_SZ   1024
+#define HTTP_HDR			"HTTP/1.1"
+#define SMALL_RSP			128
+#define LARGE_RSP			512
+#define BODY_SZ				1024
 
-#define HTTP_ERR_NOT_FOUND 402
-#define HTTP_ERR_NOT_IMPLEMENTED 405
-#define HTTP_OK 200
-#define HTTP_ERR_INTERNAL 403
-#define HTTP_ERR_PAGE_NOT_FOUND 404
+#define HTTP_OK				200
+#define HTTP_ERR_NOT_FOUND		402
+#define HTTP_ERR_INTERNAL		403
+#define HTTP_ERR_PAGE_NOT_FOUND		404
+#define HTTP_ERR_NOT_IMPLEMENTED	405
 
 static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 {
 	return s1->len == s2->len && memcmp(s1->p, s2->p, s2->len) == 0;
 }
 
-static int  bad_request(char *resp)
+static int bad_request(char *resp)
 {
 	strcpy(resp, "Method Not Implemented");
 
@@ -50,8 +51,8 @@ static int  bad_request(char *resp)
 static int get_dem_request(char *resp)
 {
 	struct interface	*iface = interfaces;
-	int			i;
-	int			n = 0;
+	int			 i;
+	int			 n = 0;
 
 	// TODO Ping Sujoy - Rackscale may need info / provide input
 
@@ -85,8 +86,8 @@ static int get_dem_request(char *resp)
 
 static int post_dem_request(struct http_message *hm, char *resp)
 {
-	char body[SMALL_RSP+1];
-	int ret = 0;
+	char			 body[SMALL_RSP + 1];
+	int			 ret = 0;
 
 	memset(body, 0, sizeof(body));
 	strncpy(body, hm->body.p, min(SMALL_RSP, hm->body.len));
@@ -105,8 +106,7 @@ static int post_dem_request(struct http_message *hm, char *resp)
 			strcpy(resp,
 			       "DEM config applied but no interdaces defined");
 		else
-
-		strcpy(resp, "DEM config applied");
+			strcpy(resp, "DEM config applied");
 	} else {
 		ret = HTTP_ERR_NOT_IMPLEMENTED;
 		strcpy(resp, "Method Not Implemented");
@@ -117,7 +117,7 @@ out:
 
 static int handle_dem_requests(struct http_message *hm, char *resp)
 {
-	int ret;
+	int			 ret;
 
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_dem_request(resp);
@@ -131,7 +131,7 @@ static int handle_dem_requests(struct http_message *hm, char *resp)
 
 static int get_ctrl_request(void *ctx, char *ctrl, char *resp)
 {
-	int ret;
+	int			 ret;
 
 	if (!ctrl) {
 		ret = list_ctrl(ctx, resp);
@@ -152,12 +152,12 @@ static int get_ctrl_request(void *ctx, char *ctrl, char *resp)
 
 static int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *resp)
 {
-	int ret = 0;
+	int			 ret = 0;
 
 	if (!ctrl) {
 		sprintf(resp, "Controller alias NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	if (ss) {
@@ -187,17 +187,17 @@ out:
 	return ret;
 }
 
-static int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
-		     char *resp)
+static int put_ctrl_request(void *ctx, char *ctrl, char *ss,
+			    struct mg_str *body, char *resp)
 {
-	char data[LARGE_RSP+1];
-	int ret;
-	int n;
+	char			 data[LARGE_RSP + 1];
+	int			 n;
+	int			 ret;
 
 	if (!ctrl) {
 		sprintf(resp, "Controller alias NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	memset(data, 0, sizeof(data));
@@ -208,16 +208,21 @@ static int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body
 		if (ret == -ENOENT) {
 			sprintf(resp, "Controller %s not found", ctrl);
 			goto out;
-		} else if (ret == -EINVAL) {
+		}
+
+		if (ret == -EINVAL) {
 			n = sprintf(resp, "bad json object\r\n");
 			resp += n;
+
 			n = sprintf(resp, "expect either/both elements of ");
 			resp += n;
+
 			n = sprintf(resp,
 				    "{ \"%s\": \"<ss>\", \"%s\": <access> } ",
 				    TAG_NQN, TAG_ACCESS);
 			resp += n;
-			n = sprintf(resp, "\r\ngot %s", data);
+
+			sprintf(resp, "\r\ngot %s", data);
 			goto out;
 		}
 
@@ -225,8 +230,7 @@ static int put_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body
 	} else {
 		ret = set_ctrl(ctx, ctrl, data);
 		if (ret) {
-			sprintf(resp, "Could not update Controller %s",
-				ctrl);
+			sprintf(resp, "Could not update Controller %s", ctrl);
 			ret = HTTP_ERR_INTERNAL;
 			goto out;
 		}
@@ -239,16 +243,16 @@ out:
 	return ret;
 }
 
-static int  post_ctrl_request(void *ctx, char *ctrl, char *ss, struct mg_str *body,
-		       char *resp)
+static int post_ctrl_request(void *ctx, char *ctrl, char *ss,
+			     struct mg_str *body, char *resp)
 {
-	char new[SMALL_RSP+1];
-	int ret;
+	char			 new[SMALL_RSP + 1];
+	int			 ret;
 
 	if (!ctrl) {
 		sprintf(resp, "Controller alias NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	if (body->len) {
@@ -297,12 +301,12 @@ out:
 
 static int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 {
-	char *url;
-	char *ctrl = NULL;
-	char *ss = NULL;
-	char *p;
-	int ret;
-	int len = hm->uri.len;
+	char			*url;
+	char			*ctrl = NULL;
+	char			*ss = NULL;
+	char			*p;
+	int			 len = hm->uri.len;
+	int			 ret;
 
 	url = malloc(len + 1);
 	if (!url)
@@ -334,7 +338,7 @@ static int handle_ctrl_requests(void *ctx, struct http_message *hm, char *resp)
 
 static int get_host_request(void *ctx, char *host, char *resp)
 {
-	int ret;
+	int			 ret;
 
 	if (!host) {
 		ret = list_host(ctx, resp);
@@ -355,22 +359,24 @@ static int get_host_request(void *ctx, char *host, char *resp)
 
 static int delete_host_request(void *ctx, char *host, char *ss, char *resp)
 {
-	int ret;
+	int			 ret;
 
 	if (!host) {
 		sprintf(resp, "Host NQN NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	if (ss) {
 		ret = del_acl(ctx, host, ss);
 		if (!ret)
-			sprintf(resp, "Subsystem %s deleted "
-				"from acl for host %s", ss, host);
+			sprintf(resp,
+				"Subsystem %s deleted from acl for host %s",
+				ss, host);
 		else {
-			sprintf(resp, "Subsystem %s not found "
-				"in acl for host %s", ss, host);
+			sprintf(resp,
+				"Subsystem %s not found in acl for host %s",
+				ss, host);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
 		}
@@ -390,17 +396,17 @@ out:
 	return ret;
 }
 
-static int put_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
-		     char *resp)
+static int put_host_request(void *ctx, char *host, char *ss,
+			    struct mg_str *body, char *resp)
 {
-	char data[LARGE_RSP+1];
-	int ret;
-	int n;
+	char			 data[LARGE_RSP + 1];
+	int			 n;
+	int			 ret;
 
 	if (!host) {
 		sprintf(resp, "Host NQN NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	if (ss) {
@@ -409,7 +415,7 @@ static int put_host_request(void *ctx, char *host, char *ss, struct mg_str *body
 
 		ret = set_acl(ctx, host, ss, data);
 		if (!ret)
-			sprintf(resp, "Subsystem %s updated to acl for host %s",
+			sprintf(resp, "Subsystem %s updated acl for host %s",
 				ss, host);
 		else if (ret == -ENOENT) {
 			sprintf(resp, "Host %s not found", host);
@@ -441,16 +447,16 @@ out:
 	return ret;
 }
 
-static int post_host_request(void *ctx, char *host, char *ss, struct mg_str *body,
-		      char *resp)
+static int post_host_request(void *ctx, char *host, char *ss,
+			     struct mg_str *body, char *resp)
 {
-	char new[SMALL_RSP+1];
-	int ret;
+	char			 new[SMALL_RSP + 1];
+	int			 ret;
 
 	if (!host) {
 		sprintf(resp, "Host NQN NULL");
-			ret = HTTP_ERR_NOT_FOUND;
-			goto out;
+		ret = HTTP_ERR_NOT_FOUND;
+		goto out;
 	}
 
 	memset(new, 0, sizeof(new));
@@ -463,8 +469,9 @@ static int post_host_request(void *ctx, char *host, char *ss, struct mg_str *bod
 
 	ret = rename_host(ctx, host, new);
 	if (ret) {
-		sprintf(resp, "Host %s not found or "
-			"Host %s already exists", host, new);
+		sprintf(resp,
+			"Host %s not found or Host %s already exists",
+			host, new);
 		ret = HTTP_ERR_NOT_FOUND;
 		goto out;
 	}
@@ -478,12 +485,12 @@ out:
 
 static int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
 {
-	char *url;
-	char *host;
-	char *ss = NULL;
-	char *p;
-	int ret;
-	int len = hm->uri.len;
+	char			*url;
+	char			*host;
+	char			*ss = NULL;
+	char			*p;
+	int			 len = hm->uri.len;
+	int			 ret;
 
 	url = malloc(len + 1);
 	if (!url)
@@ -515,30 +522,31 @@ static int handle_host_requests(void *ctx, struct http_message *hm, char *resp)
 
 void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 {
-	struct http_message *hm = (struct http_message *) ev_data;
-	char *target = (char *) &hm->uri.p[1];
-	char *resp;
-	int ret;
-	struct json_context *context = ctx;
+	struct json_context	*context = ctx;
+	struct http_message	*hm = (struct http_message *) ev_data;
+	char			*target = (char *) &hm->uri.p[1];
+	char			*resp;
+	int			 ret;
 
 	pthread_spin_lock(&context->lock);
 
 	if (!hm->uri.len) {
-		mg_printf(c, "HTTP/1.1 %d Page Not Found\r\n\r\n",
-			  HTTP_ERR_PAGE_NOT_FOUND);
+		mg_printf(c, "%s %d Page Not Found\r\n\r\n",
+			  HTTP_HDR, HTTP_ERR_PAGE_NOT_FOUND);
 		goto out1;
 	}
 
 	resp = malloc(BODY_SZ);
 	if (!resp) {
 		fprintf(stderr, "no memory!\n");
-		mg_printf(c, "HTTP/1.1 %d No Memory\r\n\r\n",
-			  HTTP_ERR_INTERNAL);
+		mg_printf(c, "%s %d No Memory\r\n\r\n",
+			  HTTP_HDR, HTTP_ERR_INTERNAL);
 		goto out1;
 	}
 
 	print_debug("%.*s %.*s", (int) hm->method.len, hm->method.p,
-		(int) hm->uri.len, hm->uri.p);
+		    (int) hm->uri.len, hm->uri.p);
+
 	if (hm->body.len)
 		print_debug("%.*s", (int) hm->body.len, hm->body.p);
 
@@ -551,16 +559,17 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	else if (strncmp(target, TARGET_HOST, HOST_LEN) == 0)
 		ret = handle_host_requests(ctx, hm, resp);
 	else {
-		fprintf(stderr, "Bad page %*s\n", (int) hm->uri.len, hm->uri.p);
-		mg_printf(c, "HTTP/1.1 %d Page Not Found\r\n\r\n",
-			  HTTP_ERR_PAGE_NOT_FOUND);
+		fprintf(stderr, "Bad page %*s\n",
+			(int) hm->uri.len, hm->uri.p);
+		mg_printf(c, "%s %d Page Not Found\r\n\r\n",
+			  HTTP_HDR, HTTP_ERR_PAGE_NOT_FOUND);
 		goto out2;
 	}
 
 	if (!ret)
-		mg_printf(c, "HTTP/1.1 %d OK\r\n", HTTP_OK);
+		mg_printf(c, "%s %d OK\r\n", HTTP_HDR, HTTP_OK);
 	else
-		mg_printf(c, "HTTP/1.1 %d %s\r\n", ret, resp);
+		mg_printf(c, "%s %d %s\r\n", HTTP_HDR, ret, resp);
 
 	mg_printf(c, "Content-Length: %ld\r\n\r\n%s",
 		  strlen(resp), resp);

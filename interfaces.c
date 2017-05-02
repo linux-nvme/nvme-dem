@@ -36,14 +36,14 @@ int refresh_ctrl(char *alias)
 	return -EINVAL;
 }
 
-static void check_host(struct subsystem *subsys, json_t *nqn,
-		       json_t *array, const char *host_nqn)
+static void check_host(struct subsystem *subsys, json_t *nqn, json_t *array,
+		       const char *host_nqn)
 {
-	json_t *obj;
-	json_t *access;
-	json_t *iter;
-	struct host *host;
-	int i, n;
+	json_t			*obj;
+	json_t			*access;
+	json_t			*iter;
+	struct host		*host;
+	int			 i, n;
 
 	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
@@ -66,13 +66,12 @@ static void check_host(struct subsystem *subsys, json_t *nqn,
 	}
 }
 
-static void check_hosts(struct subsystem *subsys, json_t *array,
-			json_t *nqn)
+static void check_hosts(struct subsystem *subsys, json_t *array, json_t *nqn)
 {
-	json_t *grp;
-	json_t *iter;
-	json_t *host;
-	int i, n;
+	json_t			*grp;
+	json_t			*iter;
+	json_t			*host;
+	int			 i, n;
 
 	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
@@ -86,15 +85,14 @@ static void check_hosts(struct subsystem *subsys, json_t *array,
 	}
 }
 
-static void check_subsystems(struct controller *ctrl,
-			     struct json_context *ctx,
+static void check_subsystems(struct controller *ctrl, struct json_context *ctx,
 			     json_t *array)
 {
-	json_t *obj;
-	json_t *iter;
-	json_t *nqn;
-	struct subsystem *subsys;
-	int i, n;
+	json_t			*obj;
+	json_t			*iter;
+	json_t			*nqn;
+	struct subsystem	*subsys;
+	int			 i, n;
 
 	n = json_array_size(array);
 	for (i = 0; i < n; i++) {
@@ -123,11 +121,10 @@ static void check_subsystems(struct controller *ctrl,
 	}
 }
 
-static int get_transport_info(json_t *ctrl, char *type,
-			      char *fam, char *address, char *port,
-			      int *_addr)
+static int get_transport_info(json_t *ctrl, char *type, char *fam,
+			      char *address, char *port, int *_addr)
 {
-	json_t	*obj;
+	json_t			*obj;
 	char			*str;
 	int			 addr[ADDR_LEN];
 	int			 ret;
@@ -176,19 +173,18 @@ out:
 	return 0;
 }
 
-static int add_to_ctrl_list(struct json_context *ctx,
-			    json_t *grp,
+static int add_to_ctrl_list(struct json_context *ctx, json_t *grp,
 			    json_t *parent)
 {
-	struct controller *ctrl;
-	json_t *subgroup;
-	json_t *obj;
-	int addr[ADDR_LEN];
-	char address[CONFIG_ADDRESS_SIZE + 1];
-	char port[CONFIG_PORT_SIZE + 1];
-	char fam[CONFIG_FAMILY_SIZE + 1];
-	char type[CONFIG_TYPE_SIZE + 1];
-	int refresh = 0;
+	struct controller	*ctrl;
+	json_t			*subgroup;
+	json_t			*obj;
+	int			 addr[ADDR_LEN];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	char			 port[CONFIG_PORT_SIZE + 1];
+	char			 fam[CONFIG_FAMILY_SIZE + 1];
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	int			 refresh = 0;
 
 	if (!get_transport_info(grp, type, fam, address, port, addr))
 		goto err1;
@@ -237,11 +233,11 @@ err1:
 
 int build_ctrl_list(void *context)
 {
-	struct json_context *ctx = context;
-	json_t *array = ctx->ctrls;
-	json_t *subgroup;
-	json_t *iter;
-	int i, n;
+	struct json_context	*ctx = context;
+	json_t			*array = ctx->ctrls;
+	json_t			*subgroup;
+	json_t			*iter;
+	int			 i, n;
 
 	if (!array)
 		return -1;
@@ -259,9 +255,9 @@ int build_ctrl_list(void *context)
 
 static int count_dem_config_files(void)
 {
-	struct dirent	*entry;
-	DIR		*dir;
-	int		 filecount = 0;
+	struct dirent		*entry;
+	DIR			*dir;
+	int			 filecount = 0;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	if (dir != NULL) {
@@ -284,9 +280,9 @@ static int count_dem_config_files(void)
 
 static void read_dem_config(FILE *fid, struct interface *iface)
 {
-	int ret;
-	char tag[LARGEST_TAG + 1];
-	char val[LARGEST_VAL + 1];
+	int			 ret;
+	char			 tag[LARGEST_TAG + 1];
+	char			 val[LARGEST_VAL + 1];
 
 	ret = parse_line(fid, tag, LARGEST_TAG, val, LARGEST_VAL);
 	if (ret)
@@ -304,7 +300,7 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 
 static void translate_addr_to_array(struct interface *iface)
 {
-	int mask_bits;
+	int			 mask_bits;
 
 	if (strcmp(iface->addrfam, "ipv4") == 0)
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
@@ -328,12 +324,12 @@ static void translate_addr_to_array(struct interface *iface)
 
 static int read_dem_config_files(struct interface *iface)
 {
-	struct dirent	*entry;
-	DIR		*dir;
-	FILE		*fid;
-	char		 config_file[FILENAME_MAX + 1];
-	int		 count = 0;
-	int		 ret;
+	struct dirent		*entry;
+	DIR			*dir;
+	FILE			*fid;
+	char			 config_file[FILENAME_MAX + 1];
+	int			 count = 0;
+	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	while ((entry = readdir(dir))) {
@@ -355,8 +351,9 @@ static int read_dem_config_files(struct interface *iface)
 			if ((!strcmp(iface[count].trtype, "")) ||
 			    (!strcmp(iface[count].addrfam, "")) ||
 			    (!strcmp(iface[count].address, "")))
-				print_err("%s: bad config file. "
-					  "Ignoring interface.", config_file);
+				print_err("%s: %s.",
+					"bad config file. Ignoring interface",
+					config_file);
 			else {
 				translate_addr_to_array(&iface[count]);
 				count++;
@@ -388,16 +385,16 @@ void cleanup_controllers(void)
 	struct host		*host;
 	struct host		*next_host;
 
-
 	list_for_each_entry_safe(ctrl, next_ctrl, ctrl_list, node) {
 		list_for_each_entry_safe(subsys, next_subsys,
-					  &ctrl->subsys_list, node) {
+					 &ctrl->subsys_list, node) {
 			list_for_each_entry_safe(host, next_host,
-						  &subsys->host_list, node)
+						 &subsys->host_list, node)
 				free(host);
 
 			free(subsys);
 		}
+
 		list_del(&ctrl->node);
 		free(ctrl);
 	}
@@ -406,8 +403,8 @@ void cleanup_controllers(void)
 int init_interfaces(void)
 {
 	struct interface	*table;
-	int			count;
-	int			ret;
+	int			 count;
+	int			 ret;
 
 	/* Could avoid this if we move to a list */
 	count = count_dem_config_files();

@@ -178,8 +178,17 @@ static int del_entry(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
+	char			 c;
 
 	UNUSED(n);
+
+	if (prompt_deletes) {
+		printf("Are you sure you want to delete %s '%s'? (N/y) ",
+			base, alias);
+		c = getchar();
+		if (c != 'y' && c != 'Y')
+			return 0;
+	}
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
@@ -291,7 +300,16 @@ static int del_array(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
+	char			 c;
 	int			 i;
+
+	if (prompt_deletes) {
+		printf("Are you sure you want to delete %s '%s'? (N/y) ",
+			base, alias);
+		c = getchar();
+		if (c != 'y' && c != 'Y')
+			return 0;
+	}
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s", base, alias, *++p);

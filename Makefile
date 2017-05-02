@@ -1,12 +1,24 @@
 .SILENT:
 
-CFLAGS = -W -Wall -Werror -Wno-unused-function
-CFLAGS += -Iincl -Imongoose -Ijansson/src
-
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
-DEM_CFLAGS += -lpthread -lfabric -luuid libjansson.a
 
-CLI_CFLAGS = -lcurl libjansson.a
+CFLAGS = -W -Wall -Werror -Wno-unused-function
+CFLAGS += -Imongoose -Ijansson/src
+
+# ALT_CFLAGS used for sparse since mongoose has too many errors
+# a modified version of mongoose.h can be created and stored in /files
+# for sparse testing but is not valid for executable
+ALT_CFLAGS = -W -Wall -Werror -Wno-unused-function
+ALT_CFLAGS += -Ifiles -Ijansson/src
+
+SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
+
+VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
+VALGRIND_OPTS += --suppressions=files/valgrind_suppress
+
+DEM_LIBS = -lpthread -lfabric -luuid libjansson.a
+
+CLI_LIBS = -lcurl libjansson.a
 
 GDB_OPTS = -g -O0
 
@@ -21,11 +33,11 @@ all: mongoose/ libjansson.a demd dem
 
 dem: ${CLI_SRC} ${CLI_INC} Makefile libjansson.a
 	echo CC $@
-	gcc ${CLI_SRC} -o $@ ${CLI_CFLAGS} ${CFLAGS} ${GDB_OPTS}
+	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS}
 
 demd: ${DEM_SRC} ${DEM_INC} Makefile libjansson.a
 	echo CC $@
-	gcc ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS}
+	gcc ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DEM_LIBS}
 
 clean:
 	rm -f dem demd config.json
@@ -52,7 +64,8 @@ libjansson.a: jansson/src/.libs/libjansson.a
 
 # hard coded path to nvme-cli
 get_logpages:
-	sudo /home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics -t rdma -a 192.168.22.1 -s 4422
+	sudo /home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics \
+		-t rdma -a 192.168.22.1 -s 4422
 
 archive/make_config.sh: Makefile
 	[ -d archive ] || mkdir archive
@@ -120,16 +133,20 @@ test_cli: dem
 # show format for raw: fmt=-r make show_hosts
 # show format for pretty json: fmt=-j make show_hosts
 show_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; do ./dem $$fmt sho h $$i ; done
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; \
+		do ./dem $$fmt sho h $$i ; done
 
 show_ctrls:
-	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; do ./dem $$fmt sho c $$i ; done
+	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; \
+		do ./dem $$fmt sho c $$i ; done
 
 del_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; do ./dem del h $$i ; done
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; \
+		do ./dem -f del h $$i ; done
 
 del_ctrls:
-	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; do ./dem del c $$i ; done
+	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; \
+		do ./dem -f del c $$i ; done
 
 put:
 	echo PUT Commands
@@ -185,10 +202,10 @@ get16:
 test: put get16 post get del
 
 run: dem
-	./dem del c ctrl1 || echo -n
-	./dem del c ctrl2 || echo -n
-	./dem del h host01 || echo -n
-	./dem del h host02 || echo -n
+	./dem -f del c ctrl1 || echo -n
+	./dem -f del c ctrl2 || echo -n
+	./dem -f del h host01 || echo -n
+	./dem -f del h host02 || echo -n
 	sh archive/make_config.sh
 	./dem apply
 	./dem list c
@@ -196,7 +213,22 @@ run: dem
 
 memcheck: demd
 	reset
-	valgrind --leak-check=full --show-leak-kinds=all -v --track-origins=yes --log-file=demd.vglog ./demd
+	valgrind ${VALGRIND_OPTS} --log-file=demd.vglog ./demd
+	echo "valgrind output in 'demd.vglog'"
+
+sparse:
+	echo running sparse of each .c file with options
+	echo "${SPARSE_OPTS}"
+	for i in *.c ; do sparse $$i ${SPARSE_OPTS} ; done
+	echo Done.
+
+simple_test:
+	rm -f config.json
+	make config.json
+	./dem apply
+	make del_ctrls
+	make del_hosts
+	./dem apply
 
 post_reboot:
 	sudo ssh root@host02 "cd ~cayton/nvme_scripts; ./rdma_target"

@@ -25,16 +25,17 @@
 
 #include "mongoose.h"
 #include "common.h"
-#include "incl/nvme.h"
 
 #define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
+// #define DEBUG_COMMANDS
+
 static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
-	int ret = 0;
+	int			 ret = 0;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_property_set %x = %llx",
@@ -51,7 +52,7 @@ static int handle_property_set(struct nvme_command *cmd, int *csts)
 static int handle_property_get(struct nvme_command *cmd,
 			       struct nvme_completion *resp, int csts)
 {
-	int ret = 0;
+	int			 ret = 0;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_property_get %x", cmd->prop_get.offset);
@@ -72,7 +73,7 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 			  void *desc)
 {
 	struct nvmf_connect_data *data = (void *) ep->data;
-	int ret;
+	int			  ret;
 
 	print_debug("nvme_fabrics_type_connect");
 
@@ -102,8 +103,8 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 			   u64 length, u64 addr, u64 key, void *desc)
 {
-	struct nvme_id_ctrl *id = (void *) ep->data;
-	int ret;
+	struct nvme_id_ctrl	*id = (void *) ep->data;
+	int			 ret;
 
 	if (htole32(cmd->identify.cns) != NVME_NQN_DISC) {
 		print_err("unexpected identify command");
@@ -138,7 +139,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 
 static int host_access(struct subsystem *subsys, char *nqn)
 {
-	struct host *entry;
+	struct host		*entry;
 
 	/* check if host is in subsys host_list it has non-zero access */
 	/* return: 0 if no access; else access rights */
@@ -153,11 +154,11 @@ static int host_access(struct subsystem *subsys, char *nqn)
 static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 				     u64 key, void *desc)
 {
-	struct nvmf_disc_rsp_page_hdr *log = (void *) ep->data;
-	struct controller	*ctrl;
-	struct subsystem	*subsys;
-	int			 numrec = 0;
-	int			 ret;
+	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
+	struct controller		*ctrl;
+	struct subsystem		*subsys;
+	int				 numrec = 0;
+	int				 ret;
 
 	print_debug("get_log_page_count");
 
@@ -226,13 +227,13 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 {
 	struct nvme_command	*cmd = (struct nvme_command *) qe->buf;
-	struct nvmf_connect_command *c = &cmd->connect;
 	struct nvme_completion	*resp = (void *) ep->cmd;
-	int			 ret;
+	struct nvmf_connect_command *c = &cmd->connect;
 	u64			 len  = get_unaligned_le24(c->dptr.ksgl.length);
 	void			*desc = fi_mr_desc(ep->data_mr);
 	u64			 addr = c->dptr.ksgl.addr;
 	u64			 key  = get_unaligned_le32(c->dptr.ksgl.key);
+	int			 ret;
 
 	memset(resp, 0, sizeof(*resp));
 
@@ -309,8 +310,7 @@ static void *host_thread(void *arg)
 	}
 
 out:
-	ep->state = DISCONNECTED;
-	disconnect_controller(ep);
+	disconnect_controller(ep, 0);
 	free(ep);
 
 	pthread_exit(NULL);
@@ -339,20 +339,20 @@ static int run_pseudo_target_for_host(struct fi_info *prov)
 	if (ret) {
 		print_err("unable to accept host connect");
 		print_err("run_pseudo_target returned %d", ret);
-		goto err;
+		goto err1;
 	}
 
 	pthread_attr_init(&pthread_attr);
 	ret = pthread_create(&pthread, &pthread_attr, host_thread, ep);
 	if (ret) {
 		print_err("failed to start host thread");
-		goto err;
+		goto err2;
 	}
 
 	return 0;
-err:
-	ep->state = DISCONNECTED;
-	disconnect_controller(ep);
+err2:
+	disconnect_controller(ep, 1);
+err1:
 	free(ep);
 
 	return ret;

@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-//#include <json-c/json.h>
+
 #include <jansson.h>
 
 #include "json.h"
@@ -51,8 +51,8 @@
 
 static int list_array(json_t *array, int formatted)
 {
-	json_t *obj;
-	int i, cnt;
+	json_t			*obj;
+	int			 i, cnt;
 
 	cnt = json_array_size(array);
 	if (!cnt)
@@ -64,8 +64,7 @@ static int list_array(json_t *array, int formatted)
 			printf("%s\"%s\"", i ? ", " : "",
 			       json_string_value(obj));
 		else
-			printf("%s%s", i ? "\n" : "",
-			       json_string_value(obj));
+			printf("%s%s", i ? "\n" : "", json_string_value(obj));
 	}
 
 	if (!formatted)
@@ -76,7 +75,7 @@ static int list_array(json_t *array, int formatted)
 
 void show_ctrl_list(json_t *parent, int formatted)
 {
-	json_t *array;
+	json_t			*array;
 
 	if (formatted)
 		printf("{ \"%s\": [ ", TAG_CTRLS);
@@ -92,10 +91,10 @@ void show_ctrl_list(json_t *parent, int formatted)
 
 static void show_subsys(json_t *parent, int formatted)
 {
-	json_t *array;
-	json_t *iter;
-	json_t *obj;
-	int i, cnt;
+	json_t			*array;
+	json_t			*iter;
+	json_t			*obj;
+	int			 i, cnt;
 
 	array = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (!array)
@@ -120,8 +119,7 @@ static void show_subsys(json_t *parent, int formatted)
 			printf("%s\n    { \"%s\": \"%s\"", i ? "," : "",
 			       TAG_NQN, json_string_value(obj));
 		else
-			printf("%s%s ", i ? ", " : "",
-			       json_string_value(obj));
+			printf("%s%s ", i ? ", " : "", json_string_value(obj));
 
 		obj = json_object_get(iter, TAG_ALLOW_ALL);
 		if (obj) {
@@ -149,8 +147,8 @@ err:
 
 static void show_transport(json_t *parent, int formatted)
 {
-	json_t *iter;
-	json_t *obj;
+	json_t			*iter;
+	json_t			*obj;
 
 	iter = json_object_get(parent, TAG_TRANSPORT);
 	if (!iter)
@@ -207,8 +205,8 @@ err:
 
 void show_ctrl_data(json_t *parent, int formatted)
 {
-	json_t *ctrl;
-	json_t *attrs;
+	json_t			*ctrl;
+	json_t			*attrs;
 
 	ctrl = json_object_get(parent, TAG_CTRLS);
 	if (!ctrl)
@@ -219,8 +217,7 @@ void show_ctrl_data(json_t *parent, int formatted)
 		return;
 
 	if (formatted)
-		printf("{\n  \"%s\": %s", TAG_ALIAS,
-		       json_string_value(attrs));
+		printf("{\n  \"%s\": %s", TAG_ALIAS, json_string_value(attrs));
 	else
 		printf("Controller %s ", json_string_value(attrs));
 
@@ -246,7 +243,7 @@ void show_ctrl_data(json_t *parent, int formatted)
 
 void show_host_list(json_t *parent, int formatted)
 {
-	json_t *array;
+	json_t			*array;
 
 	if (formatted)
 		printf("{ \"%s\": [ ", TAG_HOSTS);
@@ -262,10 +259,10 @@ void show_host_list(json_t *parent, int formatted)
 
 static void show_acl(json_t *parent, int formatted)
 {
-	json_t *array;
-	json_t *iter;
-	json_t *obj;
-	int i, n, cnt;
+	json_t			*array;
+	json_t			*iter;
+	json_t			*obj;
+	int			 i, n, cnt;
 
 	array = json_object_get(parent, TAG_ACL);
 	if (!array)
@@ -290,8 +287,7 @@ static void show_acl(json_t *parent, int formatted)
 			printf("%s\n    { \"%s\": \"%s\"", i ? "," : "",
 			       TAG_NQN, json_string_value(obj));
 		else
-			printf("%s%s ", i ? ", " : "",
-			       json_string_value(obj));
+			printf("%s%s ", i ? ", " : "", json_string_value(obj));
 
 		obj = json_object_get(iter, TAG_ACCESS);
 		if (obj) {
@@ -325,8 +321,8 @@ err:
 
 void show_host_data(json_t *parent, int formatted)
 {
-	json_t *host;
-	json_t *obj;
+	json_t			*host;
+	json_t			*obj;
 
 	host = json_object_get(parent, TAG_HOSTS);
 	if (!host)
@@ -352,10 +348,10 @@ void show_host_data(json_t *parent, int formatted)
 
 void show_config(json_t *parent, int formatted)
 {
-	json_t *array;
-	json_t *iter;
-	json_t *obj;
-	int i, cnt;
+	json_t			*array;
+	json_t			*iter;
+	json_t			*obj;
+	int			 i, cnt;
 
 	array = json_object_get(parent, TAG_INTERFACES);
 	if (!array)

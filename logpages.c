@@ -21,13 +21,14 @@
 
 #include "common.h"
 
-//#define DEBUG_LOG_PAGES
+// #define DEBUG_LOG_PAGES
 
 static const char *arg_str(const char * const *strings, size_t array_size,
 			   size_t idx)
 {
 	if (idx < array_size && strings[idx])
 		return strings[idx];
+
 	return "unrecognized";
 }
 
@@ -148,7 +149,7 @@ static int get_logpages(struct controller *ctrl,
 #endif
 
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
-		sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
+		   sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
 	ret = send_get_log_page(&ctrl->ep, log_size, &log);
 	if (ret) {
@@ -165,9 +166,8 @@ static int get_logpages(struct controller *ctrl,
 	}
 
 	*logp = log;
-
 err:
-	disconnect_controller(&ctrl->ep);
+	disconnect_controller(&ctrl->ep, 0);
 
 	return ret;
 }
@@ -175,14 +175,15 @@ err:
 static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 {
 #ifdef DEBUG_LOG_PAGES
-	int i;
+	int				 i;
+	struct nvmf_disc_rsp_page_entry *e;
 
-	print_debug("Discovery Log Number of Records %d, "
-		    "Generation counter %"PRIu64"",
-		    numrec, (uint64_t)le64toh(log->genctr));
+	print_debug("%s %d, %s %" PRIu64,
+		    "Discovery Log Number of Records", numrec,
+		    "Generation counter", (uint64_t)le64toh(log->genctr));
 
 	for (i = 0; i < numrec; i++) {
-		struct nvmf_disc_rsp_page_entry *e = &log->entries[i];
+		e = &log->entries[i];
 
 		print_debug("=====Discovery Log Entry %d======", i);
 		print_debug("trtype:  %s", trtype_str(e->trtype));
@@ -216,9 +217,9 @@ static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 			   struct controller *ctrl)
 {
-	int			i;
-	int			found;
-	struct subsystem	*subsys;
+	int				 i;
+	int				 found;
+	struct subsystem		*subsys;
 	struct nvmf_disc_rsp_page_entry *e;
 
 	for (i = 0; i < numrec; i++) {

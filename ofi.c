@@ -29,8 +29,7 @@
 #include <rdma/fi_rma.h>
 
 #include "common.h"
-#include "nvme.h"
-#include "nvme-rdma.h"
+#include "incl/nvme-rdma.h"
 
 #define IDLE_TIMEOUT 100
 #define PAGE_SIZE 4096
@@ -40,7 +39,7 @@
 
 void dump(u8 *buf, int len)
 {
-	int i, j;
+	int			 i, j;
 
 	for (i = j = 0; i < len; i++) {
 		printf("%02x ", buf[i]);
@@ -51,8 +50,8 @@ void dump(u8 *buf, int len)
 
 void print_cq_error(struct fid_cq *cq, int n)
 {
-	int rc;
-	struct fi_cq_err_entry entry = { 0 };
+	int			 rc;
+	struct fi_cq_err_entry	 entry = { NULL };
 
 	if (n < 0)
 		n = -n;
@@ -75,10 +74,10 @@ void print_cq_error(struct fid_cq *cq, int n)
 	}
 }
 
-void print_eq_error(struct fid_eq *eq, int n)
+static void print_eq_error(struct fid_eq *eq, int n)
 {
-	int rc;
-	struct fi_eq_err_entry eqe = { 0 };
+	int			 rc;
+	struct fi_eq_err_entry	 eqe = { NULL };
 
 	if (n < 0)
 		n = -n;
@@ -104,7 +103,7 @@ void print_eq_error(struct fid_eq *eq, int n)
 void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr)
 {
 	void			*buf;
-	int			ret;
+	int			 ret;
 
 	if (posix_memalign(&buf, PAGE_SIZE, size)) {
 		print_err("no memory for buffer, errno %d", errno);
@@ -130,8 +129,8 @@ out:
 static int init_fabric(struct endpoint *ep)
 {
 	struct qe		*qe;
-	int			i;
-	int			ret;
+	int			 i;
+	int			 ret;
 
 	ret = fi_fabric(ep->prov->fabric_attr, &ep->fab, NULL);
 	if (ret) {
@@ -171,9 +170,9 @@ static int init_endpoint(struct endpoint *ep, char *provider, char *node,
 			 char *srvc)
 {
 	struct fi_info		*hints;
-	int			ret;
+	int			 ret;
 
-	ep->state		= DISCONNECTED;
+	ep->state = DISCONNECTED;
 
 	hints = fi_allocinfo();
 	if (!hints) {
@@ -208,7 +207,7 @@ static int init_listener(struct listener *pep, char *provider, char *node,
 			 char *srvc)
 {
 	struct fi_info		*hints;
-	int			ret;
+	int			 ret;
 
 	hints = fi_allocinfo();
 	if (!hints) {
@@ -259,8 +258,8 @@ free_info:
 
 static int server_listen(struct listener *pep)
 {
-	struct fi_eq_attr	eq_attr = { 0 };
-	int			ret;
+	struct fi_eq_attr	 eq_attr = { 0 };
+	int			 ret;
 
 	ret = fi_eq_open(pep->fab, &eq_attr, &pep->peq, NULL);
 	if (ret) {
@@ -288,9 +287,9 @@ static int server_listen(struct listener *pep)
 
 int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info)
 {
-	struct fi_eq_cm_entry	entry;
-	uint32_t		event;
-	int			ret;
+	struct fi_eq_cm_entry	 entry;
+	uint32_t		 event;
+	int			 ret;
 
 	while (!stopped) {
 		ret = fi_eq_sread(pep->peq, &event, &entry, sizeof(entry),
@@ -318,10 +317,10 @@ int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info)
 
 static int accept_connection(struct endpoint *ep)
 {
-	struct fi_eq_cm_entry	entry;
-	uint32_t		event;
-	int			ret;
-	int			i;
+	struct fi_eq_cm_entry	 entry;
+	uint32_t		 event;
+	int			 ret;
+	int			 i;
 
 	for (i = 0; i < NVMF_DQ_DEPTH; i++) {
 		ret = fi_recv(ep->ep, ep->qe[i].buf, BUF_SIZE,
@@ -357,9 +356,9 @@ static int accept_connection(struct endpoint *ep)
 
 static int create_endpoint(struct endpoint *ep, struct fi_info *info)
 {
-	struct fi_eq_attr	eq_attr = { 0 };
-	struct fi_cq_attr	cq_attr = { 0 };
-	int			ret;
+	struct fi_eq_attr	 eq_attr = { 0 };
+	struct fi_cq_attr	 cq_attr = { 0 };
+	int			 ret;
 
 	info->ep_attr->tx_ctx_cnt = 1;
 	info->ep_attr->rx_ctx_cnt = 2;
@@ -490,9 +489,9 @@ out:
 	return ret;
 }
 
-void cleanup_endpoint(struct endpoint *ep)
+static void cleanup_endpoint(struct endpoint *ep, int shutdown)
 {
-	if (ep->state != DISCONNECTED)
+	if (shutdown && (ep->state != DISCONNECTED))
 		fi_shutdown(ep->ep, 0);
 
 	if (ep->qe) {
@@ -862,12 +861,12 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *msg, int len)
 	return 0;
 }
 
-void disconnect_controller(struct endpoint *ep)
+void disconnect_controller(struct endpoint *ep, int shutdown)
 {
-	if (ep->state == CONNECTED)
+	if (shutdown && (ep->state == CONNECTED))
 		send_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
 
-	cleanup_endpoint(ep);
+	cleanup_endpoint(ep, shutdown);
 
 	if (ep->qe)
 		free(ep->qe);

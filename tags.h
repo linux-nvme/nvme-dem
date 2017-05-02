@@ -33,9 +33,9 @@
 #define TARGET_HOST		"host"
 #define TARGET_DEM		"dem"
 
-#define CTRL_LEN		(sizeof(TARGET_CTRL)-1)
-#define HOST_LEN		(sizeof(TARGET_HOST)-1)
-#define DEM_LEN			(sizeof(TARGET_DEM)-1)
+#define CTRL_LEN		(sizeof(TARGET_CTRL) - 1)
+#define HOST_LEN		(sizeof(TARGET_HOST) - 1)
+#define DEM_LEN			(sizeof(TARGET_DEM) - 1)
 
 #define METHOD_SHUTDOWN		"shutdown"
 #define METHOD_APPLY		"apply"

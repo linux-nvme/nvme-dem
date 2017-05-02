@@ -87,7 +87,8 @@ struct json_context {
 				z = json_object(); \
 				json_object_set_new(x, y, z); \
 			} else if (!json_is_object(z)) \
-				fprintf(stderr, "%s(%d) Bad Target expect object\n", \
+				fprintf(stderr, \
+					"%s(%d) Bad Target expect object\n", \
 					__func__, __LINE__), z = NULL; \
 		} else \
 			fprintf(stderr, "%s(%d) Bad Group Object\n", \
@@ -101,7 +102,8 @@ struct json_context {
 				z = json_array(); \
 				json_object_set_new(x, y, z); \
 			} else if (!json_is_array(z)) \
-				fprintf(stderr, "%s(%d) Bad Target expect array\n", \
+				fprintf(stderr, \
+					"%s(%d) Bad Target expect array\n", \
 					__func__, __LINE__), z = NULL; \
 		} else \
 			fprintf(stderr, "%s(%d) Bad Group Object\n", \

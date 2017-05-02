@@ -19,6 +19,8 @@
 
 #include "curl.h"
 
+// #define DEBUG_CURL
+
 struct curl_context {
 	CURL *curl;
 	char *write_data;	/* used in write_cb */
@@ -29,9 +31,9 @@ struct curl_context {
 
 static size_t read_cb(char *p, size_t size, size_t n, void *stream)
 {
-	struct curl_context *ctx = stream;
-	int len = size * n;
-	int cnt;
+	struct curl_context	*ctx = stream;
+	int			 len = size * n;
+	int			 cnt;
 
 	if (!ctx->read_sz)
 		cnt = 0;
@@ -51,8 +53,8 @@ static size_t read_cb(char *p, size_t size, size_t n, void *stream)
 
 static size_t write_cb(void *contents, size_t size, size_t n, void *p)
 {
-	struct curl_context *ctx = p;
-	size_t bytes = size * n;
+	struct curl_context	*ctx = p;
+	size_t			 bytes = size * n;
 
 	ctx->write_data = realloc(ctx->write_data, ctx->write_sz + bytes + 1);
 	if (ctx->write_data == NULL) {
@@ -69,8 +71,8 @@ static size_t write_cb(void *contents, size_t size, size_t n, void *p)
 
 void *init_curl(void)
 {
-	CURL *curl;
-	struct curl_context *ctx;
+	CURL			*curl;
+	struct curl_context	*ctx;
 
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx) {
@@ -92,10 +94,10 @@ void *init_curl(void)
 	ctx->write_sz = 0;    /* no data at this point */
 	ctx->write_data[0] = 0;
 
-	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
-	curl_easy_setopt(curl, CURLOPT_WRITEDATA, (void *) ctx);
-	curl_easy_setopt(curl, CURLOPT_READFUNCTION, read_cb);
-	curl_easy_setopt(curl, CURLOPT_READDATA, (void *) ctx);
+	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION,	(void *) write_cb);
+	curl_easy_setopt(curl, CURLOPT_WRITEDATA,	(void *) ctx);
+	curl_easy_setopt(curl, CURLOPT_READFUNCTION,	(void *) read_cb);
+	curl_easy_setopt(curl, CURLOPT_READDATA,	(void *) ctx);
 
 	ctx->curl = curl;
 
@@ -104,8 +106,8 @@ void *init_curl(void)
 
 void cleanup_curl(void *p)
 {
-	struct curl_context *ctx = p;
-	CURL *curl = ctx->curl;
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
 
 	curl_easy_cleanup(curl);
 
@@ -117,14 +119,16 @@ void cleanup_curl(void *p)
 
 static int exec_curl(struct curl_context *ctx, char *url, char **p)
 {
-	CURL *curl = ctx->curl;
-	CURLcode ret;
+	CURL			*curl = ctx->curl;
+	CURLcode		 ret;
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 
 	ret = curl_easy_perform(curl);
 
+#ifdef DEBUG_CURL
 	printf("%s\n", url);
+#endif
 
 	if (!ret)
 		*p = ctx->write_data;
@@ -145,9 +149,9 @@ static int exec_curl(struct curl_context *ctx, char *url, char **p)
 
 int exec_get(void *p, char *url, char **result)
 {
-	struct curl_context *ctx = p;
-	CURL *curl = ctx->curl;
-	int ret;
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	int			 ret;
 
 	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
@@ -160,10 +164,10 @@ int exec_get(void *p, char *url, char **result)
 
 int exec_put(void *p, char *url, char *data, int len)
 {
-	struct curl_context *ctx = p;
-	CURL *curl = ctx->curl;
-	char *result;
-	int ret;
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	char			*result;
+	int			 ret;
 
 	curl_easy_setopt(curl, CURLOPT_PUT, 1);
 
@@ -178,6 +182,7 @@ int exec_put(void *p, char *url, char *data, int len)
 		return ret;
 
 	printf("%s\n", result);
+
 	free(result);
 
 	return 0;
@@ -185,10 +190,10 @@ int exec_put(void *p, char *url, char *data, int len)
 
 int exec_post(void *p, char *url, char *data, int len)
 {
-	struct curl_context *ctx = p;
-	CURL *curl = ctx->curl;
-	char *result;
-	int ret;
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	char			*result;
+	int			 ret;
 
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, 1);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
@@ -202,6 +207,7 @@ int exec_post(void *p, char *url, char *data, int len)
 		return ret;
 
 	printf("%s\n", result);
+
 	free(result);
 
 	return 0;
@@ -209,10 +215,10 @@ int exec_post(void *p, char *url, char *data, int len)
 
 int exec_delete(void *p, char *url)
 {
-	struct curl_context *ctx = p;
-	CURL *curl = ctx->curl;
-	char *result;
-	int ret;
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	char			*result;
+	int			 ret;
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
@@ -224,6 +230,7 @@ int exec_delete(void *p, char *url)
 		return ret;
 
 	printf("%s\n", result);
+
 	free(result);
 
 	return 0;

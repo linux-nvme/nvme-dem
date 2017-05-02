@@ -263,8 +263,7 @@ int del_ctrl(void *context, char *alias)
 		for (i = 0; i < n; i++) {
 			obj = json_array_get(array, 0);
 			ss = json_object_get(obj, TAG_NQN);
-			del_subsys(ctx, alias,
-				   (char *) json_string_value(ss));
+			del_subsys(ctx, alias, (char *) json_string_value(ss));
 		}
 	}
 
@@ -495,7 +494,6 @@ int show_ctrl(void *context, char *alias, char *response)
 	json_t			*array = ctx->ctrls;
 	json_t			*obj;
 	json_t			*ctrl;
-
 	int			 i;
 
 	i = find_array(array, TAG_ALIAS, alias, &ctrl);
@@ -715,13 +713,10 @@ int del_subsys(void *context, char *alias, char *ss)
 {
 	struct json_context	*ctx = context;
 	json_t			*parent = ctx->ctrls;
-	int			 ret;
 
-	ret = del_from_array(parent, TAG_ALIAS, alias, TAG_SUBSYSTEMS, ss);
-	if (!ret)
-		del_host_acl(ctx->hosts, ss);
+	del_host_acl(ctx->hosts, ss);
 
-	return ret;
+	return del_from_array(parent, TAG_ALIAS, alias, TAG_SUBSYSTEMS, ss);
 }
 
 int rename_subsys(void *context, char *alias, char *old, char *new)
