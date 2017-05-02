@@ -3,7 +3,7 @@
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
 CFLAGS = -W -Wall -Werror -Wno-unused-function
-CFLAGS += -Imongoose -Ijansson/src
+CFLAGS += -Imongoose -Ijansson/src -Isrc -I.
 
 # ALT_CFLAGS used for sparse since mongoose has too many errors
 # a modified version of mongoose.h can be created and stored in /files
@@ -16,26 +16,26 @@ SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
-DEM_LIBS = -lpthread -lfabric -luuid libjansson.a
+DEM_LIBS = -lpthread -lfabric -luuid jansson/libjansson.a
 
-CLI_LIBS = -lcurl libjansson.a
+CLI_LIBS = -lcurl jansson/libjansson.a
 
 GDB_OPTS = -g -O0
 
-CLI_SRC = cli.c curl.c show.c
-CLI_INC = curl.h show.h tags.h
-DEM_SRC = daemon.c json.c restful.c mongoose/mongoose.c \
-	  parse.c ofi.c logpages.c interfaces.c pseudo_target.c
-DEM_INC = json.h common.h mongoose/mongoose.h tags.h
+CLI_SRC = src/cli.c src/curl.c src/show.c
+CLI_INC = src/curl.h src/show.h src/tags.h
+DEM_SRC = src/daemon.c src/json.c src/restful.c mongoose/mongoose.c \
+	  src/parse.c src/ofi.c src/logpages.c src/interfaces.c src/pseudo_target.c
+DEM_INC = src/json.h src/common.h mongoose/mongoose.h src/tags.h
 
-all: mongoose/ libjansson.a demd dem
+all: mongoose/ jansson/libjansson.a demd dem
 	echo Done.
 
-dem: ${CLI_SRC} ${CLI_INC} Makefile libjansson.a
+dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC $@
 	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS}
 
-demd: ${DEM_SRC} ${DEM_INC} Makefile libjansson.a
+demd: ${DEM_SRC} ${DEM_INC} Makefile jansson/libjansson.a
 	echo CC $@
 	gcc ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DEM_LIBS}
 
@@ -46,7 +46,7 @@ clean:
 mongoose/:
 	echo cloning github.com/cesanta/mongoose.git
 	git clone https://github.com/cesanta/mongoose.git
-	cd mongoose ; patch -p 1 < ../mongoose.patch
+	cd mongoose ; patch -p 1 < ../files/mongoose.patch
 
 jansson/Makefile.am:
 	echo cloning github.com/akheron/jansson.git
@@ -59,8 +59,8 @@ jansson/Makefile: jansson/configure
 jansson/src/.libs/libjansson.a: jansson/Makefile
 	echo building libjansson
 	cd jansson/src ; make libjansson.la >/dev/null
-libjansson.a: jansson/src/.libs/libjansson.a
-	cp jansson/src/.libs/libjansson.a .
+jansson/libjansson.a: jansson/src/.libs/libjansson.a
+	cp jansson/src/.libs/libjansson.a jansson
 
 # hard coded path to nvme-cli
 get_logpages:
@@ -110,7 +110,7 @@ run_test: archive/run_test.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
-	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile *.c *.h *.patch
+	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile src/ files/ incl/
 
 test_cli: dem
 	./dem list ctrl
