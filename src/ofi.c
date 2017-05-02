@@ -491,13 +491,16 @@ out:
 
 static void cleanup_endpoint(struct endpoint *ep, int shutdown)
 {
+
 	if (shutdown && (ep->state != DISCONNECTED))
 		fi_shutdown(ep->ep, 0);
 
 	if (ep->qe) {
 		int i;
-		for (i = 0; i < NVMF_DQ_DEPTH; i++)
+		for (i = 0; i < NVMF_DQ_DEPTH; i++) {
 			fi_close(&ep->qe[i].recv_mr->fid);
+			free(ep->qe[i].buf);
+		}
 	}
 	if (ep->data_mr) {
 		fi_close(&ep->data_mr->fid);

@@ -226,6 +226,7 @@ simple_test:
 	rm -f config.json
 	make config.json
 	./dem apply
+	make get_logpages
 	make del_ctrls
 	make del_hosts
 	./dem apply
