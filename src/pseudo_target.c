@@ -388,6 +388,8 @@ void *interface_thread(void *arg)
 		goto out;
 	}
 
+	signal(SIGTERM, SIG_IGN);
+
 	while (!stopped) {
 		ret = pseudo_target_check_for_host(listener, &info);
 		if (ret == 0)

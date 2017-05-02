@@ -45,6 +45,7 @@ struct interface			*interfaces;
 int					 num_interfaces;
 struct list_head			*ctrl_list = &controller_list;
 static pthread_t			*listen_threads;
+static int				 signalled;
 
 void shutdown_dem(void)
 {
@@ -53,11 +54,9 @@ void shutdown_dem(void)
 
 static void signal_handler(int sig_num)
 {
-	signal(sig_num, signal_handler);
-	if (!stopped) {
-		stopped = 1;
-		printf("\n");
-	}
+	signalled = sig_num;
+
+	shutdown_dem();
 }
 
 static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
@@ -378,7 +377,7 @@ int main(int argc, char *argv[])
 
 	init_controllers();
 
-	stopped = 0;
+	signalled = stopped = 0;
 
 	print_info("Starting server on port %s, serving '%s'",
 		   s_http_port, s_http_server_opts.document_root);
@@ -389,6 +388,9 @@ int main(int argc, char *argv[])
 	poll_loop(&mgr);
 
 	cleanup_threads(listen_threads);
+
+	if (signalled)
+		printf("\n");
 
 	ret = 0;
 out3:
