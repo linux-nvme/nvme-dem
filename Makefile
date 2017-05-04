@@ -9,7 +9,7 @@ CFLAGS += -Imongoose -Ijansson/src -Isrc -I.
 # a modified version of mongoose.h can be created and stored in /files
 # for sparse testing but is not valid for executable
 ALT_CFLAGS = -W -Wall -Werror -Wno-unused-function
-ALT_CFLAGS += -Ifiles -Ijansson/src
+ALT_CFLAGS += -Ifiles -Ijansson/src -Isrc -I.
 
 SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 
@@ -219,7 +219,7 @@ memcheck: demd
 sparse:
 	echo running sparse of each .c file with options
 	echo "${SPARSE_OPTS}"
-	for i in *.c ; do sparse $$i ${SPARSE_OPTS} ; done
+	for i in src/*.c ; do sparse $$i ${SPARSE_OPTS} ; done
 	echo Done.
 
 simple_test:
