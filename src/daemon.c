@@ -313,8 +313,7 @@ static int init_interface_threads(pthread_t **listen_threads)
 
 	for (i = 0; i < num_interfaces; i++) {
 		if (pthread_create(&pthreads[i], &pthread_attr,
-				   interface_thread,
-				   &(interfaces[i]))) {
+				   interface_thread, &(interfaces[i]))) {
 			print_err("failed to start transport thread");
 			free(pthreads);
 			return 1;

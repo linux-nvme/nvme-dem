@@ -288,9 +288,9 @@ static void *host_thread(void *arg)
 	int			 retry_count = RETRY_COUNT;
 	int			 ret;
 
-	while (!stopped) {
-		/* Listen and service Host requests */
+	/* Listen and service Host requests */
 
+	while (!stopped) {
 		ret = fi_eq_read(ep->eq, &event, &entry, sizeof(entry), 0);
 		if (ret == sizeof(entry))
 			if (event == FI_SHUTDOWN)
@@ -343,6 +343,8 @@ static int run_pseudo_target_for_host(struct fi_info *prov)
 	}
 
 	pthread_attr_init(&pthread_attr);
+	pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_DETACHED);
+
 	ret = pthread_create(&pthread, &pthread_attr, host_thread, ep);
 	if (ret) {
 		print_err("failed to start host thread");

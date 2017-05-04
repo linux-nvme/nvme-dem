@@ -189,6 +189,10 @@ static int init_endpoint(struct endpoint *ep, char *provider, char *node,
 	hints->fabric_attr->prov_name	= strdup(provider);
 
 	ret = fi_getinfo(FI_VER, node, srvc, 0, hints, &ep->prov);
+
+	free(hints->fabric_attr->prov_name);
+	hints->fabric_attr->prov_name = NULL;
+
 	fi_freeinfo(hints);
 
 	if (ret) {
@@ -224,6 +228,10 @@ static int init_listener(struct listener *pep, char *provider, char *node,
 	hints->fabric_attr->prov_name	= strdup(provider);
 
 	ret = fi_getinfo(FI_VER, node, srvc, FI_SOURCE, hints, &pep->prov);
+
+	free(hints->fabric_attr->prov_name);
+	hints->fabric_attr->prov_name = NULL;
+
 	fi_freeinfo(hints);
 
 	if (ret) {
@@ -292,6 +300,11 @@ int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info)
 	int			 ret;
 
 	while (!stopped) {
+		if (!pep->peq) {
+			usleep(100);
+			continue;
+		}
+
 		ret = fi_eq_sread(pep->peq, &event, &entry, sizeof(entry),
 				  CTIMEOUT, 0);
 		if (ret == sizeof(entry))
