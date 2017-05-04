@@ -163,11 +163,13 @@ static int delete_ctrl_request(void *ctx, char *ctrl, char *ss, char *resp)
 	if (ss) {
 		ret = del_subsys(ctx, ctrl, ss);
 		if (!ret)
-			sprintf(resp, "Subsystem %s deleted "
-				"from Controller %s", ss, ctrl);
+			sprintf(resp,
+				"Subsystem %s deleted from Controller %s",
+				ss, ctrl);
 		else {
-			sprintf(resp, "Subsystem %s not found "
-				"for Controller %s", ss, ctrl);
+			sprintf(resp,
+				"Subsystem %s not found for Controller %s",
+				ss, ctrl);
 			ret = HTTP_ERR_NOT_FOUND;
 			goto out;
 		}
@@ -262,8 +264,8 @@ static int post_ctrl_request(void *ctx, char *ctrl, char *ss,
 		if (ss) {
 			ret = rename_subsys(ctx, ctrl, ss, new);
 			if (ret) {
-				sprintf(resp, "Subsystem %s not found or "
-					"%s already exists for Controllor %s",
+				sprintf(resp,
+	"Subsystem %s not found or %s already exists for Controllor %s",
 					ss, ctrl, new);
 				ret = HTTP_ERR_NOT_FOUND;
 				goto out;
@@ -275,8 +277,8 @@ static int post_ctrl_request(void *ctx, char *ctrl, char *ss,
 			ret = rename_ctrl(ctx, ctrl, new);
 
 			if (ret) {
-				sprintf(resp, "Controller %s not found or "
-					"%s already exists", ctrl, new);
+				sprintf(resp,
+	"Controller %s not found or %s already exists", ctrl, new);
 				ret = HTTP_ERR_NOT_FOUND;
 				goto out;
 			}

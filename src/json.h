@@ -70,14 +70,18 @@ struct json_context {
 #define json_set_string(x, y, z) \
 	do { \
 		tmp = json_object_get(x, y); \
-		if (tmp) json_string_set(tmp, z); \
-		else json_object_set_new(x, y, json_string(z)); \
+		if (tmp) \
+			json_string_set(tmp, z); \
+		else \
+			json_object_set_new(x, y, json_string(z)); \
 	} while (0)
 #define json_set_int(x, y, z) \
 	do {\
 		tmp = json_object_get(x, y); \
-		if (tmp) json_integer_set(tmp, z); \
-		else json_object_set_new(x, y, json_integer(z)); \
+		if (tmp) \
+			json_integer_set(tmp, z); \
+		else \
+			json_object_set_new(x, y, json_integer(z)); \
 	} while (0)
 #define json_get_subgroup(x, y, z) \
 	do { \

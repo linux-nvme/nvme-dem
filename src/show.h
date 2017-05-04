@@ -19,5 +19,5 @@ void show_host_list(json_t *parent, int formatted);
 void show_config(json_t *parent, int formatted);
 
 #ifndef UNUSED
-#define UNUSED(x) (void) x
+#define UNUSED(x) ((void) x)
 #endif

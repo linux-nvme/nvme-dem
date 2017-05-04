@@ -27,7 +27,7 @@ int refresh_ctrl(char *alias)
 {
 	struct controller	*ctrl;
 
-	list_for_each_entry(ctrl,ctrl_list, node)
+	list_for_each_entry(ctrl, ctrl_list, node)
 		if (!strcmp(ctrl->alias, alias)) {
 			fetch_log_pages(ctrl);
 			return 0;
@@ -262,9 +262,9 @@ static int count_dem_config_files(void)
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	if (dir != NULL) {
 		while ((entry = readdir(dir))) {
-			if (!strcmp(entry->d_name,"."))
+			if (!strcmp(entry->d_name, "."))
 				continue;
-			if (!strcmp(entry->d_name,".."))
+			if (!strcmp(entry->d_name, ".."))
 				continue;
 			filecount++;
 		}
@@ -301,6 +301,7 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 static void translate_addr_to_array(struct interface *iface)
 {
 	int			 mask_bits;
+	char			*p;
 
 	if (strcmp(iface->addrfam, "ipv4") == 0)
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
@@ -314,7 +315,7 @@ static void translate_addr_to_array(struct interface *iface)
 	}
 
 	if (mask_bits) {
-		char *p = strchr(iface->address, '/');
+		p = strchr(iface->address, '/');
 		p[0] = 0;
 	}
 
@@ -333,16 +334,17 @@ static int read_dem_config_files(struct interface *iface)
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	while ((entry = readdir(dir))) {
-		if (!strcmp(entry->d_name,"."))
+		if (!strcmp(entry->d_name, "."))
 			continue;
 
-		if (!strcmp(entry->d_name,".."))
+		if (!strcmp(entry->d_name, ".."))
 			continue;
 
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
-		if ((fid = fopen(config_file,"r")) != NULL) {
+		fid = fopen(config_file, "r");
+		if (fid != NULL) {
 			while (!feof(fid))
 				read_dem_config(fid, &iface[count]);
 

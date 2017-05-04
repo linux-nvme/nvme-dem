@@ -288,7 +288,8 @@ static void cleanup_threads(pthread_t *listen_threads)
 
 	/* even thought the threads are finished, need to call join
 	 * otherwize, it will not release its memory and valgrind indicates
-	 * a leak */
+	 * a leak
+	 */
 
 	for (i = 0; i < num_interfaces; i++)
 		pthread_join(listen_threads[i], NULL);

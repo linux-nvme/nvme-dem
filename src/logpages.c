@@ -63,7 +63,8 @@ static const char * const subtypes[] = {
 
 static inline const char *subtype_str(u8 subtype)
 {
-	return arg_str(subtypes, ARRAY_SIZE(subtypes), subtype);
+	return arg_str(subtypes, ARRAY_SIZE(subtypes),
+		       subtype);
 }
 
 static const char * const treqs[] = {
@@ -159,7 +160,7 @@ static int get_logpages(struct controller *ctrl,
 	}
 
 	if ((*numrec != le32toh(log->numrec)) ||
-	    ( genctr != le64toh(log->genctr))) {
+	    (genctr != le64toh(log->genctr))) {
 		print_err("# records for last two get log pages not equal");
 		ret = -EINVAL;
 		goto err;

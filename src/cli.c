@@ -35,6 +35,9 @@ int formatted;
 
 enum { HUMAN = 0, RAW = -1, JSON = 1 };
 
+#define JSSTR		"\"%s\" : \"%s\""
+#define JSINT		"\"%s\" : %d"
+
 struct verbs {
 	int		(*function)(void *ctx, char *base, int n, char **p);
 	int		 target;
@@ -237,11 +240,9 @@ static int set_ctrl(void *ctx, char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
 	len = snprintf(data, sizeof(data),
-			"{ \"%s\" : \"%s\", \"%s\" : \"%s\", "
-			"\"%s\" : \"%s\", \"%s\" : %d, \"%s\" : %d }",
-			TAG_TYPE, type, TAG_FAMILY, family,
-			TAG_ADDRESS, address, TAG_PORT, port,
-			TAG_REFRESH, refresh);
+		"{ " JSSTR ", " JSSTR ", " JSSTR ", " JSINT ", " JSINT " }",
+		TAG_TYPE, type, TAG_FAMILY, family, TAG_ADDRESS, address,
+		TAG_PORT, port, TAG_REFRESH, refresh);
 
 	return exec_put(ctx, url, data, len);
 }
@@ -259,8 +260,8 @@ static int set_subsys(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
-	len = snprintf(data, sizeof(data), "{ \"%s\" : %d }",
-		       TAG_ALLOW_ALL, allow_all);
+	len = snprintf(data, sizeof(data),
+		"{ " JSINT " }", TAG_ALLOW_ALL, allow_all);
 
 	return exec_put(ctx, url, data, len);
 }
@@ -278,8 +279,7 @@ static int set_acl(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
-	len = snprintf(data, sizeof(data), "{ \"%s\" : %d }",
-		       TAG_ACCESS, access);
+	len = snprintf(data, sizeof(data), "{ " JSINT " }", TAG_ACCESS, access);
 
 	return exec_put(ctx, url, data, len);
 }

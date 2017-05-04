@@ -38,29 +38,34 @@
 
 #define FI_VER		FI_VERSION(1, 0)
 
-#define print_debug(f, x...) do { \
-	if (debug) { \
-		printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
-		fflush(stdout); \
-	}} while (0)
-#define print_info(f, x...) do { \
-	printf(f "\n", ##x); \
-	fflush(stdout); \
+#define print_debug(f, x...) \
+	do { \
+		if (debug) { \
+			printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
+			fflush(stdout); \
+		} \
 	} while (0)
-#define print_err(f, x...) do { \
-	fprintf(stderr, "%s(%d) Error: " f "\n", __func__, __LINE__, ##x); \
-	fflush(stderr); \
+#define print_info(f, x...)\
+	do { \
+		printf(f "\n", ##x); \
+		fflush(stdout); \
+	} while (0)
+#define print_err(f, x...)\
+	do { \
+		fprintf(stderr, "%s(%d) Error: " f "\n", \
+			__func__, __LINE__, ##x); \
+		fflush(stderr); \
 	} while (0)
 
-#define UNUSED(x) (void) x
+#define UNUSED(x) ((void) x)
 
 #define min(x, y) ((x < y) ? x : y)
 
-#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+#define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
 #ifndef ARRAY_SIZE
-#define ARRAY_SIZE(array) (sizeof(array) / sizeof(array[0]))
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
 
 extern int			 debug;

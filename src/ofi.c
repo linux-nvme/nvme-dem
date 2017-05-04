@@ -43,9 +43,14 @@ void dump(u8 *buf, int len)
 
 	for (i = j = 0; i < len; i++) {
 		printf("%02x ", buf[i]);
-		if (++j == 16) printf("\n"), j= 0;
+		if (++j == 16) {
+			printf("\n");
+			j = 0;
+		}
 	}
-	if (j) printf("\n");
+
+	if (j)
+		printf("\n");
 }
 
 void print_cq_error(struct fid_cq *cq, int n)
@@ -504,12 +509,12 @@ out:
 
 static void cleanup_endpoint(struct endpoint *ep, int shutdown)
 {
+	int			 i;
 
 	if (shutdown && (ep->state != DISCONNECTED))
 		fi_shutdown(ep->ep, 0);
 
 	if (ep->qe) {
-		int i;
 		for (i = 0; i < NVMF_DQ_DEPTH; i++) {
 			fi_close(&ep->qe[i].recv_mr->fid);
 			free(ep->qe[i].buf);
@@ -766,7 +771,7 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 
 	memset(cmd, 0, BUF_SIZE);
 
-	size  = htole32((log_size / 4) -1);
+	size  = htole32((log_size / 4) - 1);
 	numdl = size & 0xffff;
 	numdu = (size >> 16) & 0xffff;
 
