@@ -329,28 +329,28 @@ static int init_interface_threads(pthread_t **listen_threads)
 
 int restart_dem(void)
 {
-	int			ret;
+	int			ret = 1;
 
 	stopped = 2;
 
-	cleanup_threads(listen_threads);
+	//cleanup_threads(listen_threads);
 
-	free(interfaces);
+	//free(interfaces);
 
 	cleanup_controllers();
 
 	stopped = 0;
 
-	ret = init_interfaces();
-	if (ret <= 0)
-		return ret;
+	//ret = init_interfaces();
+	//if (ret <= 0)
+		//return ret;
 
-	num_interfaces = ret;
+	//num_interfaces = ret;
 
 	init_controllers();
 
-	if (init_interface_threads(&listen_threads))
-		ret = -ENODATA;
+	//if (init_interface_threads(&listen_threads))
+		//ret = -ENODATA;
 
 	return ret;
 }

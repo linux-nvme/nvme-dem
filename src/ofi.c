@@ -450,6 +450,9 @@ static int client_connect(struct endpoint *ep)
 		return -ENOMEM;
 
 	for (i = 0; i < NVMF_DQ_DEPTH; i++) {
+		if (!ep->qe[i].recv_mr)
+			return -ENOMEM;
+
 		ret = fi_recv(ep->ep, ep->qe[i].buf, BUF_SIZE,
 			      fi_mr_desc(ep->qe[i].recv_mr), 0, &ep->qe[i]);
 		if (ret) {
@@ -884,9 +887,6 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *msg, int len)
 
 void disconnect_controller(struct endpoint *ep, int shutdown)
 {
-	if (shutdown && (ep->state == CONNECTED))
-		send_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
-
 	cleanup_endpoint(ep, shutdown);
 
 	if (ep->qe)

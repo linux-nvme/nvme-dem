@@ -279,17 +279,72 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 	send_msg_and_repost(ep, qe, resp, sizeof(*resp));
 }
 
+#define HOST_QUEUE_MAX 3 /* min of 3 otherwise cannot tell if full */
+struct host_queue {
+	struct endpoint         *ep[HOST_QUEUE_MAX];
+	int			tail, head;
+};
+
+static inline int is_empty(struct host_queue *q)
+{
+        return q->head == q->tail;
+}
+static inline int is_full(struct host_queue *q)
+{
+        return ((q->head + 1) % HOST_QUEUE_MAX) == q->tail;
+}
+#ifdef DEBUG_HOST_QUEUE
+static inline void dump_queue(struct host_queue *q)
+{
+	print_debug("ep { %p, %p, %p }, tail %d, head %d",
+		    q->ep[0], q->ep[1], q->ep[2], q->tail, q->head);
+}
+#endif
+static inline int add_one(struct host_queue *q, struct endpoint *ep)
+{
+        if (is_full(q))
+                return -1;
+
+        q->ep[q->head] = ep;
+        q->head = (q->head + 1) % HOST_QUEUE_MAX;
+#ifdef DEBUG_HOST_QUEUE
+	dump_queue(q);
+#endif
+        return 0;
+}
+static inline int take_one(struct host_queue *q, struct endpoint **ep)
+{
+        if (is_empty(q)) 
+                return -1;
+
+	if (!q->ep[q->tail])
+		return 1;
+
+        *ep = q->ep[q->tail];
+        q->ep[q->tail] = NULL;
+        q->tail = (q->tail + 1) % HOST_QUEUE_MAX;
+#ifdef DEBUG_HOST_QUEUE
+	dump_queue(q);
+#endif
+        return 0;
+}
+
 static void *host_thread(void *arg)
 {
-	struct endpoint		*ep = arg;
+	struct host_queue	*q = arg;
+	struct endpoint		*ep = NULL;
 	struct fi_cq_err_entry	 comp;
 	struct fi_eq_cm_entry	 entry;
 	uint32_t		 event;
 	int			 retry_count = RETRY_COUNT;
 	int			 ret;
+wait:
+	do {
+		usleep(100);
+		ret = take_one(q, &ep);
+	} while (!!ret && !stopped);
 
-	/* Listen and service Host requests */
-
+	/* Service Host requests */
 	while (!stopped) {
 		ret = fi_eq_read(ep->eq, &event, &entry, sizeof(entry), 0);
 		if (ret == sizeof(entry))
@@ -301,28 +356,37 @@ static void *host_thread(void *arg)
 			handle_request(ep, comp.op_context, comp.len);
 		else if (ret == -EAGAIN) {
 			retry_count--;
-			if (!retry_count)
+			if (retry_count <= 0)
 				goto out;
 		} else if (ret != -EINTR) {
 			print_cq_error(ep->rcq, ret);
 			break;
 		}
 	}
-
 out:
-	disconnect_controller(ep, 0);
-	free(ep);
+	if (ep) {
+		disconnect_controller(ep, 1);
+		free(ep);
+		ep = NULL;
+	}
+
+	if (stopped != 1)
+		goto wait;
+
+	while (!is_empty(q))
+		if (!take_one(q, &ep)) {
+			disconnect_controller(ep, 1);
+			free(ep);
+		}
 
 	pthread_exit(NULL);
 
 	return NULL;
 }
 
-static int run_pseudo_target_for_host(struct fi_info *prov)
+static int add_host_to_queue(struct fi_info *prov, struct host_queue *q)
 {
 	struct endpoint		*ep;
-	pthread_attr_t		 pthread_attr;
-	pthread_t		 pthread;
 	int			 ret;
 
 	ep = malloc(sizeof(*ep));
@@ -342,21 +406,16 @@ static int run_pseudo_target_for_host(struct fi_info *prov)
 		goto err1;
 	}
 
-	pthread_attr_init(&pthread_attr);
-	pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_DETACHED);
+	while (is_full(q) && !stopped)
+		usleep(100);
 
-	ret = pthread_create(&pthread, &pthread_attr, host_thread, ep);
-	if (ret) {
-		print_err("failed to start host thread");
-		goto err2;
-	}
+	add_one(q, ep);
+
+	usleep(100);
 
 	return 0;
-err2:
-	disconnect_controller(ep, 1);
 err1:
 	free(ep);
-
 	return ret;
 }
 
@@ -381,27 +440,41 @@ void *interface_thread(void *arg)
 	struct interface	*iface = arg;
 	struct listener		*listener = &iface->listener;
 	struct fi_info		*info;
+	struct host_queue	 q;
+	pthread_attr_t		 pthread_attr;
+	pthread_t		 pthread;
 	int			 ret;
 
 	ret = start_pseudo_target(listener, iface->trtype, iface->address,
 				  iface->pseudo_target_port);
 	if (ret) {
 		print_err("Failed to start pseudo target");
-		goto out;
+		goto out1;
 	}
 
 	signal(SIGTERM, SIG_IGN);
 
+	memset(&q, 0, sizeof(q));
+
+	pthread_attr_init(&pthread_attr);
+	pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_DETACHED);
+
+	ret = pthread_create(&pthread, &pthread_attr, host_thread, &q);
+	if (ret) {
+		print_err("failed to start host thread");
+		goto out2;
+	}
+
 	while (!stopped) {
 		ret = pseudo_target_check_for_host(listener, &info);
 		if (ret == 0)
-			ret = run_pseudo_target_for_host(info);
+			ret = add_host_to_queue(info, &q);
 		else if (ret != -EAGAIN && ret != -EINTR)
 			print_err("Host connection failed %d\n", ret);
 	}
-
+out2:
 	cleanup_listener(listener);
-out:
+out1:
 	num_interfaces--;
 
 	pthread_exit(NULL);
