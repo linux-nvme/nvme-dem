@@ -610,6 +610,18 @@ static inline void put_unaligned_le32(u32 val, u8 *p)
 	*p++ = (val >> 24) & 0xff;
 }
 
+static int post_cmd(struct endpoint *ep, struct nvme_command *cmd, int bytes)
+{
+	int ret;
+
+	ret = fi_send(ep->ep, cmd, bytes, fi_mr_desc(ep->send_mr),
+		      FI_ADDR_UNSPEC, NULL);
+	if (ret)
+		print_err("fi_send returned %d", ret);
+
+	return ret;
+}
+
 static int send_cmd(struct endpoint *ep, struct nvme_command *cmd, int bytes)
 {
 	struct fi_cq_err_entry	comp;
@@ -724,14 +736,11 @@ static int send_get_property(struct endpoint *ep, u32 reg)
 	return send_cmd(ep, cmd, bytes);
 }
 
-static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
+static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	u64				*data;
-	int				 bytes;
-
-	bytes = sizeof(*cmd);
 
 	data = (void *) &cmd[1];
 
@@ -749,8 +758,24 @@ static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
 	put_unaligned_le24(BUF_SIZE, sg->length);
 	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+}
 
-	return send_cmd(ep, cmd, bytes);
+static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
+{
+	struct nvme_command		*cmd = ep->cmd;
+
+	prep_set_property(ep, reg, val);
+
+	return send_cmd(ep, cmd, sizeof(*cmd));
+}
+
+static int post_set_property(struct endpoint *ep, u32 reg, u64 val)
+{
+	struct nvme_command		*cmd = ep->cmd;
+
+	prep_set_property(ep, reg, val);
+
+	return post_cmd(ep, cmd, sizeof(*cmd));
 }
 
 int send_get_log_page(struct endpoint *ep, int log_size,
@@ -887,6 +912,9 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *msg, int len)
 
 void disconnect_controller(struct endpoint *ep, int shutdown)
 {
+	if (shutdown && (ep->state == CONNECTED))
+		post_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
+
 	cleanup_endpoint(ep, shutdown);
 
 	if (ep->qe)
