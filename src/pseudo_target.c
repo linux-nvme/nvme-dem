@@ -335,7 +335,7 @@ static void *host_thread(void *arg)
 	struct endpoint		*ep = NULL;
 	struct fi_cq_err_entry	 comp;
 	struct fi_eq_cm_entry	 entry;
-	uint32_t		 event;
+	uint32_t		 event = 0;
 	int			 retry_count = RETRY_COUNT;
 	int			 ret;
 wait:
@@ -365,7 +365,7 @@ wait:
 	}
 out:
 	if (ep) {
-		disconnect_controller(ep, 1);
+		disconnect_controller(ep, event != FI_SHUTDOWN);
 		free(ep);
 		ep = NULL;
 	}
@@ -457,7 +457,6 @@ void *interface_thread(void *arg)
 	memset(&q, 0, sizeof(q));
 
 	pthread_attr_init(&pthread_attr);
-	pthread_attr_setdetachstate(&pthread_attr, PTHREAD_CREATE_DETACHED);
 
 	ret = pthread_create(&pthread, &pthread_attr, host_thread, &q);
 	if (ret) {
@@ -472,6 +471,9 @@ void *interface_thread(void *arg)
 		else if (ret != -EAGAIN && ret != -EINTR)
 			print_err("Host connection failed %d\n", ret);
 	}
+
+	pthread_join(pthread, NULL);
+
 out2:
 	cleanup_listener(listener);
 out1:
