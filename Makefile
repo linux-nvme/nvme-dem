@@ -234,6 +234,7 @@ simple_test:
 	make del_ctrls
 	make del_hosts
 	./dem apply
+	make get_logpages
 
 post_reboot:
 	sudo ssh root@host02 "cd ~cayton/nvme_scripts; ./rdma_target"
