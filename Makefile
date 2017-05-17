@@ -201,16 +201,6 @@ get16:
 
 test: put get16 post get del
 
-run: dem
-	./dem -f del c ctrl1 || echo -n
-	./dem -f del c ctrl2 || echo -n
-	./dem -f del h host01 || echo -n
-	./dem -f del h host02 || echo -n
-	sh archive/make_config.sh
-	./dem apply
-	./dem list c
-	./dem list h
-
 memcheck: demd
 	reset
 	valgrind ${VALGRIND_OPTS} --log-file=demd.vglog ./demd
