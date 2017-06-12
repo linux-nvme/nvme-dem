@@ -23,13 +23,13 @@
 #include "tags.h"
 #include "common.h"
 
-int refresh_ctrl(char *alias)
+int refresh_ctlr(char *alias)
 {
-	struct controller	*ctrl;
+	struct controller	*ctlr;
 
-	list_for_each_entry(ctrl, ctrl_list, node)
-		if (!strcmp(ctrl->alias, alias)) {
-			fetch_log_pages(ctrl);
+	list_for_each_entry(ctlr, ctlr_list, node)
+		if (!strcmp(ctlr->alias, alias)) {
+			fetch_log_pages(ctlr);
 			return 0;
 		}
 
@@ -85,8 +85,8 @@ static void check_hosts(struct subsystem *subsys, json_t *array, json_t *nqn)
 	}
 }
 
-static void check_subsystems(struct controller *ctrl, struct json_context *ctx,
-			     json_t *array)
+static void check_subsystems(struct controller *ctlr, json_t *array,
+			     json_t *hosts)
 {
 	json_t			*obj;
 	json_t			*iter;
@@ -106,44 +106,53 @@ static void check_subsystems(struct controller *ctrl, struct json_context *ctx,
 			return;
 
 		memset(subsys, 0, sizeof(*subsys));
-		subsys->ctrl = ctrl;
+		subsys->ctlr = ctlr;
 		strcpy(subsys->nqn, json_string_value(nqn));
 
 		INIT_LIST_HEAD(&subsys->host_list);
-		list_add(&subsys->node, &ctrl->subsys_list);
+		list_add(&subsys->node, &ctlr->subsys_list);
 
 		obj = json_object_get(iter, TAG_ALLOW_ALL);
 		if (obj && json_is_integer(obj))
 			subsys->access = json_integer_value(obj);
 
-		if (ctx->hosts)
-			check_hosts(subsys, ctx->hosts, nqn);
+		if (hosts)
+			check_hosts(subsys, hosts, nqn);
 	}
 }
 
-static int get_transport_info(json_t *ctrl, char *type, char *fam,
-			      char *address, char *port, int *_addr)
+static int get_transport_info(char *alias, json_t *group, char *type,
+			      char *fam, char *address, char *port, int *_addr)
 {
 	json_t			*obj;
 	char			*str;
 	int			 addr[ADDR_LEN];
 	int			 ret;
 
-	obj = json_object_get(ctrl, TAG_TYPE);
-	if (!obj)
+	obj = json_object_get(group, TAG_TYPE);
+	if (!obj) {
+		print_err("Controller '%s' error: transport type missing",
+			  alias);
 		goto out;
+	}
 	str = (char *) json_string_value(obj);
 	strncpy(type, str, CONFIG_TYPE_SIZE);
 
-	obj = json_object_get(ctrl, TAG_FAMILY);
-	if (!obj)
+	obj = json_object_get(group, TAG_FAMILY);
+	if (!obj) {
+		print_err("Controller '%s' error: transport family missing",
+			  alias);
 		goto out;
+	}
 	str = (char *) json_string_value(obj);
 	strncpy(fam, str, CONFIG_FAMILY_SIZE);
 
-	obj = json_object_get(ctrl, TAG_ADDRESS);
-	if (!obj)
+	obj = json_object_get(group, TAG_ADDRESS);
+	if (!obj) {
+		print_err("Controller '%s' error: transport address missing",
+			  alias);
 		goto out;
+	}
 	str = (char *) json_string_value(obj);
 
 	if (strcmp(fam, "ipv4") == 0)
@@ -152,16 +161,22 @@ static int get_transport_info(json_t *ctrl, char *type, char *fam,
 		ret = ipv6_to_addr(str, addr);
 	else if (strcmp(fam, "fc") == 0)
 		ret = fc_to_addr(str, addr);
-	else
+	else {
+		print_err("Controller '%s' error: bad transport family '%s'",
+			  alias, fam);
 		goto out;
+	}
 
-	if (ret < 0)
+	if (ret < 0) {
+		print_err("Controller '%s' error: bad '%s' address '%s'",
+			  alias, fam, str);
 		goto out;
+	}
 
 	memcpy(_addr, addr, sizeof(addr[0]) * ADDR_LEN);
 	strncpy(address, str, CONFIG_ADDRESS_SIZE);
 
-	obj = json_object_get(ctrl, TAG_PORT);
+	obj = json_object_get(group, TAG_PORT);
 	if (obj)
 		sprintf(port, "%*lld", CONFIG_PORT_SIZE,
 			json_integer_value(obj));
@@ -173,81 +188,95 @@ out:
 	return 0;
 }
 
-static int add_to_ctrl_list(struct json_context *ctx, json_t *grp,
-			    json_t *parent)
+static int add_to_ctlr_list(json_t *grp, json_t *parent, json_t *hosts)
 {
-	struct controller	*ctrl;
+	struct controller	*ctlr;
 	json_t			*subgroup;
 	json_t			*obj;
 	int			 addr[ADDR_LEN];
+	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	char			 fam[CONFIG_FAMILY_SIZE + 1];
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	int			 refresh = 0;
 
-	if (!get_transport_info(grp, type, fam, address, port, addr))
-		goto err1;
+	obj = json_object_get(parent, TAG_ALIAS);
+	if (!obj)
+		goto err;
 
-	ctrl = malloc(sizeof(*ctrl));
-	if (!ctrl)
-		goto err1;
+	strncpy(alias, (char *) json_string_value(obj), MAX_ALIAS_SIZE);
 
-	memset(ctrl, 0, sizeof(*ctrl));
+	if (!get_transport_info(alias, grp, type, fam, address, port, addr))
+		goto err;
 
-	INIT_LIST_HEAD(&ctrl->subsys_list);
+	ctlr = malloc(sizeof(*ctlr));
+	if (!ctlr)
+		goto err;
 
-	list_add(&ctrl->node, ctrl_list);
+	memset(ctlr, 0, sizeof(*ctlr));
+
+	INIT_LIST_HEAD(&ctlr->subsys_list);
+
+	list_add(&ctlr->node, ctlr_list);
 
 	obj = json_object_get(parent, TAG_REFRESH);
 	if (obj)
 		refresh = json_integer_value(obj);
 
-	obj = json_object_get(parent, TAG_ALIAS);
-	if (!obj)
-		goto err2;
+	strncpy(ctlr->alias, alias, MAX_ALIAS_SIZE);
 
-	strncpy(ctrl->alias, (char *) json_string_value(obj),
-		MAX_ALIAS_SIZE);
+	strncpy(ctlr->trtype, type, CONFIG_TYPE_SIZE);
+	strncpy(ctlr->addrfam, fam, CONFIG_FAMILY_SIZE);
+	strncpy(ctlr->address, address, CONFIG_ADDRESS_SIZE);
+	strncpy(ctlr->port, port, CONFIG_PORT_SIZE);
 
-	strncpy(ctrl->trtype, type, CONFIG_TYPE_SIZE);
-	strncpy(ctrl->addrfam, fam, CONFIG_FAMILY_SIZE);
-	strncpy(ctrl->address, address, CONFIG_ADDRESS_SIZE);
-	strncpy(ctrl->port, port, CONFIG_PORT_SIZE);
+	memcpy(ctlr->addr, addr, ADDR_LEN);
 
-	memcpy(ctrl->addr, addr, ADDR_LEN);
-
-	ctrl->port_num = atoi(port);
-	ctrl->refresh = refresh;
+	ctlr->port_num = atoi(port);
+	ctlr->refresh = refresh;
 
 	subgroup = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (subgroup)
-		check_subsystems(ctrl, ctx, subgroup);
+		check_subsystems(ctlr, subgroup, hosts);
 
 	return 1;
-err2:
-	free(ctrl);
-err1:
+err:
 	return 0;
 }
 
-int build_ctrl_list(void *context)
+int build_ctlr_list(void *context)
 {
 	struct json_context	*ctx = context;
-	json_t			*array = ctx->ctrls;
+	json_t			*groups;
+	json_t			*group;
+	json_t			*ctlrs;
+	json_t			*hosts;
 	json_t			*subgroup;
 	json_t			*iter;
-	int			 i, n;
+	int			 i, j, n, cnt;
 
-	if (!array)
-		return -1;
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups)
+		return 0;
 
-	n = json_array_size(array);
-	for (i = 0; i < n; i++) {
-		iter = json_array_get(array, i);
-		subgroup = json_object_get(iter, TAG_TRANSPORT);
-		if (subgroup)
-			add_to_ctrl_list(ctx, subgroup, iter);
+	cnt = json_array_size(groups);
+	for (j = 0; j < cnt; j++) {
+		group = json_array_get(groups, i);
+
+		ctlrs = json_object_get(group, TAG_CTLRS);
+		if (!ctlrs)
+			continue;
+
+		hosts = json_object_get(group, TAG_HOSTS);
+
+		n = json_array_size(ctlrs);
+		for (i = 0; i < n; i++) {
+			iter = json_array_get(ctlrs, i);
+			subgroup = json_object_get(iter, TAG_TRANSPORT);
+			if (subgroup)
+				add_to_ctlr_list(subgroup, iter, hosts);
+		}
 	}
 
 	return 0;
@@ -380,16 +409,16 @@ out:
 
 void cleanup_controllers(void)
 {
-	struct controller	*ctrl;
-	struct controller	*next_ctrl;
+	struct controller	*ctlr;
+	struct controller	*next_ctlr;
 	struct subsystem	*subsys;
 	struct subsystem	*next_subsys;
 	struct host		*host;
 	struct host		*next_host;
 
-	list_for_each_entry_safe(ctrl, next_ctrl, ctrl_list, node) {
+	list_for_each_entry_safe(ctlr, next_ctlr, ctlr_list, node) {
 		list_for_each_entry_safe(subsys, next_subsys,
-					 &ctrl->subsys_list, node) {
+					 &ctlr->subsys_list, node) {
 			list_for_each_entry_safe(host, next_host,
 						 &subsys->host_list, node)
 				free(host);
@@ -397,8 +426,8 @@ void cleanup_controllers(void)
 			free(subsys);
 		}
 
-		list_del(&ctrl->node);
-		free(ctrl);
+		list_del(&ctlr->node);
+		free(ctlr);
 	}
 }
 

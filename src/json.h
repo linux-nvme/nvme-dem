@@ -12,33 +12,47 @@
  * more details.
  */
 
-//#include <json-c/json.h>
 #include <jansson.h>
 
-void store_config_file(void *context);
-int del_ctrl(void *context, char *p);
-int list_ctrl(void *context, char *response);
-int rename_ctrl(void *context, char *old, char *new);
-int set_ctrl(void *context, char *alias, char *data);
-int rename_subsys(void *context, char *alias, char *old, char *new);
-int show_ctrl(void *context, char *alias, char *response);
-int set_host(void *context, char *nqn);
-int del_host(void *context, char *nqn);
-int list_host(void *context, char *response);
-int rename_host(void *context, char *old, char *new);
-int show_host(void *context, char *nqn, char *response);
-int set_subsys(void *context, char *alias, char *ss, char *p);
-int del_subsys(void *context, char *alias, char *ss);
-int set_acl(void *context, char *nqn, char *ss, char *p);
-int del_acl(void *context, char *nqn,  char *ss);
+void store_config_file(void *ctx);
 
+int list_group(void *ctx, char *resp);
+int show_group(void *ctx, char *grp, char *resp);
+int add_to_groups(void *ctx, char *data, char *resp);
+int add_a_group(void *ctx, char *grp, char *resp);
+int update_group(void *ctx, char *grp, char *data, char *resp);
+int del_group(void *ctx, char *grp, char *resp);
+
+int add_to_ctlrs(void *ctx, char *grp, char *data, char *resp);
+int add_a_ctlr(void *ctx, char *grp, char *alias, char *resp);
+int update_ctlr(void *ctx, char *grp, char *alias, char *data, char *resp);
+int list_ctlr(void *ctx, char *grp, char *resp);
+int show_ctlr(void *ctx, char *grp, char *alias, char *resp);
+int del_ctlr(void *ctx, char *grp, char *alias, char *resp);
+
+int add_to_hosts(void *ctx, char *grp, char *data, char *resp);
+int add_a_host(void *ctx, char *grp, char *nqn, char *resp);
+int update_host(void *ctx, char *grp, char *nqn, char *data, char *resp);
+int list_host(void *ctx, char *grp, char *resp);
+int show_host(void *ctx, char *grp, char *nqn, char *resp);
+int del_host(void *ctx, char *grp, char *nqn, char *resp);
+
+int set_subsys(void *ctx, char *grp, char *alias, char *ss, char *data,
+	       int create, char *resp);
+int del_subsys(void *ctx, char *grp, char *alias, char *ss, char *resp);
+
+int set_acl(void *ctx, char *grp, char *nqn, char *ss, char *data, char *resp);
+int del_acl(void *ctx, char *grp, char *nqn,  char *ss, char *resp);
 
 /* JSON Schema implemented:
- *  {
+ * {
+ *    Groups : [{
+ *      "Name" : "string";
  *	"Controllers": [{
  *	    "Alias": "string",
+ *	    "Certificate": "string",
  *	    "Refresh": "int",
- *	    "Transport": {
+ *	    "Transports": {
  *		"Type": "string",
  *		"Family": "string",
  *		"Address": "string",
@@ -46,24 +60,29 @@ int del_acl(void *context, char *nqn,  char *ss);
  *	    },
  *	    "Subsystems": [{
  *		"NQN" : "string",
+ *		"Drive" : "string",
  *		"AllowAllHosts" : "int"
- *	    }]
+ *	    }],
+ *	    "Driver": [ "string" ]
  *	}],
  *	"Hosts": [{
  *	    "NQN": "string",
+ *	    "DomainUniqueNQN": "string",
+ *	    "Certificate": "string",
  *	    "ACL": [{
  *		"NQN" : "string",
  *		"Access" : "int"
  *	    }]
  *	}]
- *  }
+ *   }]
+ * }
  */
+
+#define MAX_STRING		128
 
 struct json_context {
 	pthread_spinlock_t	 lock;
 	json_t			*root;
-	json_t			*ctrls;
-	json_t			*hosts;
 	char			 filename[128];
 };
 

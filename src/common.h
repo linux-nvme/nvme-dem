@@ -73,7 +73,7 @@ extern int			 stopped;
 extern struct interface	*interfaces;
 extern int			 num_interfaces;
 extern void			*json_ctx;
-extern struct list_head	*ctrl_list;
+extern struct list_head	*ctlr_list;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -169,7 +169,7 @@ struct host {
 struct subsystem {
 	struct list_head		 node;
 	struct list_head		 host_list;
-	struct controller		*ctrl;
+	struct controller		*ctlr;
 	char				 nqn[MAX_NQN_SIZE + 1];
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
@@ -236,7 +236,7 @@ int fc_to_addr(char *p, int *addr);
 int init_interfaces(void);
 void *interface_thread(void *arg);
 
-int build_ctrl_list(void *context);
+int build_ctlr_list(void *context);
 void init_controllers(void);
 void cleanup_controllers(void);
 
@@ -250,14 +250,14 @@ void disconnect_controller(struct endpoint *ep, int shutdown);
 void cleanup_listener(struct listener *pep);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
-void fetch_log_pages(struct controller *ctrl);
+void fetch_log_pages(struct controller *ctlr);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);
 int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	      void *desc, u64 addr, u64 key);
 void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
 int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
-int refresh_ctrl(char *alias);
+int refresh_ctlr(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
 

@@ -19,7 +19,7 @@
 
 #include "curl.h"
 
-// #define DEBUG_CURL
+#define DEBUG_CURL
 
 struct curl_context {
 	CURL *curl;
@@ -126,10 +126,6 @@ static int exec_curl(struct curl_context *ctx, char *url, char **p)
 
 	ret = curl_easy_perform(curl);
 
-#ifdef DEBUG_CURL
-	printf("%s\n", url);
-#endif
-
 	if (!ret)
 		*p = ctx->write_data;
 	else
@@ -155,6 +151,10 @@ int exec_get(void *p, char *url, char **result)
 
 	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
+#ifdef DEBUG_CURL
+	printf("GET %s\n", url);
+#endif
+
 	ret = exec_curl(ctx, url, result);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPGET, 0);
@@ -173,6 +173,11 @@ int exec_put(void *p, char *url, char *data, int len)
 
 	ctx->read_data = data;
 	ctx->read_sz = len;
+
+#ifdef DEBUG_CURL
+	printf("PUT %s\n", url);
+	if (len) printf("<< %.*s >>\n", len, data);
+#endif
 
 	ret = exec_curl(ctx, url, &result);
 
@@ -199,6 +204,11 @@ int exec_post(void *p, char *url, char *data, int len)
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, len);
 
+#ifdef DEBUG_CURL
+	printf("POST %s\n", url);
+	if (len) printf("<< %.*s >>\n", len, data);
+#endif
+
 	ret = exec_curl(ctx, url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, 0);
@@ -221,6 +231,40 @@ int exec_delete(void *p, char *url)
 	int			 ret;
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+
+#ifdef DEBUG_CURL
+	printf("DELETE %s\n", url);
+#endif
+
+	ret = exec_curl(ctx, url, &result);
+
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+
+	if (ret)
+		return ret;
+
+	printf("%s\n", result);
+
+	free(result);
+
+	return 0;
+}
+
+int exec_patch(void *p, char *url, char *data, int len)
+{
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	char			*result;
+	int			 ret;
+
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PATCH");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, len);
+
+#ifdef DEBUG_CURL
+	printf("PATCH %s\n", url);
+	if (len) printf("<< %.*s >>\n", len, data);
+#endif
 
 	ret = exec_curl(ctx, url, &result);
 

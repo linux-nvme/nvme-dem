@@ -20,4 +20,5 @@ int exec_get(void *p, char *url, char **result);
 int exec_delete(void *p, char *url);
 int exec_put(void *p, char *url, char *data, int len);
 int exec_post(void *p, char *url, char *data, int len);
+int exec_patch(void *p, char *url, char *data, int len);
 

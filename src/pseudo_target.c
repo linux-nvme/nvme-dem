@@ -155,15 +155,15 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 				     u64 key, void *desc)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
-	struct controller		*ctrl;
+	struct controller		*ctlr;
 	struct subsystem		*subsys;
 	int				 numrec = 0;
 	int				 ret;
 
 	print_debug("get_log_page_count");
 
-	list_for_each_entry(ctrl, ctrl_list, node)
-		list_for_each_entry(subsys, &ctrl->subsys_list, node) {
+	list_for_each_entry(ctlr, ctlr_list, node)
+		list_for_each_entry(subsys, &ctlr->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
 			if (host_access(subsys, ep->nqn))
@@ -185,7 +185,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
 	struct nvmf_disc_rsp_page_entry *plogpage;
-	struct controller		*ctrl;
+	struct controller		*ctlr;
 	struct subsystem		*subsys;
 	struct fid_mr			*mr;
 	int				 numrec = 0;
@@ -199,8 +199,8 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 
 	plogpage = (void *) (&log[1]);
 
-	list_for_each_entry(ctrl, ctrl_list, node)
-		list_for_each_entry(subsys, &ctrl->subsys_list, node) {
+	list_for_each_entry(ctlr, ctlr_list, node)
+		list_for_each_entry(subsys, &ctlr->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
 			if (host_access(subsys, ep->nqn)) {
@@ -281,18 +281,20 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 
 #define HOST_QUEUE_MAX 3 /* min of 3 otherwise cannot tell if full */
 struct host_queue {
-	struct endpoint         *ep[HOST_QUEUE_MAX];
-	int			tail, head;
+	struct endpoint		*ep[HOST_QUEUE_MAX];
+	int			 tail, head;
 };
 
 static inline int is_empty(struct host_queue *q)
 {
-        return q->head == q->tail;
+	return q->head == q->tail;
 }
+
 static inline int is_full(struct host_queue *q)
 {
-        return ((q->head + 1) % HOST_QUEUE_MAX) == q->tail;
+	return ((q->head + 1) % HOST_QUEUE_MAX) == q->tail;
 }
+
 #ifdef DEBUG_HOST_QUEUE
 static inline void dump_queue(struct host_queue *q)
 {
@@ -300,33 +302,35 @@ static inline void dump_queue(struct host_queue *q)
 		    q->ep[0], q->ep[1], q->ep[2], q->tail, q->head);
 }
 #endif
+
 static inline int add_one(struct host_queue *q, struct endpoint *ep)
 {
-        if (is_full(q))
-                return -1;
+	if (is_full(q))
+		return -1;
 
-        q->ep[q->head] = ep;
-        q->head = (q->head + 1) % HOST_QUEUE_MAX;
+	q->ep[q->head] = ep;
+	q->head = (q->head + 1) % HOST_QUEUE_MAX;
 #ifdef DEBUG_HOST_QUEUE
 	dump_queue(q);
 #endif
-        return 0;
+	return 0;
 }
+
 static inline int take_one(struct host_queue *q, struct endpoint **ep)
 {
-        if (is_empty(q)) 
-                return -1;
+	if (is_empty(q))
+		return -1;
 
 	if (!q->ep[q->tail])
 		return 1;
 
-        *ep = q->ep[q->tail];
-        q->ep[q->tail] = NULL;
-        q->tail = (q->tail + 1) % HOST_QUEUE_MAX;
+	*ep = q->ep[q->tail];
+	q->ep[q->tail] = NULL;
+	q->tail = (q->tail + 1) % HOST_QUEUE_MAX;
 #ifdef DEBUG_HOST_QUEUE
 	dump_queue(q);
 #endif
-        return 0;
+	return 0;
 }
 
 static void *host_thread(void *arg)
@@ -421,17 +425,17 @@ err1:
 
 void init_controllers(void)
 {
-	struct controller	*ctrl;
+	struct controller	*ctlr;
 
-	if (build_ctrl_list(json_ctx)) {
+	if (build_ctlr_list(json_ctx)) {
 		print_err("Failed to build controller list");
 		return;
 	}
 
-	list_for_each_entry(ctrl, ctrl_list, node) {
-		fetch_log_pages(ctrl);
-		ctrl->refresh_countdown =
-			ctrl->refresh * MINUTES / IDLE_TIMEOUT;
+	list_for_each_entry(ctlr, ctlr_list, node) {
+		fetch_log_pages(ctlr);
+		ctlr->refresh_countdown =
+			ctlr->refresh * MINUTES / IDLE_TIMEOUT;
 	}
 }
 

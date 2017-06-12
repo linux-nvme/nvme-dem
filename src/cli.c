@@ -25,18 +25,19 @@
 #include "tags.h"
 #include "show.h"
 
-enum { CTRL = 0, HOST, DEM, END = -1 };
-static char *group[] = { TARGET_CTRL, TARGET_HOST, TARGET_DEM };
+enum { DEM = 0, CTLR, HOST, GROUP, END = -1 };
+static char *groups[] = { TARGET_DEM, TARGET_CTLR, TARGET_HOST, TARGET_GROUP };
 
-static char *dem_server = "127.0.0.1";
-static char *dem_port = "22345";
+static char *dem_server = DEFAULT_ADDR;
+static char *dem_port = DEFAULT_PORT;
+static char *group = DEFAULT_GROUP;
 static int prompt_deletes = 1;
 int formatted;
 
 enum { HUMAN = 0, RAW = -1, JSON = 1 };
 
-#define JSSTR		"\"%s\" : \"%s\""
-#define JSINT		"\"%s\" : %d"
+#define JSSTR		"\"%s\":\"%s\""
+#define JSINT		"\"%s\":%d"
 
 struct verbs {
 	int		(*function)(void *ctx, char *base, int n, char **p);
@@ -58,7 +59,7 @@ static char *error(int ret)
 	return "unknown error";
 }
 
-static int list_ctrl(void *ctx, char *url, int n, char **p)
+static int list_ctlr(void *ctx, char *url, int n, char **p)
 {
 	int			 ret;
 	char			*result;
@@ -77,7 +78,7 @@ static int list_ctrl(void *ctx, char *url, int n, char **p)
 	else {
 		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
-			show_ctrl_list(parent, formatted);
+			show_ctlr_list(parent, formatted, 0);
 		else
 			printf("%s\n", result);
 	}
@@ -86,7 +87,7 @@ static int list_ctrl(void *ctx, char *url, int n, char **p)
 	return 0;
 }
 
-static int show_ctrl(void *ctx, char *base, int n, char **p)
+static int get_ctlr(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -108,7 +109,7 @@ static int show_ctrl(void *ctx, char *base, int n, char **p)
 	else {
 		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
-			show_ctrl_data(parent, formatted);
+			show_ctlr_data(parent, formatted);
 		else
 			printf("%s\n", result);
 	}
@@ -136,7 +137,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	else {
 		parent = json_loads(result, JSON_DECODE_ANY, &error);
 		if (parent)
-			show_host_list(parent, formatted);
+			show_host_list(parent, formatted, 0);
 		else
 			printf("%s\n", result);
 	}
@@ -146,7 +147,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	return 0;
 }
 
-static int show_host(void *ctx, char *base, int n, char **p)
+static int get_host(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -198,20 +199,111 @@ static int del_entry(void *ctx, char *base, int n, char **p)
 	return exec_delete(ctx, url);
 }
 
-static int rename_entry(void *ctx, char *base, int n, char **p)
+static int add_host(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
+	char			*alias = *p++;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
+
+	return exec_post(ctx, url, NULL, 0);
+}
+
+static int set_host(void *ctx, char *url, int n, char **p)
+{
+	char			 data[256];
+	char			*nqn = *p++;
+	char			*cert = *p++;
+	char			*unique_nqn = *p++;
+	int			 len;
+
+	UNUSED(n);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "," JSSTR "," JSSTR "}",
+		       TAG_NQN, nqn, TAG_CERT, cert, TAG_ALIAS_NQN, unique_nqn);
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int rename_host(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
 	char			*old = *p++;
 	char			*new = *p;
+	int			 len;
 
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, old);
 
-	return exec_post(ctx, url, new, strlen(new));
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_NQN, new);
+
+	return exec_patch(ctx, url, data, len);
 }
 
-static int set_host(void *ctx, char *base, int n, char **p)
+static int get_group(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			*alias = *p;
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
+
+	ret = exec_get(ctx, url, &result);
+	if (ret)
+		return ret;
+
+	if (formatted == RAW)
+		printf("%s\n", result);
+	else {
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
+		if (parent)
+			show_group_data(parent, formatted);
+		else
+			printf("%s\n", result);
+	}
+	free(result);
+
+	return 0;
+}
+
+static int list_group(void *ctx, char *url, int n, char **p)
+{
+	int			 ret;
+	char			*result;
+	json_t			*parent;
+	json_error_t		 error;
+
+	UNUSED(n);
+	UNUSED(p);
+
+	ret = exec_get(ctx, url, &result);
+	if (ret)
+		return ret;
+
+	if (formatted == RAW)
+		printf("%s\n", result);
+	else {
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
+		if (parent)
+			show_group_list(parent, formatted);
+		else
+			printf("%s\n", result);
+	}
+	free(result);
+
+	return 0;
+}
+
+static int add_group(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -220,31 +312,94 @@ static int set_host(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	return exec_put(ctx, url, NULL, 0);
+	return exec_post(ctx, url, NULL, 0);
 }
 
-static int set_ctrl(void *ctx, char *base, int n, char **p)
+static int set_group(void *ctx, char *url, int n, char **p)
+{
+	char			 data[256];
+	char			*group = *p++;
+	int			 len;
+
+	UNUSED(n);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_NAME, group);
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int rename_group(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
+	char			*old = *p++;
+	char			*new = *p;
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, old);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR" }", TAG_NAME, new);
+
+	return exec_patch(ctx, url, data, len);
+}
+
+static int set_ctlr(void *ctx, char *url, int n, char **p)
+{
+	char			 data[256];
 	char			*alias = *p++;
+	char			*cert = *p++;
 	char			*type = *p++;
 	char			*family = *p++;
 	char			*address = *p++;
 	int			 port = atoi(*p++);
 	int			 refresh = atoi(*p);
-	int			 len;
+	int			 i, len = 0, sz = sizeof(data);
+	char			*d = data;
+
+	UNUSED(n);
+
+	i = snprintf(d, sz, "{" JSSTR "," JSSTR "," JSINT ",\"%s\":{",
+		     TAG_ALIAS, alias, TAG_CERT, cert, TAG_REFRESH, refresh,
+		     TAG_TRANSPORT);
+	len += i; sz -= i; d += i;
+
+	i = snprintf(d, sz, JSSTR "," JSSTR "," JSSTR "," JSINT "}}",
+		     TAG_TYPE, type, TAG_FAMILY, family,
+		     TAG_ADDRESS, address, TAG_PORT, port);
+	len += i;
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int add_ctlr(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			*alias = *p++;
 
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	len = snprintf(data, sizeof(data),
-		"{ " JSSTR ", " JSSTR ", " JSSTR ", " JSINT ", " JSINT " }",
-		TAG_TYPE, type, TAG_FAMILY, family, TAG_ADDRESS, address,
-		TAG_PORT, port, TAG_REFRESH, refresh);
+	return exec_post(ctx, url, NULL, 0);
+}
 
-	return exec_put(ctx, url, data, len);
+static int rename_ctlr(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			*old = *p++;
+	char			*new = *p;
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, old);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, new);
+
+	return exec_patch(ctx, url, data, len);
 }
 
 static int set_subsys(void *ctx, char *base, int n, char **p)
@@ -260,10 +415,42 @@ static int set_subsys(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
-	len = snprintf(data, sizeof(data),
-		"{ " JSINT " }", TAG_ALLOW_ALL, allow_all);
+	len = snprintf(data, sizeof(data), "{" JSINT "}",
+		       TAG_ALLOW_ALL, allow_all);
 
 	return exec_put(ctx, url, data, len);
+}
+
+static int add_subsys(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			*alias = *p++;
+	char			*nqn = *p++;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
+
+	return exec_post(ctx, url, NULL, 0);
+}
+
+static int rename_subsys(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*old = *p++;
+	char			*new = *p;
+	int			 len;
+
+	UNUSED(n);
+	UNUSED(p);
+
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, old);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_NQN, new);
+
+	return exec_patch(ctx, url, data, len);
 }
 
 static int set_acl(void *ctx, char *base, int n, char **p)
@@ -279,12 +466,12 @@ static int set_acl(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, nqn);
 
-	len = snprintf(data, sizeof(data), "{ " JSINT " }", TAG_ACCESS, access);
+	len = snprintf(data, sizeof(data), "{" JSINT "}", TAG_ACCESS, access);
 
 	return exec_put(ctx, url, data, len);
 }
 
-static int refresh_ctrl(void *ctx, char *base, int n, char **p)
+static int refresh_ctlr(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -319,51 +506,41 @@ static int del_array(void *ctx, char *base, int n, char **p)
 	return 0;
 }
 
-static int rename_array(void *ctx, char *base, int n, char **p)
-{
-	char			 url[128];
-	char			*alias = *p++;
-	char			*old = *p++;
-	char			*new = *p;
-
-	UNUSED(n);
-	UNUSED(p);
-
-	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, old);
-
-	return exec_post(ctx, url, new, strlen(new));
-}
-
 static int dem_shutdown(void *ctx, char *base, int n, char **p)
 {
+	char			 url[128];
+
 	UNUSED(n);
 	UNUSED(p);
 
-	return exec_post(ctx, base, METHOD_SHUTDOWN, sizeof(METHOD_SHUTDOWN));
+	snprintf(url, sizeof(url), "%s/%s", base, METHOD_SHUTDOWN);
+
+	return exec_post(ctx, url, NULL, 0);
 }
 
 static int dem_apply(void *ctx, char *base, int n, char **p)
 {
+	char			 url[128];
+
 	UNUSED(n);
 	UNUSED(p);
 
-	return exec_post(ctx, base, METHOD_APPLY, sizeof(METHOD_APPLY));
+	snprintf(url, sizeof(url), "%s/%s", base, METHOD_APPLY);
+
+	return exec_post(ctx, url, NULL, 0);
 }
 
 static int dem_config(void *ctx, char *base, int n, char **p)
 {
-	char			 url[128];
-	char			*alias = *p;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
 	int			 ret;
 
 	UNUSED(n);
+	UNUSED(p);
 
-	snprintf(url, sizeof(url), "%s/%s", base, alias);
-
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(ctx, base, &result);
 	if (ret)
 		return ret;
 
@@ -391,30 +568,46 @@ static int dem_config(void *ctx, char *base, int n, char **p)
  * Args		- Can be NULL, fixed, or variable based on "Num Args"
 */
 static struct verbs verb_list[] = {
-	{ list_ctrl,	CTRL,  0, "list",    "ctrl",  NULL },
-	{ set_ctrl,	CTRL,  6, "set",     "ctrl",
-	    "<alias> <trtype> <addrfam> <traddr> <trport> <refresh (mins)>" },
-	{ show_ctrl,	CTRL,  1, "show",    "ctrl", "<alias>" },
-	{ del_entry,	CTRL,  1, "delete",  "ctrl", "<alias>" },
-	{ rename_entry,	CTRL,  2, "rename",  "ctrl", "<old> <new>" },
-	{ refresh_ctrl,	CTRL,  1, "refresh", "ctrl", "<alias>" },
-	{ set_subsys,	CTRL,  3, "set",     "ss",
-	    "<alias> <nqn> <allow_all>" },
-	{ del_array,	CTRL, -2, "delete",  "ss",   "<alias> <nqn> ..." },
-	{ rename_array,	CTRL,  3, "rename",  "ss",   "<alias> <old> <new>" },
-	{ list_host,	HOST,  0, "list",    "host",  NULL },
-	{ set_host,	HOST,  1, "set",     "host", "<nqn>" },
-	{ show_host,	HOST,  1, "show",    "host", "<nqn>" },
-	{ del_entry,	HOST,  1, "delete",  "host", "<nqn>" },
-	{ rename_entry,	HOST,  2, "rename",  "host", "<old> <new>" },
-	{ set_acl,	HOST,  3, "set",     "acl",
-	    "<host_nqn> <ss_nqn> <access>" },
-	{ del_array,	HOST, -2, "delete",  "acl",
-	    "<host_nqn> <ss_nqn> ..." },
-	{ dem_shutdown,	DEM,   0, "shutdown", NULL,   NULL },
-	{ dem_apply,	DEM,   0, "apply", NULL,   NULL },
-	{ dem_config,	DEM,   0, "config", NULL,   NULL },
-	{ NULL,		END,   0,  NULL,  NULL,   NULL },
+	{ dem_config,	 DEM,   0, "config",   NULL, NULL },
+	{ dem_apply,	 DEM,   0, "apply",    NULL, NULL },
+	{ dem_shutdown,	 DEM,   0, "shutdown", NULL, NULL },
+	/* GROUPS */
+	{ list_group,	 GROUP, 0, "list",    "group",  NULL },
+	{ get_group,	 GROUP, 1, "get",     "group", "<name>" },
+	{ add_group,	 GROUP, 1, "add",     "group", "<name>" },
+	{ set_group,	 GROUP, 1, "set",     "group", "<name>" },
+	{ del_entry,	 GROUP, 1, "delete",  "group", "<name>" },
+	{ rename_group,	 GROUP, 2, "rename",  "group", "<old> <new>" },
+	/* CONTROLLERS */
+	{ list_ctlr,	 CTLR,  0, "list",    "ctlr",  NULL },
+	{ get_ctlr,	 CTLR,  1, "get",     "ctlr", "<alias>" },
+	{ add_ctlr,	 CTLR,  1, "add",     "ctlr", "<alias>" },
+	{ set_ctlr,	 CTLR,  7, "set",     "ctlr",
+		"<alias> <cert> <trtype> <addrfam> <addr> "
+		"<port> <refresh (mins)>" },
+	{ del_entry,	 CTLR,  1, "delete",  "ctlr", "<alias>" },
+	{ rename_ctlr,	 CTLR,  2, "rename",  "ctlr", "<old> <new>" },
+	{ refresh_ctlr,	 CTLR,  1, "refresh", "ctlr", "<alias>" },
+	/* SUBSYSTEMS */
+	{ add_subsys,	 CTLR,  2, "add",     "ss", "<alias> <nqn>" },
+	{ set_subsys,	 CTLR,  3, "set",     "ss",
+		"<alias> <nqn> <allow_all>" },
+	{ del_array,	 CTLR, -2, "delete",  "ss", "<alias> <nqn> ..." },
+	{ rename_subsys, CTLR , 3, "rename",  "ss", "<alias> <old> <new>" },
+	/* HOSTS */
+	{ list_host,	 HOST,  0, "list",    "host",  NULL },
+	{ get_host,	 HOST,  1, "get",     "host", "<nqn>" },
+	{ add_host,	 HOST,  1, "add",     "host", "<nqn>" },
+	{ set_host,	 HOST,  3, "set",     "host",
+		"<nqn> <cert> <unique_nqn>" },
+	{ del_entry,	 HOST,  1, "delete",  "host", "<nqn>" },
+	{ rename_host,	 HOST,  2, "rename",  "host", "<old> <new>" },
+	/* ACL */
+	{ set_acl,	 HOST,  3, "set",     "acl",
+		"<host_nqn> <ss_nqn> <access>" },
+	{ del_array,	 HOST, -2, "delete",  "acl",
+		"<host_nqn> <ss_nqn> ..." },
+	{ NULL,		 END,   0,  NULL,  NULL,   NULL },
 };
 
 /* utility functions */
@@ -422,25 +615,32 @@ static struct verbs verb_list[] = {
 static void show_help(char *prog, char *msg, char *opt)
 {
 	struct verbs		*p;
+	int			target = END;
 
 	if (msg) {
 		if (opt)
 			printf("Error: %s '%s'\n", msg, opt);
 		else
 			printf("Error: %s\n", msg);
+		printf("use -? or --help to show full help\n");
+		return;
 	}
 
-	printf("Usage: %s {options} <verb> <object> {value ...}\n", prog);
-	printf("options: {-f} {-j | -r} {-s <server>} {-p <port>}\n");
+	printf("Usage: %s {options} <verb> {object} {value ...}\n", prog);
+	printf("options: %s\n",
+	       "{-f} {-g <group>} {-j|-r} {-s <server>} {-p <port>}");
 	printf("  -f -- force - do not verify deletes\n");
+	printf("  -g -- group in which object exists (default %s)\n",
+	       DEFAULT_GROUP);
 	printf("  -j -- show output in json mode (less human readable)\n");
 	printf("  -r -- show output in raw mode (unformatted)\n");
-	printf("  -s -- specify server (default %s)\n", dem_server);
-	printf("  -p -- specify port (default %s)\n", dem_port);
-	printf("  verb : list | set | show | rename | delete | refresh\n");
-	printf("         | config | apply | shutdown\n");
-	printf("       : shorthand verbs may be use (first 3 characters)\n");
-	printf("object : ctrl | ss | host | acl\n");
+	printf("  -s -- specify server (default %s)\n", DEFAULT_ADDR);
+	printf("  -p -- specify port (default %s)\n", DEFAULT_PORT);
+	printf("\n");
+	printf("  verb : list | get | add | set | rename | delete\n");
+	printf("         | refresh | config | apply | shutdown\n");
+	printf("       : shorthand verbs may be used (first 3 characters)\n");
+	printf("object : ctlr | ss | host | acl\n");
 	printf("       : shorthand objects may be used (first character)\n");
 	printf("allow_all -- 0 : use acl\n");
 	printf("          -- 1 : allow all hosts access to ss\n");
@@ -448,9 +648,13 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("          -- 1 : read only\n");
 	printf("          -- 2 : write only\n");
 	printf("          -- 3 : read/write\n");
-	printf("commands:\n");
+	printf("\n");
 
 	for (p = verb_list; p->verb; p++) {
+		if (target != p->target) {
+			target = p->target;
+			printf("%s commands:\n", groups[target]);
+		}
 		printf("  dem %s", p->verb);
 		if (p->object)
 			printf(" %s", p->object);
@@ -526,7 +730,7 @@ int main(int argc, char *argv[])
 
 	formatted = HUMAN;
 
-	while ((opt = getopt(argc, argv, "?jrfp:s:")) != -1) {
+	while ((opt = getopt(argc, argv, "?jrfg:s:p:")) != -1) {
 		switch (opt) {
 		case 'r':
 			formatted = RAW;
@@ -537,11 +741,14 @@ int main(int argc, char *argv[])
 		case 'f':
 			prompt_deletes = 0;
 			break;
-		case 'p':
-			dem_port = optarg;
+		case 'g':
+			group = optarg;
 			break;
 		case 's':
 			dem_server = optarg;
+			break;
+		case 'p':
+			dem_port = optarg;
 			break;
 		case '?':
 			show_help(argv[0], NULL, NULL);
@@ -568,8 +775,16 @@ int main(int argc, char *argv[])
 	if (!ctx)
 		return -1;
 
-	snprintf(url, sizeof(url), "http://%s:%s/%s", dem_server, dem_port,
-		 group[p->target]);
+	if (p->target == DEM)
+		snprintf(url, sizeof(url), "http://%s:%s/%s",
+			 dem_server, dem_port, groups[DEM]);
+	else if (p->target == GROUP)
+		snprintf(url, sizeof(url), "http://%s:%s/%s",
+			 dem_server, dem_port, TARGET_GROUP);
+	else
+		snprintf(url, sizeof(url), "http://%s:%s/%s/%s/%s",
+			 dem_server, dem_port, TARGET_GROUP, group,
+			 groups[p->target]);
 
 	if (argc <= 1)
 		opts = args;

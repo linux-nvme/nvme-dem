@@ -69,15 +69,15 @@ get_logpages:
 
 archive/make_config.sh: Makefile
 	[ -d archive ] || mkdir archive
-	echo ./dem set c ctrl1 rdma ipv4 192.168.22.1 4420 20 > $@
-	echo ./dem set c ctrl2 rdma ipv4 192.168.22.2 4420 25 >> $@
+	echo ./dem set c ctrl1 none rdma ipv4 192.168.22.1 4420 20 > $@
+	echo ./dem set c ctrl2 none rdma ipv4 192.168.22.2 4420 25 >> $@
 	echo ./dem set s ctrl1 host01subsys1 1 >> $@
 	echo ./dem set s ctrl1 host01subsys2 0 >> $@
 	echo ./dem set s ctrl1 host01subsys3 1 >> $@
 	echo ./dem set s ctrl2 host02subsys1 1 >> $@
 	echo ./dem set s ctrl2 host02subsys2 0 >> $@
-	echo ./dem set h host01 >> $@
-	echo ./dem set h host02 >> $@
+	echo ./dem set h host01 none host01.2014-08.org.nvmexpress >> $@
+	echo ./dem set h host02 none host02.2014-08.org.nvmexpress >> $@
 	echo ./dem set a host01 host01subsys2 1 >> $@
 	echo ./dem set a host01 host02subsys2 2 >> $@
 	echo ./dem set a host02 host01subsys2 3 >> $@
@@ -114,7 +114,7 @@ archive: clean
 
 test_cli: dem
 	./dem list ctrl
-	./dem set ctrl ctrl1 rdma ipv4 1.1.1.2 2332 25
+	./dem set ctrl ctrl1 none rdma ipv4 1.1.1.2 2332 25
 	./dem show ctrl ctrl1
 	./dem rename ctrl ctrl1 ctrl2
 	./dem add ss ctrl2 ss21 ss22

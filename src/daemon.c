@@ -26,6 +26,7 @@
 
 #include "mongoose.h"
 #include "common.h"
+#include "tags.h"
 
 #define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
@@ -37,13 +38,13 @@
 static LIST_HEAD(controller_list);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
-static char				*s_http_port = "22345";
+static char				*s_http_port = DEFAULT_PORT;
 void					*json_ctx;
 int					 stopped;
 int					 debug;
 struct interface			*interfaces;
 int					 num_interfaces;
-struct list_head			*ctrl_list = &controller_list;
+struct list_head			*ctlr_list = &controller_list;
 static pthread_t			*listen_threads;
 static int				 signalled;
 
@@ -79,17 +80,17 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static inline void refresh_log_pages(void)
 {
-	struct controller	*ctrl;
+	struct controller	*ctlr;
 
-	list_for_each_entry(ctrl, ctrl_list, node) {
-		if (!ctrl->refresh)
+	list_for_each_entry(ctlr, ctlr_list, node) {
+		if (!ctlr->refresh)
 			continue;
 
-		ctrl->refresh_countdown--;
-		if (!ctrl->refresh_countdown) {
-			fetch_log_pages(ctrl);
-			ctrl->refresh_countdown =
-				ctrl->refresh * MINUTES / IDLE_TIMEOUT;
+		ctlr->refresh_countdown--;
+		if (!ctlr->refresh_countdown) {
+			fetch_log_pages(ctlr);
+			ctlr->refresh_countdown =
+				ctlr->refresh * MINUTES / IDLE_TIMEOUT;
 		}
 	}
 }
@@ -155,7 +156,8 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-q - quite mode, no debug prints\n"
 		"-d - run as a daemon process (default is standalone)"
-		"-p - port from RESTful interface (default 22345)\n"
+		"-p - port from RESTful interface (default "
+		DEFAULT_PORT ")\n"
 		"-r - root for RESTful interface (default .)\n"
 		"-c - cert file for RESTful interface use with ssl";
 #else
@@ -164,7 +166,8 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
-		"-p - port from RESTful interface (default 22345)\n"
+		"-p - port from RESTful interface (default "
+		DEFAULT_PORT ")\n"
 		"-r - root for RESTful interface (default .)\n"
 		"-c - cert file for RESTful interface use with ssl";
 #endif
@@ -333,24 +336,11 @@ int restart_dem(void)
 
 	stopped = 2;
 
-	//cleanup_threads(listen_threads);
-
-	//free(interfaces);
-
 	cleanup_controllers();
 
 	stopped = 0;
 
-	//ret = init_interfaces();
-	//if (ret <= 0)
-		//return ret;
-
-	//num_interfaces = ret;
-
 	init_controllers();
-
-	//if (init_interface_threads(&listen_threads))
-		//ret = -ENODATA;
 
 	return ret;
 }

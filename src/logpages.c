@@ -109,7 +109,7 @@ static const char *cms_str(u8 cm)
 	return arg_str(cms, ARRAY_SIZE(cms), cm);
 }
 
-static int get_logpages(struct controller *ctrl,
+static int get_logpages(struct controller *ctlr,
 			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
@@ -118,8 +118,8 @@ static int get_logpages(struct controller *ctrl,
 	int				 ret = 0;
 	size_t				 offset;
 
-	ret = connect_controller(&ctrl->ep, ctrl->trtype,
-				 ctrl->address, ctrl->port);
+	ret = connect_controller(&ctlr->ep, ctlr->trtype,
+				 ctlr->address, ctlr->port);
 	if (ret)
 		return ret;
 
@@ -127,7 +127,7 @@ static int get_logpages(struct controller *ctrl,
 	log_size = offset + sizeof(log->numrec);
 	log_size = round_up(log_size, sizeof(u32));
 
-	ret = send_get_log_page(&ctrl->ep, log_size, &log);
+	ret = send_get_log_page(&ctlr->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch number of discovery log entries");
 		ret = -ENODATA;
@@ -140,7 +140,7 @@ static int get_logpages(struct controller *ctrl,
 	free(log);
 
 	if (*numrec == 0) {
-		print_err("No discovery log on controller %s", ctrl->address);
+		print_err("No discovery log on controller %s", ctlr->address);
 		ret = -ENODATA;
 		goto err;
 	}
@@ -152,7 +152,7 @@ static int get_logpages(struct controller *ctrl,
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		   sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	ret = send_get_log_page(&ctrl->ep, log_size, &log);
+	ret = send_get_log_page(&ctlr->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch discovery log entries");
 		ret = -ENODATA;
@@ -168,7 +168,7 @@ static int get_logpages(struct controller *ctrl,
 
 	*logp = log;
 err:
-	disconnect_controller(&ctrl->ep, 0);
+	disconnect_controller(&ctlr->ep, 0);
 
 	return ret;
 }
@@ -216,7 +216,7 @@ static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 }
 
 static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
-			   struct controller *ctrl)
+			   struct controller *ctlr)
 {
 	int				 i;
 	int				 found;
@@ -226,7 +226,7 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];
 		found = 0;
-		list_for_each_entry(subsys, &ctrl->subsys_list, node)
+		list_for_each_entry(subsys, &ctlr->subsys_list, node)
 			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
 				subsys->log_page = *e;
 				subsys->log_page_valid = 1;
@@ -239,18 +239,18 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 	}
 }
 
-void fetch_log_pages(struct controller *ctrl)
+void fetch_log_pages(struct controller *ctlr)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	u32				 num_records = 0;
 
-	if (get_logpages(ctrl, &log, &num_records)) {
+	if (get_logpages(ctlr, &log, &num_records)) {
 		print_err("Failed to get logpage for controller %s",
-			  ctrl->address);
+			  ctlr->address);
 		return;
 	}
 
-	save_log_pages(log, num_records, ctrl);
+	save_log_pages(log, num_records, ctlr);
 
 	print_discovery_log(log, num_records);
 
