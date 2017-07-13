@@ -1,0 +1,71 @@
+# dem bash completion script
+# vim:ts=2:sw=2:et:
+
+# main complete function
+_dem()
+{
+  local cur="${COMP_WORDS[COMP_CWORD]}"
+
+  COMPREPLY=()
+
+  local i
+  if [ "${COMP_WORDS[1]:0:1}" != "-" ] ; then
+    i=1
+  else
+    for i in `seq 1 $COMP_CWORD` ; do
+      case "${COMP_WORDS[$((i-1))]:0:2}" in
+      -g)
+        COMPREPLY=($(compgen -W "local" -- "$cur"))
+        return 0;
+      ;;
+      -s)
+        COMPREPLY=($(compgen -W "127.0.0.1" -- "$cur"))
+        return 0;
+      ;;
+      -p)
+        COMPREPLY=($(compgen -W "22345" -- "$cur"))
+        return 0;
+      ;;
+      esac
+      if [ "${COMP_WORDS[$i]:0:1}" != "-" ] ; then break; fi
+    done 
+  fi
+
+  local n="$((COMP_CWORD-i+1))"
+
+  if [ $n -eq 1 ] ; then
+    COMPREPLY=($(compgen -W "add set get delete rename list refresh apply config shutdown" -- "$cur"))
+  elif [ $n -eq 2 ] ; then
+    local verb="${COMP_WORDS[$i]}"
+    case "${verb}" in
+      delete|set)
+        COMPREPLY=($(compgen -W "group target drive subsystem portid acl ns host interface" -- "$cur"))
+      ;;
+      refresh)
+        COMPREPLY=($(compgen -W "target" -- "$cur"))
+      ;;
+      add|rename)
+        COMPREPLY=($(compgen -W "group target subsystem host" -- "$cur"))
+      ;;
+      list|get)
+        COMPREPLY=($(compgen -W "group target host" -- "$cur"))
+      ;;
+      apply|shutdown)
+        COMPREPLY=($(compgen -W "[]" -- "$cur"))
+      ;;
+    esac
+  else
+    COMPREPLY=()
+    local verb="${COMP_WORDS[$i]}"
+    local obj="${COMP_WORDS[$((i+1))]}"
+    local lst=(`${COMP_WORDS[0]} | grep "^..dem $verb $obj" | sed -e "s/^..dem [a-z]* [a-z]* //;s/{.*//;s/</[/g;s/>/]/g"`)
+    n=$((n-3))
+    if [ x${lst[$n]} == x ] ; then n=0; lst=( "[]" ); fi
+
+    COMPREPLY=($(compgen -W "${lst[$n]}" -- "$cur"))
+  fi
+
+  return 0
+}
+
+complete -F _dem -o default dem

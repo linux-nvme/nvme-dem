@@ -12,8 +12,8 @@
  * more details.
  */
 
-void show_ctlr_data(json_t *parent, int formatted);
-void show_ctlr_list(json_t *parent, int formatted, int indent);
+void show_target_data(json_t *parent, int formatted);
+void show_target_list(json_t *parent, int formatted, int indent);
 void show_host_data(json_t *parent, int formatted);
 void show_host_list(json_t *parent, int formatted, int indent);
 void show_group_data(json_t *parent, int formatted);

@@ -13,11 +13,13 @@
  */
 
 extern int formatted;
+extern int debug_curl;
 
 void *init_curl();
 void cleanup_curl(void *p);
 int exec_get(void *p, char *url, char **result);
 int exec_delete(void *p, char *url);
+int exec_delete_ex(void *p, char *url, char *data, int len);
 int exec_put(void *p, char *url, char *data, int len);
 int exec_post(void *p, char *url, char *data, int len);
 int exec_patch(void *p, char *url, char *data, int len);

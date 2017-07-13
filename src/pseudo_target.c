@@ -146,24 +146,24 @@ static int host_access(struct subsystem *subsys, char *nqn)
 
 	list_for_each_entry(entry, &subsys->host_list, node)
 		if (strcmp(entry->nqn, nqn) == 0)
-			return entry->access;
+			return 1;
 
-	return subsys->access ? READ_WRITE : NONE;
+	return 0;
 }
 
 static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 				     u64 key, void *desc)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
-	struct controller		*ctlr;
+	struct target			*target;
 	struct subsystem		*subsys;
 	int				 numrec = 0;
 	int				 ret;
 
 	print_debug("get_log_page_count");
 
-	list_for_each_entry(ctlr, ctlr_list, node)
-		list_for_each_entry(subsys, &ctlr->subsys_list, node) {
+	list_for_each_entry(target, target_list, node)
+		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
 			if (host_access(subsys, ep->nqn))
@@ -185,7 +185,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
 	struct nvmf_disc_rsp_page_entry *plogpage;
-	struct controller		*ctlr;
+	struct target			*target;
 	struct subsystem		*subsys;
 	struct fid_mr			*mr;
 	int				 numrec = 0;
@@ -199,8 +199,8 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 
 	plogpage = (void *) (&log[1]);
 
-	list_for_each_entry(ctlr, ctlr_list, node)
-		list_for_each_entry(subsys, &ctlr->subsys_list, node) {
+	list_for_each_entry(target, target_list, node)
+		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
 			if (host_access(subsys, ep->nqn)) {
@@ -369,7 +369,7 @@ wait:
 	}
 out:
 	if (ep) {
-		disconnect_controller(ep, event != FI_SHUTDOWN);
+		disconnect_target(ep, event != FI_SHUTDOWN);
 		free(ep);
 		ep = NULL;
 	}
@@ -379,7 +379,7 @@ out:
 
 	while (!is_empty(q))
 		if (!take_one(q, &ep)) {
-			disconnect_controller(ep, 1);
+			disconnect_target(ep, 1);
 			free(ep);
 		}
 
@@ -423,19 +423,19 @@ err1:
 	return ret;
 }
 
-void init_controllers(void)
+void init_targets(void)
 {
-	struct controller	*ctlr;
+	struct target		*target;
 
-	if (build_ctlr_list(json_ctx)) {
-		print_err("Failed to build controller list");
+	if (build_target_list(json_ctx)) {
+		print_err("Failed to build target list");
 		return;
 	}
 
-	list_for_each_entry(ctlr, ctlr_list, node) {
-		fetch_log_pages(ctlr);
-		ctlr->refresh_countdown =
-			ctlr->refresh * MINUTES / IDLE_TIMEOUT;
+	list_for_each_entry(target, target_list, node) {
+		fetch_log_pages(target);
+		target->refresh_countdown =
+			target->refresh * MINUTES / IDLE_TIMEOUT;
 	}
 }
 

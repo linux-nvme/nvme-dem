@@ -19,8 +19,6 @@
 
 #include "curl.h"
 
-#define DEBUG_CURL
-
 struct curl_context {
 	CURL *curl;
 	char *write_data;	/* used in write_cb */
@@ -151,9 +149,8 @@ int exec_get(void *p, char *url, char **result)
 
 	curl_easy_setopt(curl, CURLOPT_HTTPGET, 1);
 
-#ifdef DEBUG_CURL
-	printf("GET %s\n", url);
-#endif
+	if (debug_curl)
+		printf("GET %s\n", url);
 
 	ret = exec_curl(ctx, url, result);
 
@@ -174,10 +171,11 @@ int exec_put(void *p, char *url, char *data, int len)
 	ctx->read_data = data;
 	ctx->read_sz = len;
 
-#ifdef DEBUG_CURL
-	printf("PUT %s\n", url);
-	if (len) printf("<< %.*s >>\n", len, data);
-#endif
+	if (debug_curl) {
+		printf("PUT %s\n", url);
+		if (len)
+			printf("<< %.*s >>\n", len, data);
+	}
 
 	ret = exec_curl(ctx, url, &result);
 
@@ -204,10 +202,11 @@ int exec_post(void *p, char *url, char *data, int len)
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, len);
 
-#ifdef DEBUG_CURL
-	printf("POST %s\n", url);
-	if (len) printf("<< %.*s >>\n", len, data);
-#endif
+	if (debug_curl) {
+		printf("POST %s\n", url);
+		if (len)
+			printf("<< %.*s >>\n", len, data);
+	}
 
 	ret = exec_curl(ctx, url, &result);
 
@@ -232,9 +231,39 @@ int exec_delete(void *p, char *url)
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
 
-#ifdef DEBUG_CURL
-	printf("DELETE %s\n", url);
-#endif
+	if (debug_curl)
+		printf("DELETE %s\n", url);
+
+	ret = exec_curl(ctx, url, &result);
+
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
+
+	if (ret)
+		return ret;
+
+	printf("%s\n", result);
+
+	free(result);
+
+	return 0;
+}
+
+int exec_delete_ex(void *p, char *url, char *data, int len)
+{
+	struct curl_context	*ctx = p;
+	CURL			*curl = ctx->curl;
+	char			*result;
+	int			 ret;
+
+	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "DELETE");
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
+	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, len);
+
+	if (debug_curl) {
+		printf("DELETE %s\n", url);
+		if (len)
+			printf("<< %.*s >>\n", len, data);
+	}
 
 	ret = exec_curl(ctx, url, &result);
 
@@ -261,10 +290,11 @@ int exec_patch(void *p, char *url, char *data, int len)
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDS, data);
 	curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, len);
 
-#ifdef DEBUG_CURL
-	printf("PATCH %s\n", url);
-	if (len) printf("<< %.*s >>\n", len, data);
-#endif
+	if (debug_curl) {
+		printf("PATCH %s\n", url);
+		if (len)
+			printf("<< %.*s >>\n", len, data);
+	}
 
 	ret = exec_curl(ctx, url, &result);
 

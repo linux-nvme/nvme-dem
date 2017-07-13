@@ -73,7 +73,7 @@ extern int			 stopped;
 extern struct interface	*interfaces;
 extern int			 num_interfaces;
 extern void			*json_ctx;
-extern struct list_head	*ctlr_list;
+extern struct list_head	*target_list;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -138,7 +138,6 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
 #define SYS_NVME		"/sys/class/nvme"
 
-enum {NONE = 0, READ_ONLY = 1, WRITE_ONLY = 2, READ_WRITE = 3};
 enum {RESTRICTED = 0, ALOW_ALL = 1};
 
 struct listener {
@@ -169,7 +168,7 @@ struct host {
 struct subsystem {
 	struct list_head		 node;
 	struct list_head		 host_list;
-	struct controller		*ctlr;
+	struct target			*target;
 	char				 nqn[MAX_NQN_SIZE + 1];
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
@@ -200,7 +199,7 @@ struct endpoint {
 	int			 csts;
 };
 
-struct controller {
+struct target {
 	struct list_head	 node;
 	struct list_head	 subsys_list;
 	struct endpoint		 ep;
@@ -236,28 +235,28 @@ int fc_to_addr(char *p, int *addr);
 int init_interfaces(void);
 void *interface_thread(void *arg);
 
-int build_ctlr_list(void *context);
-void init_controllers(void);
-void cleanup_controllers(void);
+int build_target_list(void *context);
+void init_targets(void);
+void cleanup_targets(void);
 
 int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
 int run_pseudo_target(struct endpoint *ep);
 int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info);
-int connect_controller(struct endpoint *ep, char *addr_family, char *addr,
+int connect_target(struct endpoint *ep, char *addr_family, char *addr,
 		       char *port);
-void disconnect_controller(struct endpoint *ep, int shutdown);
+void disconnect_target(struct endpoint *ep, int shutdown);
 void cleanup_listener(struct listener *pep);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
-void fetch_log_pages(struct controller *ctlr);
+void fetch_log_pages(struct target *target);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);
 int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	      void *desc, u64 addr, u64 key);
 void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
 int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
-int refresh_ctlr(char *alias);
+int refresh_target(char *alias);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
 

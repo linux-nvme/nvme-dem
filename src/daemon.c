@@ -35,7 +35,7 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-static LIST_HEAD(controller_list);
+static LIST_HEAD(target_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_PORT;
@@ -44,7 +44,7 @@ int					 stopped;
 int					 debug;
 struct interface			*interfaces;
 int					 num_interfaces;
-struct list_head			*ctlr_list = &controller_list;
+struct list_head			*target_list = &target_list_head;
 static pthread_t			*listen_threads;
 static int				 signalled;
 
@@ -80,17 +80,17 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static inline void refresh_log_pages(void)
 {
-	struct controller	*ctlr;
+	struct target		*target;
 
-	list_for_each_entry(ctlr, ctlr_list, node) {
-		if (!ctlr->refresh)
+	list_for_each_entry(target, target_list, node) {
+		if (!target->refresh)
 			continue;
 
-		ctlr->refresh_countdown--;
-		if (!ctlr->refresh_countdown) {
-			fetch_log_pages(ctlr);
-			ctlr->refresh_countdown =
-				ctlr->refresh * MINUTES / IDLE_TIMEOUT;
+		target->refresh_countdown--;
+		if (!target->refresh_countdown) {
+			fetch_log_pages(target);
+			target->refresh_countdown =
+				target->refresh * MINUTES / IDLE_TIMEOUT;
 		}
 	}
 }
@@ -336,11 +336,11 @@ int restart_dem(void)
 
 	stopped = 2;
 
-	cleanup_controllers();
+	cleanup_targets();
 
 	stopped = 0;
 
-	init_controllers();
+	init_targets();
 
 	return ret;
 }
@@ -365,7 +365,7 @@ int main(int argc, char *argv[])
 	if (num_interfaces <= 0)
 		goto out2;
 
-	init_controllers();
+	init_targets();
 
 	signalled = stopped = 0;
 
@@ -385,7 +385,7 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
-	cleanup_controllers();
+	cleanup_targets();
 out2:
 	cleanup_json(json_ctx);
 out1:

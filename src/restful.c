@@ -107,7 +107,7 @@ static int get_dem_request(char *verb, char *resp)
 			    iface->address);
 		resp += n;
 
-		n = sprintf(resp, "\"%s\":%s}", TAG_PORT,
+		n = sprintf(resp, "\"%s\":%s}", TAG_TRSVCID,
 			    iface->pseudo_target_port);
 		resp += n;
 	}
@@ -157,72 +157,121 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 	return ret;
 }
 
-static int get_ctlr_request(void *ctx, char *group, char *ctlr, char *resp)
+static int get_target_request(void *ctx, char *group, char *target, char *resp)
 {
 	int			 ret;
 
-	if (!ctlr || !*ctlr)
-		ret = list_ctlr(ctx, group, resp);
+	if (!target || !*target)
+		ret = list_target(ctx, group, resp);
 	else
-		ret = show_ctlr(ctx, group, ctlr, resp);
+		ret = show_target(ctx, group, target, resp);
 
 	return http_error(ret);
 }
 
-static int delete_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
-			       char *resp)
-{
-	int			 ret = 0;
-
-	if (ss && *ss) {
-		ret = del_subsys(ctx, group, ctlr, ss, resp);
-		if (ret)
-			goto out;
-	} else {
-		ret = del_ctlr(ctx, group, ctlr, resp);
-		if (ret)
-			 goto out;
-	}
-
-	store_config_file(ctx);
-
-	return 0;
-out:
-	return http_error(ret);
-}
-
-static int put_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
-			    struct mg_str *body, char *resp)
+static int delete_target_request(void *ctx, char *group, char *target,
+				 char **p, int n, struct mg_str *body,
+				 char *resp)
 {
 	char			 data[LARGE_RSP + 1];
+	int			 portid;
 	int			 ret;
 
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	if (ss) {
-		ret = set_subsys(ctx, group, ctlr, ss, data, 1, resp);
-		if (ret)
-			goto out;
-	} else if (ctlr) {
-		ret = add_a_ctlr(ctx, group, ctlr, resp);
-		if (ret)
-			goto out;
-	} else {
-		ret = add_to_ctlrs(ctx, group, data, resp);
-		if (ret)
-			goto out;
+	if (!n)
+		ret = del_target(ctx, group, target, resp);
+	else if (strcmp(*p, URI_SUBSYSTEM) == 0) {
+		if (n == 2)
+			ret = del_subsys(ctx, group, target, p[1], resp);
+		else if (n != 4)
+			goto bad_req;
+		else if (strcmp(p[2], URI_NAMESPACE) == 0)
+			ret = del_ns(ctx, group, target, p[1],
+				     atoi(p[3]), resp);
+		else if (strcmp(p[2], URI_HOST) == 0)
+			ret = del_acl(ctx, group, target, p[1], p[3],
+				      resp);
+		else
+			goto bad_req;
+	} else if (strcmp(*p, URI_PORTID) == 0 && n == 2) {
+		portid = atoi(p[1]);
+		if (!portid)
+			goto bad_req;
+		ret = del_portid(ctx, group, target, portid, resp);
+	} else if (strcmp(*p, URI_NSDEV) == 0 && n == 1)
+		ret = del_drive(ctx, group, target, data, resp);
+	else {
+bad_req:
+		bad_request(resp);
+		ret = -EINVAL;
 	}
+
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
-static int post_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
-			     struct mg_str *body, char *resp)
+static int put_target_request(void *ctx, char *group, char *target, char **p,
+			      int n, struct mg_str *body, char *resp)
+{
+	char			 data[LARGE_RSP + 1];
+	int			 portid;
+	int			 ret;
+
+	memset(data, 0, sizeof(data));
+	strncpy(data, body->p, min(LARGE_RSP, body->len));
+
+	if (!n) {
+		if (target)
+			ret = add_a_target(ctx, group, target, resp);
+		else
+			ret = add_to_targets(ctx, group, data, resp);
+	} else if (strcmp(*p, URI_SUBSYSTEM) == 0) {
+		if (n > 4)
+			goto bad_req;
+		if (n == 2)
+			ret = set_subsys(ctx, group, target, p[1], data,
+					 1, resp);
+		else if (strcmp(p[2], URI_NAMESPACE) == 0)
+			ret = set_ns(ctx, group, target, p[1], data,
+				     resp);
+		else if (strcmp(p[2], URI_HOST) == 0)
+			ret = set_acl(ctx, group, target, p[1], p[3],
+				      resp);
+		else
+			goto bad_req;
+	} else if (strcmp(*p, URI_PORTID) == 0 && n <= 2) {
+		if (n == 1)
+			portid = 0;
+		else {
+			portid = atoi(p[1]);
+			if (!portid)
+				goto bad_req;
+		}
+		ret = set_portid(ctx, group, target, portid, data, resp);
+	} else if (strcmp(*p, URI_NSDEV) == 0 && n == 1)
+		ret = set_drive(ctx, group, target, data, resp);
+	else {
+bad_req:
+		bad_request(resp);
+		ret = -EINVAL;
+	}
+
+	if (ret)
+		return http_error(ret);
+
+	store_config_file(ctx);
+
+	return 0;
+}
+
+static int post_target_request(void *ctx, char *group, char *target, char **p,
+			       int n, struct mg_str *body, char *resp)
 {
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
@@ -231,48 +280,46 @@ static int post_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
 		memset(data, 0, sizeof(data));
 		strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-		if (ss) {
-			ret = set_subsys(ctx, group, ctlr, ss, data, 0, resp);
-			if (ret)
-				goto out;
-		} else {
-			ret = add_to_ctlrs(ctx, group, ctlr, resp);
-			if (ret)
-				goto out;
-		}
-	} else if (!ss) {
-		ret = add_a_ctlr(ctx, group, ctlr, resp);
-		if (ret)
-			goto out;
-	} else if (!strcmp(ss, METHOD_REFRESH)) {
-		ret = refresh_ctlr(ctlr);
+		if (n) {
+			if (strcmp(*p, URI_SUBSYSTEM) == 0)
+				ret = set_subsys(ctx, group, target,
+						 p[1], data, 0, resp);
+			else
+				ret = -EINVAL;
+
+		} else
+			ret = add_to_targets(ctx, group, target, resp);
+	} else if (!n)
+		ret = add_a_target(ctx, group, target, resp);
+	else if (!strcmp(*p, METHOD_REFRESH)) {
+		ret = refresh_target(target);
 		if (ret) {
 			sprintf(resp, "%s '%s' not found in %s '%s'",
-				TAG_CTLR, ctlr, TAG_GROUP, group);
+				TAG_TARGET, target, TAG_GROUP, group);
 			ret = HTTP_ERR_INTERNAL;
-			goto out;
 		}
+		else
+			sprintf(resp, "%s '%s' refreshed in %s '%s'",
+				TAG_TARGET, target, TAG_GROUP, group);
 
-		sprintf(resp, "%s '%s' refreshed in %s '%s'",
-			TAG_CTLR, ctlr, TAG_GROUP, group);
-
-		goto out;
 	} else {
-		ret = set_subsys(ctx, group, ctlr, ss,
-				 "{ \"AllowAllHosts\" : 0 }", 1, resp);
-		if (ret)
-			goto out;
+		if (strcmp(*p, URI_SUBSYSTEM) == 0)
+			ret = set_subsys(ctx, group, target, p[1],
+					 "{ \"AllowAllHosts\" : 0 }", 1, resp);
+		else
+			ret = -EINVAL;
 	}
+
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
-static int patch_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
-			      struct mg_str *body, char *resp)
+static int patch_target_request(void *ctx, char *group, char *target, char **p,
+				int n, struct mg_str *body, char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
@@ -286,45 +333,50 @@ static int patch_ctlr_request(void *ctx, char *group, char *ctlr, char *ss,
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	if (ss) {
-		ret = set_subsys(ctx, group, ctlr, ss, data, 0, resp);
-		if (ret)
-			goto out;
-	} else {
-		ret = update_ctlr(ctx, group, ctlr, data, resp);
-		if (ret)
-			goto out;
-	}
+	if (n) {
+		if (strcmp(*p, URI_SUBSYSTEM) == 0)
+			ret = set_subsys(ctx, group, target, p[1], data, 0,
+					 resp);
+		else
+			ret = -EINVAL;
+	} else
+		ret = update_target(ctx, group, target, data, resp);
+
+out:
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
-static int handle_ctlr_requests(void *ctx, char *parts[],
-				struct http_message *hm, char *resp)
+static int handle_target_requests(void *ctx, char *p[], int n,
+				  struct http_message *hm, char *resp)
 {
 	char			*group;
-	char			*ctlr;
-	char			*ss;
+	char			*target;
 	int			 ret;
 
-	group = parts[1];
-	ctlr = parts[3];
-	ss = parts[4];
+	group = p[1];
+	target = p[3];
+	p += 4;
+	n = (n > 3) ? n - 3 : 0;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_ctlr_request(ctx, group, ctlr, resp);
+		ret = get_target_request(ctx, group, target, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_ctlr_request(ctx, group, ctlr, ss, &hm->body, resp);
+		ret = put_target_request(ctx, group, target, p, n, &hm->body,
+					 resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_ctlr_request(ctx, group, ctlr, ss, resp);
+		ret = delete_target_request(ctx, group, target, p, n,
+					    &hm->body, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_ctlr_request(ctx, group, ctlr, ss, &hm->body, resp);
+		ret = post_target_request(ctx, group, target, p, n, &hm->body,
+					  resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_ctlr_request(ctx, group, ctlr, ss, &hm->body, resp);
+		ret = patch_target_request(ctx, group, target, p, n, &hm->body,
+					   resp);
 	else
 		ret = bad_request(resp);
 
@@ -343,30 +395,33 @@ static int get_host_request(void *ctx, char *group, char *host, char *resp)
 	return http_error(ret);
 }
 
-static int delete_host_request(void *ctx, char *group, char *host, char *ss,
-			       char *resp)
+static int delete_host_request(void *ctx, char *group, char *host, char **p,
+			       int n, struct mg_str *body, char *resp)
 {
+	char			 data[LARGE_RSP + 1];
 	int			 ret;
 
-	if (ss) {
-		ret = del_acl(ctx, group, host, ss, resp);
-		if (ret)
-			goto out;
-	} else {
+	if (n) {
+		memset(data, 0, sizeof(data));
+		strncpy(data, body->p, min(LARGE_RSP, body->len));
+
+		if (strcmp(*p, URI_INTERFACE) == 0 || n != 1)
+			ret = del_interface(ctx, group, host, data, resp);
+		else
+			ret = -EINVAL;
+	} else
 		ret = del_host(ctx, group, host, resp);
-		if (ret)
-			goto out;
-	}
+
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
-static int put_host_request(void *ctx, char *group, char *host, char *ss,
-			    struct mg_str *body, char *resp)
+static int put_host_request(void *ctx, char *group, char *host, char **p,
+			    int n, struct mg_str *body, char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
@@ -374,81 +429,81 @@ static int put_host_request(void *ctx, char *group, char *host, char *ss,
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	if (ss) {
-		ret = set_acl(ctx, group, host, ss, data, resp);
-		if (ret)
-			goto out;
-	} else if (host) {
+	if (n) {
+		if (strcmp(*p, URI_INTERFACE) == 0 || n != 1)
+			ret = set_interface(ctx, group, host, data, resp);
+		else
+			ret = -EINVAL;
+	} else if (host)
 		ret = add_a_host(ctx, group, host, resp);
-		if (ret)
-			goto out;
-	} else {
+	else
 		ret = add_to_hosts(ctx, group, data, resp);
-		if (ret)
-			goto out;
-	}
+
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
-static int post_host_request(void *ctx, char *group, char *host,
+static int post_host_request(void *ctx, char *group, char *host, int n,
 			     struct mg_str *body, char *resp)
 {
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
 
-	if (!body->len) {
+	if (n)
+		return http_error(-EINVAL);
+
+	if (!body->len)
 		ret = add_a_host(ctx, group, host, resp);
-		if (ret)
-			return HTTP_ERR_INTERNAL;
-	} else {
+	else {
 		memset(data, 0, sizeof(data));
 		strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 		ret = update_host(ctx, group, host, data, resp);
-		if (ret)
-			ret = HTTP_ERR_NOT_FOUND;
 	}
+
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
 }
 
-static int patch_host_request(void *ctx, char *group, char *host, char *ss,
-			      struct mg_str *body, char *resp)
+static int patch_host_request(void *ctx, char *group, char *host, char **p,
+			      int n, struct mg_str *body, char *resp)
 {
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
 
+	UNUSED(p);
+
 	if (!body->len) {
-		bad_request(resp);
-		ret = HTTP_ERR_INTERNAL;
+		sprintf(resp, "no data provided");
+		ret = -EINVAL;
 		goto out;
 	}
 
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	if (!ss) {
+	if (!n)
 		ret = update_host(ctx, group, host, data, resp);
-		if (ret)
-			goto out;
-	} else {
-		ret = set_acl(ctx, group, host, ss, data, resp);
-		if (ret)
-			goto out;
+	else {
+		bad_request(resp);
+		ret = -EINVAL;
 	}
+
+out:
+	if (ret)
+		return http_error(ret);
 
 	store_config_file(ctx);
 
 	return 0;
-out:
-	return http_error(ret);
 }
 
 static int get_group_request(void *ctx, char *group, char *resp)
@@ -523,13 +578,15 @@ static int patch_group_request(void *ctx, char *group, struct mg_str *body,
 	return 0;
 }
 
-static int handle_group_requests(void *ctx, char *parts[],
+static int handle_group_requests(void *ctx, char *p[], int n,
 				 struct http_message *hm, char *resp)
 {
 	char			*group;
 	int			 ret;
 
-	group = parts[1];
+	UNUSED(n);
+
+	group = p[1];
 
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_group_request(ctx, group, resp);
@@ -547,35 +604,37 @@ static int handle_group_requests(void *ctx, char *parts[],
 	return ret;
 }
 
-static int handle_host_requests(void *ctx, char *parts[],
+static int handle_host_requests(void *ctx, char *p[], int n,
 				struct http_message *hm, char *resp)
 {
 	char			*group;
-	char			*host;
-	char			*ss;
+	char			*host = NULL;
 	int			 ret;
 
-	group = parts[1];
-	host = parts[3];
-	ss = parts[4];
+	group = p[1];
+	host = p[3];
+	p += 4;
+	n = (n > 3) ? n - 3 : 0;
 
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_host_request(ctx, group, host, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_host_request(ctx, group, host, ss, &hm->body, resp);
+		ret = put_host_request(ctx, group, host, p, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_host_request(ctx, group, host, ss, resp);
+		ret = delete_host_request(ctx, group, host, p, n, &hm->body,
+					  resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_host_request(ctx, group, host, &hm->body, resp);
+		ret = post_host_request(ctx, group, host, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_host_request(ctx, group, host, ss, &hm->body, resp);
+		ret = patch_host_request(ctx, group, host, p, n, &hm->body,
+					 resp);
 	else
 		ret = bad_request(resp);
 
 	return ret;
 }
 
-#define MAX_DEPTH 5
+#define MAX_DEPTH 8
 
 void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 {
@@ -586,6 +645,7 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	char			 error[16];
 	char			*parts[MAX_DEPTH] = { NULL };
 	int			 ret;
+	int			 n;
 
 	pthread_spin_lock(&context->lock);
 
@@ -622,23 +682,24 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	memcpy(uri, (char *) hm->uri.p, hm->uri.len);
 	uri[hm->uri.len] = 0;
 
-	if (parse_uri(uri, MAX_DEPTH, parts) < 0)
+	n = parse_uri(uri, MAX_DEPTH, parts);
+	if (n < 0)
 		goto bad_page;
 
-	if (strncmp(parts[0], TARGET_DEM, DEM_LEN) == 0) {
+	if (n < 2 && strncmp(parts[0], URI_DEM, DEM_LEN) == 0) {
 		ret = handle_dem_requests(parts[1], hm, resp);
 		goto out;
 	}
 
-	if (strncmp(parts[0], TARGET_GROUP, GROUP_LEN) != 0)
+	if (strncmp(parts[0], URI_GROUP, GROUP_LEN) != 0)
 		goto bad_page;
 
 	if (!parts[2])
-		ret = handle_group_requests(ctx, parts, hm, resp);
-	else if (strncmp(parts[2], TARGET_CTLR, CTLR_LEN) == 0)
-		ret = handle_ctlr_requests(ctx, parts, hm, resp);
-	else if (strncmp(parts[2], TARGET_HOST, HOST_LEN) == 0)
-		ret = handle_host_requests(ctx, parts, hm, resp);
+		ret = handle_group_requests(ctx, parts, n, hm, resp);
+	else if (strncmp(parts[2], URI_TARGET, TARGET_LEN) == 0)
+		ret = handle_target_requests(ctx, parts, n, hm, resp);
+	else if (strncmp(parts[2], URI_HOST, HOST_LEN) == 0)
+		ret = handle_host_requests(ctx, parts, n, hm, resp);
 	else
 		goto bad_page;
 

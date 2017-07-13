@@ -910,7 +910,7 @@ int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *msg, int len)
 	return 0;
 }
 
-void disconnect_controller(struct endpoint *ep, int shutdown)
+void disconnect_target(struct endpoint *ep, int shutdown)
 {
 	if (shutdown && (ep->state == CONNECTED))
 		post_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
@@ -925,7 +925,7 @@ void disconnect_controller(struct endpoint *ep, int shutdown)
 		free(ep->data);
 }
 
-int connect_controller(struct endpoint *ep, char *type, char *node, char *port)
+int connect_target(struct endpoint *ep, char *type, char *node, char *port)
 {
 	struct nvme_command	*cmd;
 	char			*provider;
