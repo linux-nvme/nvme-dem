@@ -67,21 +67,21 @@ int del_acl(void *ctx, char *grp, char *alias,  char *ss, char *hostnqn,
  *     "Targets": [{
  *       "Alias": "string", "Refresh": "integer",
  *       "PortIDs": [{
- *         "PORTID": "integer" "TRTYPE": "string",
- *         "ADRFAM": "string", "TREQ": "integer",
- *         "TRADDR": "string", "TRSVCID": "integer"
+ *	   "PORTID": "integer" "TRTYPE": "string",
+ *	   "ADRFAM": "string", "TREQ": "integer",
+ *	   "TRADDR": "string", "TRSVCID": "integer"
  *       }],
  *       "Subsystems": [{
- *         "SUBNQN" : "string", "AllowAllHosts" : "boolean"
- *         "NSIDs": [{ "NSID": "integer", "NSDEV": "string" }]
- *         "Hosts": [{ "HOSTNQN": "string" }]
+ *	   "SUBNQN" : "string", "AllowAllHosts" : "boolean"
+ *	   "NSIDs": [{ "NSID": "integer", "NSDEV": "string" }]
+ *	   "Hosts": [{ "HOSTNQN": "string" }]
  *       }],
  *       "NSDEV": [{ "NSDEV": "string" }]
  *     }],
  *     "Hosts": [{
  *       "HOSTNQN": "string",
  *       "Interfaces": [{
- *         "TRTYPE": "string", "ADRFAM": "string", "TRADDR": "string",
+ *	   "TRTYPE": "string", "ADRFAM": "string", "TRADDR": "string",
  *       }]
  *     }]
  *   }]

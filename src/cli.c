@@ -979,13 +979,13 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("  -p -- specify port (default %s)\n", DEFAULT_PORT);
 	printf("\n");
 	printf("  verb : list | get | add | set | rename | delete\n");
-	printf("         | refresh | config | apply | shutdown\n");
+	printf("	 | refresh | config | apply | shutdown\n");
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
 	printf("object : group | target | drive | subsystem | portid | acl\n");
-	printf("         | ns | host | interface\n");
+	printf("	 | ns | host | interface\n");
 	printf("       : shorthand objects may be used (first character)\n");
 	printf("allow_all -- 0 : use host list\n");
-	printf("          -- 1 : allow all hosts access to a subsystem\n");
+	printf("	  -- 1 : allow all hosts access to a subsystem\n");
 	printf("\n");
 
 	for (p = verb_list; p->verb; p++) {

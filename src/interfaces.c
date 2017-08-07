@@ -36,47 +36,44 @@ int refresh_target(char *alias)
 	return -EINVAL;
 }
 
-static void check_host(struct subsystem *subsys, json_t *nqn, json_t *array,
-		       const char *host_nqn)
+static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 {
 	json_t			*obj;
 	json_t			*iter;
 	struct host		*host;
 	int			 i, n;
 
-	n = json_array_size(array);
+	n = json_array_size(acl);
 	for (i = 0; i < n; i++) {
-		iter = json_array_get(array, i);
+		iter = json_array_get(acl, i);
 		obj = json_object_get(iter, TAG_HOSTNQN);
-		if (obj && json_equal(nqn, obj)) {
+		if (obj && strcmp(nqn, json_string_value(obj)) == 0) {
 			host = malloc(sizeof(*host));
 			if (!host)
 				return;
 
 			memset(host, 0, sizeof(*host));
 			host->subsystem = subsys;
-			strcpy(host->nqn, host_nqn);
+			strcpy(host->nqn, nqn);
 			list_add(&host->node, &subsys->host_list);
 		}
 	}
 }
 
-static void check_hosts(struct subsystem *subsys, json_t *array, json_t *nqn)
+static void check_hosts(struct subsystem *subsys, json_t *acl, json_t *hosts)
 {
-	json_t			*grp;
 	json_t			*iter;
-	json_t			*host;
+	json_t			*obj;
 	int			 i, n;
 
-	n = json_array_size(array);
+	n = json_array_size(hosts);
 	for (i = 0; i < n; i++) {
-		iter = json_array_get(array, i);
-		host = json_object_get(iter, TAG_HOSTNQN);
-		if (unlikely(!host))
+		iter = json_array_get(hosts, i);
+		obj = json_object_get(iter, TAG_HOSTNQN);
+		if (unlikely(!obj))
 			continue;
-		grp = json_object_get(iter, TAG_ACL);
-		if (grp)
-			check_host(subsys, nqn, grp, json_string_value(host));
+
+		check_host(subsys, acl, json_string_value(obj));
 	}
 }
 
@@ -85,6 +82,7 @@ static void check_subsystems(struct target *target, json_t *array,
 {
 	json_t			*obj;
 	json_t			*iter;
+	json_t			*acl;
 	json_t			*nqn;
 	struct subsystem	*subsys;
 	int			 i, n;
@@ -111,8 +109,10 @@ static void check_subsystems(struct target *target, json_t *array,
 		if (obj && json_is_integer(obj))
 			subsys->access = json_integer_value(obj);
 
+		acl = json_object_get(iter, TAG_HOSTS);
+
 		if (hosts)
-			check_hosts(subsys, hosts, nqn);
+			check_hosts(subsys, acl, hosts);
 	}
 }
 
@@ -183,7 +183,7 @@ out:
 	return 0;
 }
 
-static int add_to_target_list(json_t *grp, json_t *parent, json_t *hosts)
+static int add_to_target_list(json_t *parent, json_t *portid, json_t *hosts)
 {
 	struct target		*target;
 	json_t			*subgroup;
@@ -202,7 +202,7 @@ static int add_to_target_list(json_t *grp, json_t *parent, json_t *hosts)
 
 	strncpy(alias, (char *) json_string_value(obj), MAX_ALIAS_SIZE);
 
-	if (!get_transport_info(alias, grp, type, fam, address, port, addr))
+	if (!get_transport_info(alias, portid, type, fam, address, port, addr))
 		goto err;
 
 	target = malloc(sizeof(*target));
@@ -247,8 +247,9 @@ int build_target_list(void *context)
 	json_t			*group;
 	json_t			*targets;
 	json_t			*hosts;
-	json_t			*subgroup;
+	json_t			*ports;
 	json_t			*iter;
+	json_t			*obj;
 	int			 i, j, n, cnt;
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
@@ -268,9 +269,14 @@ int build_target_list(void *context)
 		n = json_array_size(targets);
 		for (i = 0; i < n; i++) {
 			iter = json_array_get(targets, i);
-			subgroup = json_object_get(iter, TAG_TRANSPORT);
-			if (subgroup)
-				add_to_target_list(subgroup, iter, hosts);
+			ports = json_object_get(iter, TAG_PORTIDS);
+			if (ports) {
+				int i, n = json_array_size(ports);
+				for (i = 0; i < n; i++) {
+					obj = json_array_get(ports, i);
+					add_to_target_list(iter, obj, hosts);
+				}
+			}
 		}
 	}
 

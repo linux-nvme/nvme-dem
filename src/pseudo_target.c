@@ -166,7 +166,7 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
-			if (host_access(subsys, ep->nqn))
+			if (subsys->access || host_access(subsys, ep->nqn))
 				numrec++;
 		}
 
@@ -203,7 +203,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (!subsys->log_page_valid)
 				continue;
-			if (host_access(subsys, ep->nqn)) {
+			if (subsys->access || host_access(subsys, ep->nqn)) {
 				memcpy(plogpage, &subsys->log_page,
 				       sizeof(*plogpage));
 				numrec++;
