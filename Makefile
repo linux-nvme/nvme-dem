@@ -25,7 +25,8 @@ GDB_OPTS = -g -O0
 CLI_SRC = src/cli.c src/curl.c src/show.c
 CLI_INC = src/curl.h src/show.h src/tags.h
 DEM_SRC = src/daemon.c src/json.c src/restful.c mongoose/mongoose.c \
-	  src/parse.c src/ofi.c src/logpages.c src/interfaces.c src/pseudo_target.c
+	  src/parse.c src/ofi.c src/logpages.c src/interfaces.c \
+	  src/pseudo_target.c src/domain.c
 DEM_INC = src/json.h src/common.h mongoose/mongoose.h src/tags.h
 
 all: mongoose/ jansson/libjansson.a demd dem

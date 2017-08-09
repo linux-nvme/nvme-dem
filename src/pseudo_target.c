@@ -105,8 +105,8 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 static int handle_reset_nqn(struct endpoint *ep, u64 length, u64 addr,
 			    u64 key, void *desc)
 {
-	char	*hostnqn = (void *) ep->data;
-	int	 ret;
+	char			*hostnqn = (void *) ep->data;
+	int			 ret;
 
 	print_debug("reset nqn");
 
@@ -450,6 +450,7 @@ err1:
 void init_targets(void)
 {
 	struct target		*target;
+	int			 ret;
 
 	if (build_target_list(json_ctx)) {
 		print_err("Failed to build target list");
@@ -457,6 +458,17 @@ void init_targets(void)
 	}
 
 	list_for_each_entry(target, target_list, node) {
+
+		ret = connect_target(&target->dq, target->trtype,
+				     target->address, target->port);
+		if (ret) {
+			print_err("Could not connect to target %s",
+				target->address);
+			continue;
+		}
+
+		target->dq_connected = 1;
+
 		fetch_log_pages(target);
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;

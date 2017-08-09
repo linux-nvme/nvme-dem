@@ -115,23 +115,17 @@ static int get_logpages(struct target *target,
 	struct nvmf_disc_rsp_page_hdr	*log;
 	unsigned int			 log_size = 0;
 	unsigned long			 genctr;
-	int				 ret = 0;
+	int				 ret;
 	size_t				 offset;
-
-	ret = connect_target(&target->ep, target->trtype,
-			     target->address, target->port);
-	if (ret)
-		return ret;
 
 	offset = offsetof(struct nvmf_disc_rsp_page_hdr, numrec);
 	log_size = offset + sizeof(log->numrec);
 	log_size = round_up(log_size, sizeof(u32));
 
-	ret = send_get_log_page(&target->ep, log_size, &log);
+	ret = send_get_log_page(&target->dq, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch number of discovery log entries");
-		ret = -ENODATA;
-		goto err;
+		return -ENODATA;
 	}
 
 	genctr = le64toh(log->genctr);
@@ -141,8 +135,7 @@ static int get_logpages(struct target *target,
 
 	if (*numrec == 0) {
 		print_err("No discovery log on target %s", target->address);
-		ret = -ENODATA;
-		goto err;
+		return -ENODATA;
 	}
 
 #ifdef DEBUG_LOG_PAGES
@@ -152,25 +145,21 @@ static int get_logpages(struct target *target,
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		   sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	ret = send_get_log_page(&target->ep, log_size, &log);
+	ret = send_get_log_page(&target->dq, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch discovery log entries");
-		ret = -ENODATA;
-		goto err;
+		return -ENODATA;
 	}
 
 	if ((*numrec != le32toh(log->numrec)) ||
 	    (genctr != le64toh(log->genctr))) {
 		print_err("# records for last two get log pages not equal");
-		ret = -EINVAL;
-		goto err;
+		return -EINVAL;
 	}
 
 	*logp = log;
-err:
-	disconnect_target(&target->ep, 0);
 
-	return ret;
+	return 0;
 }
 
 static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)

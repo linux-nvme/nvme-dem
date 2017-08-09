@@ -428,6 +428,10 @@ void cleanup_targets(void)
 		}
 
 		list_del(&target->node);
+
+		if (target->dq_connected)
+			disconnect_target(&target->dq, 0);
+
 		free(target);
 	}
 }

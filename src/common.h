@@ -203,7 +203,8 @@ struct endpoint {
 struct target {
 	struct list_head	 node;
 	struct list_head	 subsys_list;
-	struct endpoint		 ep;
+	struct endpoint		 dq;
+	int			 dq_connected;
 	struct interface	*iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 trtype[CONFIG_TYPE_SIZE + 1];
@@ -214,6 +215,7 @@ struct target {
 	int			 addr[ADDR_LEN];
 	int			 refresh;
 	int			 refresh_countdown;
+	int			 kato_countdown;
 	int			 num_subsystems;
 };
 
@@ -245,11 +247,12 @@ int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 int run_pseudo_target(struct endpoint *ep);
 int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info);
 int connect_target(struct endpoint *ep, char *addr_family, char *addr,
-		       char *port);
+		   char *port);
 void disconnect_target(struct endpoint *ep, int shutdown);
 void cleanup_listener(struct listener *pep);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
+int send_keep_alive(struct endpoint *ep);
 void fetch_log_pages(struct target *target);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);

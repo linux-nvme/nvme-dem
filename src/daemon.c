@@ -83,6 +83,15 @@ static inline void refresh_log_pages(void)
 	struct target		*target;
 
 	list_for_each_entry(target, target_list, node) {
+		if (!target->dq_connected)
+			continue;
+
+		if (target->kato_countdown == 0) {
+			send_keep_alive(&target->dq);
+			target->kato_countdown = MINUTES / IDLE_TIMEOUT;
+		} else
+			target->kato_countdown--;
+
 		if (!target->refresh)
 			continue;
 

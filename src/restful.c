@@ -65,7 +65,7 @@ static int bad_request(char *resp)
 
 static int parse_uri(char *p, int depth, char *part[])
 {
-	int			i = -1;
+	int			 i = -1;
 
 	depth++;
 	for (; depth && *p; p++)
