@@ -52,21 +52,22 @@ static int handle_property_set(struct nvme_command *cmd, int *csts)
 static int handle_property_get(struct nvme_command *cmd,
 			       struct nvme_completion *resp, int csts)
 {
-	int			 ret = 0;
+	u64			 value;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_property_get %x", cmd->prop_get.offset);
 #endif
 	if (cmd->prop_get.offset == NVME_REG_CSTS)
-		resp->result = htole32(csts);
+		value = csts;
 	else if (cmd->prop_get.offset == NVME_REG_CAP)
-		resp->result64 = htole64(0x200f0003ffL);
+		value = 0x200f0003ffL;
 	else if (cmd->prop_get.offset == NVME_REG_VS)
-		resp->result = htole32(NVME_VER);
+		value = NVME_VER;
 	else
-		ret = -EINVAL;
+		return -EINVAL;
 
-	return ret;
+	resp->result.U64 = htole64(value);
+	return 0;
 }
 
 static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
@@ -86,9 +87,11 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 	print_info("host '%s' connected", data->hostnqn);
 	strncpy(ep->nqn, data->hostnqn, MAX_NQN_SIZE);
 
-	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME)) {
-		print_err("bad subsystem '%s', expecting '%s'",
-			  data->subsysnqn, NVME_DISC_SUBSYS_NAME);
+	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME) &&
+	    strcmp(data->subsysnqn, NVME_DOMAIN_SUBSYS_NAME)) {
+		print_err("bad subsystem '%s', expecting '%s' or '%s'",
+			  data->subsysnqn, NVME_DISC_SUBSYS_NAME,
+			  NVME_DOMAIN_SUBSYS_NAME);
 		ret = -EINVAL;
 	}
 	if (data->cntlid != 0xffff) {
@@ -99,6 +102,25 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 
 	return ret;
 }
+static int handle_reset_nqn(struct endpoint *ep, u64 length, u64 addr,
+			    u64 key, void *desc)
+{
+	char	*hostnqn = (void *) ep->data;
+	int	 ret;
+
+	print_debug("reset nqn");
+
+	if (length > MAX_NQN_SIZE)
+		length = MAX_NQN_SIZE;
+
+	strncpy(hostnqn, "dumbass", length);
+
+	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
+	if (ret)
+		print_err("rma_write returned %d", ret);
+
+	return ret;
+}
 
 static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 			   u64 length, u64 addr, u64 key, void *desc)
@@ -106,7 +128,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	struct nvme_id_ctrl	*id = (void *) ep->data;
 	int			 ret;
 
-	if (htole32(cmd->identify.cns) != NVME_NQN_DISC) {
+	if (htole32(cmd->identify.cns) != NVME_ID_CNS_CTRL) {
 		print_err("unexpected identify command");
 		return -EINVAL;
 	}
@@ -125,7 +147,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	id->maxcmd = htole16(NVMF_DQ_DEPTH);
 	id->sgls = htole32(1 << 0) | htole32(1 << 2) | htole32(1 << 20);
 
-	strcpy(id->subnqn, NVME_DISC_SUBSYS_NAME);
+	strcpy(id->subnqn, NVME_DOMAIN_SUBSYS_NAME);
 
 	if (length > sizeof(*id))
 		length = sizeof(*id);
@@ -260,7 +282,9 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
 		}
-	} else if (cmd->common.opcode == nvme_admin_identify)
+	} else if (cmd->common.opcode == nvme_admin_get_dunqn)
+		ret = handle_reset_nqn(ep, len, addr, key, desc);
+	else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)

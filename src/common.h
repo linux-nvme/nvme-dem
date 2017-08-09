@@ -27,6 +27,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <uuid/uuid.h>
 
 #include "incl/list.h"
 #include "incl/nvme.h"	/* NOTE: Using linux kernel include here */
@@ -77,10 +78,10 @@ extern struct list_head	*target_list;
 
 enum { DISCONNECTED, CONNECTED };
 
-#define u8  __u8
-#define u16 __u16
-#define u32 __u32
-#define u64 __u64
+#define  u8  __u8
+#define  u16 __u16
+#define  u32 __u32
+#define  u64 __u64
 
 static inline u32 get_unaligned_le24(const u8 *p)
 {
