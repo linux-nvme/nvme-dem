@@ -55,6 +55,7 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _ACL		"acl"
 #define _NS		"ns"
 #define _INTERFACE	"interface"
+#define _USAGE		"usage"
 
 #define DELETE_PROMPT	"Are you sure you want to delete "
 
@@ -396,6 +397,29 @@ static int refresh_target(void *ctx, char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_REFRESH);
 
 	return exec_post(ctx, url, NULL, 0);
+}
+
+static int usage_target(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			*result;
+	char			*alias = *p;
+	int			 ret;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_USAGE);
+
+	ret = exec_get(ctx, url, &result);
+	if (ret)
+		return ret;
+
+	// TODO print using various format options see get_target()
+	printf("%s\n", result);
+
+	free(result);
+
+	return 0;
 }
 
 /* NSDEVS */
@@ -869,7 +893,7 @@ static struct verbs verb_list[] = {
 	{ get_target,	 TARGET,  1, _GET,  _TARGET, "<alias>",
 	  "show the specified target including refresh rate, ports,"
 	  " ss's, and ns's" },
-	{ set_target,	 TARGET,  2, _SET,  _TARGET, "<alias> <refresh (mins)>",
+	{ set_target,	 TARGET,  2, _SET,  _TARGET, "<alias> <refresh(mins)>",
 	  "create/update a target in the specified group (using PUT)" },
 	{ del_target,	 TARGET,  1, _DEL,  _TARGET, "<alias>",
 	  "delete a target in the specified group" },
@@ -877,6 +901,8 @@ static struct verbs verb_list[] = {
 	  "rename a target in the specified group (using PATCH)" },
 	{ refresh_target, TARGET, 1, "refresh", _TARGET, "<alias>",
 	  "signal the dem to refresh the log pages of a target/group" },
+	{ usage_target, TARGET, 1, "usage", _TARGET, "<alias>",
+	  "get usage for subsystems of a target/group" },
 
 	/* NSDEVS */
 	{ set_nsdev,	 TARGET,  2, _SET,  _NSDEV, "<alias> <nsdev>",

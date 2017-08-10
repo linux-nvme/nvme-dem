@@ -157,14 +157,22 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 	return ret;
 }
 
-static int get_target_request(void *ctx, char *group, char *target, char *resp)
+static int get_target_request(void *ctx, char *group, char *target, char **p,
+			      int n, char *resp)
 {
 	int			 ret;
 
 	if (!target || !*target)
 		ret = list_target(ctx, group, resp);
-	else
+	else if (n == 0)
 		ret = show_target(ctx, group, target, resp);
+	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
+		ret = usage_target(target, resp);
+		if (ret)
+			sprintf(resp, "%s '%s' not found in %s '%s'",
+				TAG_TARGET, target, TAG_GROUP, group);
+	} else
+		ret = bad_request(resp);
 
 	return http_error(ret);
 }
@@ -301,7 +309,6 @@ static int post_target_request(void *ctx, char *group, char *target, char **p,
 		else
 			sprintf(resp, "%s '%s' refreshed in %s '%s'",
 				TAG_TARGET, target, TAG_GROUP, group);
-
 	} else {
 		if (strcmp(*p, URI_SUBSYSTEM) == 0)
 			ret = set_subsys(ctx, group, target, p[1],
@@ -364,7 +371,7 @@ static int handle_target_requests(void *ctx, char *p[], int n,
 	n = (n > 3) ? n - 3 : 0;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_target_request(ctx, group, target, resp);
+		ret = get_target_request(ctx, group, target, p, n, resp);
 	else if (is_equal(&hm->method, &s_put_method))
 		ret = put_target_request(ctx, group, target, p, n, &hm->body,
 					 resp);

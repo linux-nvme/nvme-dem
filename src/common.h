@@ -253,6 +253,10 @@ void cleanup_listener(struct listener *pep);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
+int send_get_devices(struct endpoint *ep);
+int send_set_port_config(struct endpoint *ep);
+int send_set_subsys_config(struct endpoint *ep);
+int send_get_subsys_usage(struct endpoint *ep);
 void fetch_log_pages(struct target *target);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);
@@ -261,6 +265,7 @@ int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
 int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
 int refresh_target(char *alias);
+int usage_target(char *alias, char *results);
 void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
 

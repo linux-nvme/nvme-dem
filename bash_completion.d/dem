@@ -32,37 +32,31 @@ _dem()
   fi
 
   local n="$((COMP_CWORD-i+1))"
+  local lst="[]"
+  local verb
+  local obj
+
+  COMPREPLY=("")
 
   if [ $n -eq 1 ] ; then
-    COMPREPLY=($(compgen -W "add set get delete rename list refresh apply config shutdown" -- "$cur"))
+    lst=`${COMP_WORDS[0]} | grep "^  dem " | awk '{print $2}' | sort -u`
+    if [ "${#lst}" -ne 0 ]; then
+      COMPREPLY=($(compgen -W "$lst" -- "$cur"))
+    fi
   elif [ $n -eq 2 ] ; then
-    local verb="${COMP_WORDS[$i]}"
-    case "${verb}" in
-      delete|set)
-        COMPREPLY=($(compgen -W "group target drive subsystem portid acl ns host interface" -- "$cur"))
-      ;;
-      refresh)
-        COMPREPLY=($(compgen -W "target" -- "$cur"))
-      ;;
-      add|rename)
-        COMPREPLY=($(compgen -W "group target subsystem host" -- "$cur"))
-      ;;
-      list|get)
-        COMPREPLY=($(compgen -W "group target host" -- "$cur"))
-      ;;
-      apply|shutdown)
-        COMPREPLY=($(compgen -W "[]" -- "$cur"))
-      ;;
-    esac
-  else
-    COMPREPLY=()
-    local verb="${COMP_WORDS[$i]}"
-    local obj="${COMP_WORDS[$((i+1))]}"
-    local lst=(`${COMP_WORDS[0]} | grep "^..dem $verb $obj" | sed -e "s/^..dem [a-z]* [a-z]* //;s/{.*//;s/</[/g;s/>/]/g"`)
+    verb="${COMP_WORDS[$i]}"
+    lst=`${COMP_WORDS[0]} | grep "^  dem $verb " | awk '{print $3}' | sort -u`
+    if [ "${#lst}" -ne 0 ]; then
+      COMPREPLY=($(compgen -W "$lst" -- "$cur"))
+    fi
+  elif [ $n -gt 2 ] ; then
+    verb="${COMP_WORDS[$i]}"
+    obj="${COMP_WORDS[$((i+1))]}"
+    lst=(`${COMP_WORDS[0]} | grep "^  dem $verb $obj " | sed -e "s/^..dem [a-z]* [a-z]* //;s/{.*//;s/</[/g;s/>/]/g"`)
     n=$((n-3))
-    if [ x${lst[$n]} == x ] ; then n=0; lst=( "[]" ); fi
-
-    COMPREPLY=($(compgen -W "${lst[$n]}" -- "$cur"))
+    if [ ${#lst[$n]} -ne 0 ] ; then
+      COMPREPLY=($(compgen -W "${lst[$n]}" -- "$cur"))
+    fi
   fi
 
   return 0

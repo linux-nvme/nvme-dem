@@ -102,17 +102,16 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 
 	return ret;
 }
-static int handle_reset_nqn(struct endpoint *ep, u64 length, u64 addr,
-			    u64 key, void *desc)
+static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
+				 u64 key, void *desc)
 {
 	char			*hostnqn = (void *) ep->data;
 	int			 ret;
 
-	print_debug("reset nqn");
-
 	if (length > MAX_NQN_SIZE)
 		length = MAX_NQN_SIZE;
 
+	// TODO lookup address for configured host nqn to return
 	strncpy(hostnqn, "dumbass", length);
 
 	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
@@ -282,8 +281,8 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
 		}
-	} else if (cmd->common.opcode == nvme_admin_get_dunqn)
-		ret = handle_reset_nqn(ep, len, addr, key, desc);
+	} else if (cmd->common.opcode == nvme_admin_get_domain_nqn)
+		ret = handle_get_domain_nqn(ep, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
@@ -463,11 +462,29 @@ void init_targets(void)
 				     target->address, target->port);
 		if (ret) {
 			print_err("Could not connect to target %s",
-				target->address);
+				  target->address);
 			continue;
 		}
 
 		target->dq_connected = 1;
+
+		// TODO parse data from get devices
+		ret = send_get_devices(&target->dq);
+		if (ret)
+			print_err("Could not get devices for target %s",
+				  target->address);
+
+		// TODO build port config data
+		ret = send_set_port_config(&target->dq);
+		if (ret)
+			print_err("Could not set port config for target %s",
+				  target->address);
+
+		// TODO build subsys config data
+		ret = send_set_subsys_config(&target->dq);
+		if (ret)
+			print_err("Could not set subsys config for target %s",
+				  target->address);
 
 		fetch_log_pages(target);
 		target->refresh_countdown =

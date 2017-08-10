@@ -36,6 +36,19 @@ int refresh_target(char *alias)
 	return -EINVAL;
 }
 
+int usage_target(char *alias, char *results)
+{
+	struct target		*target;
+
+	list_for_each_entry(target, target_list, node)
+		if (!strcmp(target->alias, alias)) {
+			sprintf(results, "TODO: fill this in");
+			return 0;
+		}
+
+	return -EINVAL;
+}
+
 static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 {
 	json_t			*obj;

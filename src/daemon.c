@@ -345,6 +345,9 @@ int restart_dem(void)
 
 	stopped = 2;
 
+// TODO should only cleanup/init targets that where modified.
+// TODO need a dirty flag for ports and one for subsystem changes
+
 	cleanup_targets();
 
 	stopped = 0;
