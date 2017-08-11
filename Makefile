@@ -70,35 +70,37 @@ get_logpages:
 
 archive/make_config.sh: Makefile
 	[ -d archive ] || mkdir archive
-	echo ./dem set c ctrl1 none rdma ipv4 192.168.22.1 4420 20 > $@
-	echo ./dem set c ctrl2 none rdma ipv4 192.168.22.2 4420 25 >> $@
+	echo ./dem set t ctrl1 20 > $@
+	echo ./dem set t ctrl2 25 >> $@
+	echo ./dem set p ctrl1 1 rdma ipv4 192.168.22.1 4420 >> $@
+	echo ./dem set p ctrl2 1 rdma ipv4 192.168.22.2 4420 >> $@
 	echo ./dem set s ctrl1 host01subsys1 1 >> $@
 	echo ./dem set s ctrl1 host01subsys2 0 >> $@
 	echo ./dem set s ctrl1 host01subsys3 1 >> $@
 	echo ./dem set s ctrl2 host02subsys1 1 >> $@
 	echo ./dem set s ctrl2 host02subsys2 0 >> $@
-	echo ./dem set h host01 none host01.2014-08.org.nvmexpress >> $@
-	echo ./dem set h host02 none host02.2014-08.org.nvmexpress >> $@
-	echo ./dem set a host01 host01subsys2 1 >> $@
-	echo ./dem set a host01 host02subsys2 2 >> $@
-	echo ./dem set a host02 host01subsys2 3 >> $@
-	echo ./dem set a host02 host02subsys2 3 >> $@
+	echo ./dem set h host01 >> $@
+	echo ./dem set h host02 >> $@
+	echo ./dem set a ctrl1 host01subsys2 host01 >> $@
+	echo ./dem set a ctrl2 host02subsys2 host01 >> $@
+	echo ./dem set a ctrl1 host01subsys2 host02 >> $@
+	echo ./dem set a ctrl2 host02subsys2 host02 >> $@
 
 archive/run_test.sh: Makefile
 	[ -d archive ] || mkdir archive
 	echo "make del_hosts" > $@
-	echo "make del_ctrls" >> $@
+	echo "make del_targets" >> $@
 	echo "./dem apply" >> $@
 	echo "sh archive/make_config.sh" >> $@
 	echo "./dem apply" >> $@
 	echo "make get_logpages" >> $@
-	echo "fmt=-j make show_ctrls" >> $@
+	echo "fmt=-j make show_targets" >> $@
 	echo "fmt=-j make show_hosts" >> $@
-	echo "make del_ctrls" >> $@
+	echo "make del_targets" >> $@
 	echo "make del_hosts" >> $@
 	echo "./dem apply" >> $@
 	echo "make get_logpages" >> $@
-	echo "make show_ctrls" >> $@
+	echo "make show_targets" >> $@
 	echo "make show_hosts" >> $@
 	echo "sh archive/make_config.sh" >> $@
 	echo "./dem apply" >> $@
@@ -114,8 +116,10 @@ archive: clean
 	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile src/ files/ incl/
 
 test_cli: dem
+	./dem config
 	./dem list ctrl
-	./dem set ctrl ctrl1 none rdma ipv4 1.1.1.2 2332 25
+	./dem set ctrl ctrl1
+	./dem set portid 1 rdma ipv4 1.1.1.2 2332
 	./dem show ctrl ctrl1
 	./dem rename ctrl ctrl1 ctrl2
 	./dem add ss ctrl2 ss21 ss22
@@ -129,48 +133,47 @@ test_cli: dem
 	./dem delete acl host02 ss21
 	./dem delete host host02
 	./dem shutdown
-	./dem config
 
 # show format for raw: fmt=-r make show_hosts
 # show format for pretty json: fmt=-j make show_hosts
 show_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; \
-		do ./dem $$fmt sho h $$i ; done
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* defined"`; \
+		do ./dem $$fmt get h $$i ; done
 
-show_ctrls:
-	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; \
-		do ./dem $$fmt sho c $$i ; done
+show_targets:
+	for i in `./dem lis t |grep -v ^http: | grep -v "^No .* defined"`; \
+		do ./dem $$fmt get t $$i ; done
 
 del_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* config"`; \
+	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* defined"`; \
 		do ./dem -f del h $$i ; done
 
-del_ctrls:
-	for i in `./dem lis c |grep -v ^http: | grep -v "^No .* config"`; \
-		do ./dem -f del c $$i ; done
+del_targets:
+	for i in `./dem lis t |grep -v ^http: | grep -v "^No .* defined"`; \
+		do ./dem -f del t $$i ; done
 
 put:
 	echo PUT Commands
-	curl -X PUT -d '' http://127.0.0.1:22345/host/host01
+	curl -X PUT -d '' http://127.0.0.1:22345/group/local/host/host01
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/host/host02
+	curl -X PUT -d '' http://127.0.0.1:22345/group/local/host/host02
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl1
+	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl1
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl2
+	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl2
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/controller/ctrl1/subsys1
+	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl1/subsys/subsys1
 	echo
 	echo
 get:
 	echo GET Commands
-	curl http://127.0.0.1:22345/controller
+	curl http://127.0.0.1:22345/group/local/target
 	echo
-	curl http://127.0.0.1:22345/controller/ctrl1
+	curl http://127.0.0.1:22345/group/local/target/ctrl1
 	echo
-	curl http://127.0.0.1:22345/host
+	curl http://127.0.0.1:22345/group/local/host
 	echo
-	curl http://127.0.0.1:22345/host/host01
+	curl http://127.0.0.1:22345/group/local/host/host01
 	echo
 	echo
 
@@ -178,22 +181,21 @@ del: delhost01 delhost02 delctrl1 delctrl2
 	echo
 
 delctrl2:
-	echo DELETE Commands
-	curl -X DELETE  http://127.0.0.1:22345/controller/ctrl2
+	curl -X DELETE  http://127.0.0.1:22345/group/local/target/ctrl2
 	echo
 delctrl1:
-	echo DELETE Commands
-	curl -X DELETE  http://127.0.0.1:22345/controller/ctrl1
+	curl -X DELETE  http://127.0.0.1:22345/group/local/target/ctrl1
 	echo
 delhost01:
-	curl -X DELETE  http://127.0.0.1:22345/host/host01
+	echo DELETE Commands
+	curl -X DELETE  http://127.0.0.1:22345/group/local/host/host01
 	echo
 delhost02:
-	curl -X DELETE  http://127.0.0.1:22345/host/host02
+	curl -X DELETE  http://127.0.0.1:22345/group/local/host/host02
 	echo
 post:
 	echo POST Commands
-	curl -d 'host02' http://127.0.0.1:22345/host/host01
+	curl -d '{"HOSTNQN":"host02"}' http://127.0.0.1:22345/group/local/host/host01
 	echo
 	echo
 
@@ -222,7 +224,7 @@ simple_test:
 	make get_logpages
 	sleep 1
 	echo
-	make del_ctrls
+	make del_targets
 	make del_hosts
 	./dem apply
 	make get_logpages
