@@ -167,6 +167,7 @@ static int list_group(void *ctx, char *url, int n, char **p)
 		else
 			printf("%s\n", result);
 	}
+
 	free(result);
 
 	return 0;
@@ -210,6 +211,7 @@ static int get_group(void *ctx, char *base, int n, char **p)
 		else
 			printf("%s\n", result);
 	}
+
 	free(result);
 
 	return 0;
@@ -288,6 +290,7 @@ static int list_target(void *ctx, char *url, int n, char **p)
 		else
 			printf("%s\n", result);
 	}
+
 	free(result);
 
 	return 0;
@@ -331,6 +334,7 @@ static int get_target(void *ctx, char *base, int n, char **p)
 		else
 			printf("%s\n", result);
 	}
+
 	free(result);
 
 	return 0;
@@ -405,6 +409,8 @@ static int usage_target(void *ctx, char *base, int n, char **p)
 	char			*result;
 	char			*alias = *p;
 	int			 ret;
+	json_t			*parent;
+	json_error_t		 error;
 
 	UNUSED(n);
 
@@ -414,8 +420,15 @@ static int usage_target(void *ctx, char *base, int n, char **p)
 	if (ret)
 		return ret;
 
-	// TODO print using various format options see get_target()
-	printf("%s\n", result);
+	if (formatted == RAW)
+		printf("%s\n", result);
+	else {
+		parent = json_loads(result, JSON_DECODE_ANY, &error);
+		if (parent)
+			show_usage_data(parent, formatted);
+		else
+			printf("%s\n", result);
+	}
 
 	free(result);
 
@@ -755,6 +768,7 @@ static int get_host(void *ctx, char *base, int n, char **p)
 		else
 			printf("%s\n", result);
 	}
+
 	free(result);
 
 	return 0;

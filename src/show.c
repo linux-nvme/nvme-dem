@@ -410,6 +410,13 @@ static void show_devices(json_t *parent, int formatted)
 		printf("No NS Devices defined\n");
 }
 
+void show_usage_data(json_t *parent, int formatted)
+{
+	// TODO show usage data is human readable format
+
+	json_dumps(parent, formatted ? 1 : 0);
+}
+
 void show_target_data(json_t *parent, int formatted)
 {
 	json_t			*attrs;

@@ -66,7 +66,7 @@ jansson/libjansson.a: jansson/src/.libs/libjansson.a
 # hard coded path to nvme-cli
 get_logpages:
 	sudo /home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics \
-		-t rdma -a 192.168.22.1 -s 4422 || echo nvme-cli error $$?
+		-t rdma -a 192.168.22.2 -s 4422 -q host02 || echo nvme-cli error $$?
 
 archive/make_config.sh: Makefile
 	[ -d archive ] || mkdir archive

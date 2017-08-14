@@ -129,33 +129,32 @@ static void check_subsystems(struct target *target, json_t *array,
 	}
 }
 
-static int get_transport_info(char *alias, json_t *group, char *type,
-			      char *fam, char *address, char *port, int *_addr)
+static int get_transport_info(char *alias, json_t *grp, struct port_id *portid)
 {
 	json_t			*obj;
 	char			*str;
 	int			 addr[ADDR_LEN];
 	int			 ret;
 
-	obj = json_object_get(group, TAG_TYPE);
+	obj = json_object_get(grp, TAG_TYPE);
 	if (!obj) {
 		print_err("Controller '%s' error: transport type missing",
 			  alias);
 		goto out;
 	}
 	str = (char *) json_string_value(obj);
-	strncpy(type, str, CONFIG_TYPE_SIZE);
+	strncpy(portid->type, str, CONFIG_TYPE_SIZE);
 
-	obj = json_object_get(group, TAG_FAMILY);
+	obj = json_object_get(grp, TAG_FAMILY);
 	if (!obj) {
 		print_err("Controller '%s' error: transport family missing",
 			  alias);
 		goto out;
 	}
 	str = (char *) json_string_value(obj);
-	strncpy(fam, str, CONFIG_FAMILY_SIZE);
+	strncpy(portid->family, str, CONFIG_FAMILY_SIZE);
 
-	obj = json_object_get(group, TAG_ADDRESS);
+	obj = json_object_get(grp, TAG_ADDRESS);
 	if (!obj) {
 		print_err("Controller '%s' error: transport address missing",
 			  alias);
@@ -163,50 +162,46 @@ static int get_transport_info(char *alias, json_t *group, char *type,
 	}
 	str = (char *) json_string_value(obj);
 
-	if (strcmp(fam, "ipv4") == 0)
+	if (strcmp(portid->family, "ipv4") == 0)
 		ret = ipv4_to_addr(str, addr);
-	else if (strcmp(fam, "ipv6") == 0)
+	else if (strcmp(portid->family, "ipv6") == 0)
 		ret = ipv6_to_addr(str, addr);
-	else if (strcmp(fam, "fc") == 0)
+	else if (strcmp(portid->family, "fc") == 0)
 		ret = fc_to_addr(str, addr);
 	else {
 		print_err("Controller '%s' error: bad transport family '%s'",
-			  alias, fam);
+			  alias, portid->family);
 		goto out;
 	}
 
 	if (ret < 0) {
 		print_err("Controller '%s' error: bad '%s' address '%s'",
-			  alias, fam, str);
+			  alias, portid->family, str);
 		goto out;
 	}
 
-	memcpy(_addr, addr, sizeof(addr[0]) * ADDR_LEN);
-	strncpy(address, str, CONFIG_ADDRESS_SIZE);
+	memcpy(portid->addr, addr, sizeof(addr[0]) * ADDR_LEN);
+	strncpy(portid->address, str, CONFIG_ADDRESS_SIZE);
 
-	obj = json_object_get(group, TAG_TRSVCID);
+	obj = json_object_get(grp, TAG_TRSVCID);
 	if (obj)
-		sprintf(port, "%*lld", CONFIG_PORT_SIZE,
-			json_integer_value(obj));
+		portid->port_num = json_integer_value(obj);
 	else
-		sprintf(port, "%d", NVME_RDMA_IP_PORT);
+		portid->port_num = NVME_RDMA_IP_PORT;
+
+	sprintf(portid->port, "%d", portid->port_num);
 
 	return 1;
 out:
 	return 0;
 }
 
-static int add_to_target_list(json_t *parent, json_t *portid, json_t *hosts)
+static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 {
 	struct target		*target;
 	json_t			*subgroup;
 	json_t			*obj;
-	int			 addr[ADDR_LEN];
 	char			 alias[MAX_ALIAS_SIZE + 1];
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	char			 port[CONFIG_PORT_SIZE + 1];
-	char			 fam[CONFIG_FAMILY_SIZE + 1];
-	char			 type[CONFIG_TYPE_SIZE + 1];
 	int			 refresh = 0;
 
 	obj = json_object_get(parent, TAG_ALIAS);
@@ -215,9 +210,6 @@ static int add_to_target_list(json_t *parent, json_t *portid, json_t *hosts)
 
 	strncpy(alias, (char *) json_string_value(obj), MAX_ALIAS_SIZE);
 
-	if (!get_transport_info(alias, portid, type, fam, address, port, addr))
-		goto err;
-
 	target = malloc(sizeof(*target));
 	if (!target)
 		goto err;
@@ -225,6 +217,8 @@ static int add_to_target_list(json_t *parent, json_t *portid, json_t *hosts)
 	memset(target, 0, sizeof(*target));
 
 	INIT_LIST_HEAD(&target->subsys_list);
+	INIT_LIST_HEAD(&target->portid_list);
+	INIT_LIST_HEAD(&target->device_list);
 
 	list_add(&target->node, target_list);
 
@@ -234,31 +228,85 @@ static int add_to_target_list(json_t *parent, json_t *portid, json_t *hosts)
 
 	strncpy(target->alias, alias, MAX_ALIAS_SIZE);
 
-	strncpy(target->trtype, type, CONFIG_TYPE_SIZE);
-	strncpy(target->addrfam, fam, CONFIG_FAMILY_SIZE);
-	strncpy(target->address, address, CONFIG_ADDRESS_SIZE);
-	strncpy(target->port, port, CONFIG_PORT_SIZE);
-
-	memcpy(target->addr, addr, ADDR_LEN);
-
-	target->port_num = atoi(port);
 	target->refresh = refresh;
 
 	subgroup = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (subgroup)
 		check_subsystems(target, subgroup, hosts);
 
-	return 1;
+	return target;
 err:
-	return 0;
+	return NULL;
 }
 
-int build_target_list(void *context)
+static int add_port_to_target(struct target *target, json_t *obj)
+{
+	struct port_id		*portid;
+
+	portid = malloc(sizeof(*portid));
+	if (!portid)
+		return -ENOMEM;
+
+	memset(portid, 0, sizeof(*portid));
+
+	list_add(&portid->node, &target->portid_list);
+
+	if (!get_transport_info(target->alias, obj, portid))
+		goto err;
+
+	return 0;
+err:
+	free(portid);
+
+	return -EINVAL;
+}
+
+void get_host_nqn(void *context, char *haddr, char *nqn)
 {
 	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*group;
-	json_t			*targets;
+	json_t			*hosts;
+	json_t			*iter;
+	json_t			*obj;
+	json_t			*address;
+	int			 i, j, n, cnt;
+
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups)
+		return;
+
+	cnt = json_array_size(groups);
+	for (j = 0; j < cnt; j++) {
+		group = json_array_get(groups, i);
+
+		hosts = json_object_get(group, TAG_HOSTS);
+		if (!hosts)
+			continue;
+
+		n = json_array_size(hosts);
+		for (i = 0; i < n; i++) {
+			iter = json_array_get(hosts, i);
+			address = json_object_get(iter, TAG_ADDRESS);
+			if (!address)
+				continue;
+
+			if (strcmp(haddr, json_string_value(address)) == 0) {
+				obj = json_object_get(iter, TAG_HOSTNQN);
+				strcpy(nqn, json_string_value(obj));
+				return;
+			}
+		}
+	}
+}
+
+void build_target_list(void *context)
+{
+	struct json_context	*ctx = context;
+	struct target		*target;
+	json_t			*groups;
+	json_t			*group;
+	json_t			*array;
 	json_t			*hosts;
 	json_t			*ports;
 	json_t			*iter;
@@ -267,33 +315,34 @@ int build_target_list(void *context)
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups)
-		return 0;
+		return;
 
 	cnt = json_array_size(groups);
 	for (j = 0; j < cnt; j++) {
 		group = json_array_get(groups, i);
 
-		targets = json_object_get(group, TAG_TARGETS);
-		if (!targets)
+		array = json_object_get(group, TAG_TARGETS);
+		if (!array)
+			continue;
+		n = json_array_size(array);
+		if (!n)
 			continue;
 
 		hosts = json_object_get(group, TAG_HOSTS);
-
-		n = json_array_size(targets);
 		for (i = 0; i < n; i++) {
-			iter = json_array_get(targets, i);
+			iter = json_array_get(array, i);
+			target = add_to_target_list(iter, hosts);
+
 			ports = json_object_get(iter, TAG_PORTIDS);
 			if (ports) {
 				int i, n = json_array_size(ports);
 				for (i = 0; i < n; i++) {
 					obj = json_array_get(ports, i);
-					add_to_target_list(iter, obj, hosts);
+					add_port_to_target(target, obj);
 				}
 			}
 		}
 	}
-
-	return 0;
 }
 
 static int count_dem_config_files(void)
@@ -332,9 +381,9 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 		return;
 
 	if (strcasecmp(tag, TAG_TYPE) == 0)
-		strncpy(iface->trtype, val, CONFIG_TYPE_SIZE);
+		strncpy(iface->type, val, CONFIG_TYPE_SIZE);
 	else if (strcasecmp(tag, TAG_FAMILY) == 0)
-		strncpy(iface->addrfam, val, CONFIG_FAMILY_SIZE);
+		strncpy(iface->family, val, CONFIG_FAMILY_SIZE);
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
 		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
 	else if (strcasecmp(tag, TAG_TRSVCID) == 0)
@@ -346,11 +395,11 @@ static void translate_addr_to_array(struct interface *iface)
 	int			 mask_bits;
 	char			*p;
 
-	if (strcmp(iface->addrfam, "ipv4") == 0)
+	if (strcmp(iface->family, "ipv4") == 0)
 		mask_bits = ipv4_to_addr(iface->address, iface->addr);
-	else if (strcmp(iface->addrfam, "ipv6") == 0)
+	else if (strcmp(iface->family, "ipv6") == 0)
 		mask_bits = ipv6_to_addr(iface->address, iface->addr);
-	else if (strcmp(iface->addrfam, "fc") == 0)
+	else if (strcmp(iface->family, "fc") == 0)
 		mask_bits = fc_to_addr(iface->address, iface->addr);
 	else {
 		print_err("unsupported or unspecified address family");
@@ -393,8 +442,8 @@ static int read_dem_config_files(struct interface *iface)
 
 			fclose(fid);
 
-			if ((!strcmp(iface[count].trtype, "")) ||
-			    (!strcmp(iface[count].addrfam, "")) ||
+			if ((!strcmp(iface[count].type, "")) ||
+			    (!strcmp(iface[count].family, "")) ||
 			    (!strcmp(iface[count].address, "")))
 				print_err("%s: %s.",
 					"bad config file. Ignoring interface",
@@ -421,7 +470,7 @@ out:
 	return ret;
 }
 
-void cleanup_targets(void)
+void cleanup_targets(int dem_restart)
 {
 	struct target		*target;
 	struct target		*next_target;
@@ -431,6 +480,8 @@ void cleanup_targets(void)
 	struct host		*next_host;
 
 	list_for_each_entry_safe(target, next_target, target_list, node) {
+		if (dem_restart && !check_modified(target))
+			continue;
 		list_for_each_entry_safe(subsys, next_subsys,
 					 &target->subsys_list, node) {
 			list_for_each_entry_safe(host, next_host,

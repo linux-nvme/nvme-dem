@@ -134,7 +134,7 @@ static int get_logpages(struct target *target,
 	free(log);
 
 	if (*numrec == 0) {
-		print_err("No discovery log on target %s", target->address);
+		print_err("No discovery log on target %s", target->alias);
 		return -ENODATA;
 	}
 
@@ -234,8 +234,7 @@ void fetch_log_pages(struct target *target)
 	u32				 num_records = 0;
 
 	if (get_logpages(target, &log, &num_records)) {
-		print_err("Failed to get logpage for target %s",
-			  target->address);
+		print_err("Failed to get logpage for target %s", target->alias);
 		return;
 	}
 

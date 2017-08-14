@@ -96,11 +96,10 @@ static int get_dem_request(char *verb, char *resp)
 		n = sprintf(resp, "%s{\"%s\":%d,", (i) ? "," : "", TAG_ID, i);
 		resp += n;
 
-		n = sprintf(resp, "\"%s\":\"%s\",", TAG_TYPE, iface->trtype);
+		n = sprintf(resp, "\"%s\":\"%s\",", TAG_TYPE, iface->type);
 		resp += n;
 
-		n = sprintf(resp, "\"%s\":\"%s\",", TAG_FAMILY,
-			    iface->addrfam);
+		n = sprintf(resp, "\"%s\":\"%s\",", TAG_FAMILY, iface->family);
 		resp += n;
 
 		n = sprintf(resp, "\"%s\":\"%s\",", TAG_ADDRESS,

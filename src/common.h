@@ -71,10 +71,10 @@
 
 extern int			 debug;
 extern int			 stopped;
-extern struct interface	*interfaces;
 extern int			 num_interfaces;
+extern struct interface		*interfaces;
+extern struct list_head		*target_list;
 extern void			*json_ctx;
-extern struct list_head	*target_list;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -116,6 +116,7 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define CONFIG_FAMILY_SIZE	8
 #define CONFIG_ADDRESS_SIZE	40
 #define CONFIG_PORT_SIZE	8
+#define CONFIG_DEVICE_SIZE	256
 #define LARGEST_TAG		8
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
@@ -151,8 +152,8 @@ struct listener {
 };
 
 struct interface {
-	char			 trtype[CONFIG_TYPE_SIZE + 1];
-	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	int			 addr[ADDR_LEN];
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
@@ -200,19 +201,30 @@ struct endpoint {
 	int			 csts;
 };
 
-struct target {
+struct nsdev {
 	struct list_head	 node;
-	struct list_head	 subsys_list;
-	struct endpoint		 dq;
-	int			 dq_connected;
-	struct interface	*iface;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	char			 trtype[CONFIG_TYPE_SIZE + 1];
-	char			 addrfam[CONFIG_FAMILY_SIZE + 1];
+	char			 device[CONFIG_DEVICE_SIZE + 1];
+};
+
+struct port_id {
+	struct list_head	 node;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
 	int			 addr[ADDR_LEN];
+};
+
+struct target {
+	struct list_head	 node;
+	struct list_head	 subsys_list;
+	struct list_head	 portid_list;
+	struct list_head	 device_list;
+	struct interface	*iface;
+	struct endpoint		 dq;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	int			 dq_connected;
 	int			 refresh;
 	int			 refresh_countdown;
 	int			 kato_countdown;
@@ -238,10 +250,11 @@ int fc_to_addr(char *p, int *addr);
 int init_interfaces(void);
 void *interface_thread(void *arg);
 
-int build_target_list(void *context);
-void init_targets(void);
-void cleanup_targets(void);
-
+void build_target_list(void *context);
+void init_targets(int dem_restart);
+void cleanup_targets(int dem_restart);
+int check_modified(struct target *target);
+void get_host_nqn(void *context, char *haddr, char *nqn);
 int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
 int run_pseudo_target(struct endpoint *ep);

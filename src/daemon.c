@@ -346,13 +346,12 @@ int restart_dem(void)
 	stopped = 2;
 
 // TODO should only cleanup/init targets that where modified.
-// TODO need a dirty flag for ports and one for subsystem changes
 
-	cleanup_targets();
+	cleanup_targets(1);
 
 	stopped = 0;
 
-	init_targets();
+	init_targets(1);
 
 	return ret;
 }
@@ -377,7 +376,7 @@ int main(int argc, char *argv[])
 	if (num_interfaces <= 0)
 		goto out2;
 
-	init_targets();
+	init_targets(0);
 
 	signalled = stopped = 0;
 
@@ -397,7 +396,7 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
-	cleanup_targets();
+	cleanup_targets(0);
 out2:
 	cleanup_json(json_ctx);
 out1:

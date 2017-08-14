@@ -111,8 +111,9 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 	if (length > MAX_NQN_SIZE)
 		length = MAX_NQN_SIZE;
 
-	// TODO lookup address for configured host nqn to return
-	strncpy(hostnqn, "dumbass", length);
+	memset(hostnqn, 0, length);
+
+	get_host_nqn(json_ctx, ep->info->src_addr, hostnqn);
 
 	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
 	if (ret)
@@ -446,23 +447,37 @@ err1:
 	return ret;
 }
 
-void init_targets(void)
+int check_modified(struct target *target)
+{
+	UNUSED(target);
+
+	/*TODO - Finish check_modified */
+
+	return 1;
+}
+
+void init_targets(int dem_restart)
 {
 	struct target		*target;
+	struct port_id		*portid;
 	int			 ret;
 
-	if (build_target_list(json_ctx)) {
-		print_err("Failed to build target list");
-		return;
-	}
+	build_target_list(json_ctx);
 
 	list_for_each_entry(target, target_list, node) {
+		if (dem_restart && !check_modified(target))
+			continue;
 
-		ret = connect_target(&target->dq, target->trtype,
-				     target->address, target->port);
+		// TODO walk interface list to find portid we can use
+
+		portid = list_first_entry(&target->portid_list,
+					  struct port_id, node);
+
+		ret = connect_target(&target->dq, portid->type,
+				     portid->address, portid->port);
 		if (ret) {
 			print_err("Could not connect to target %s",
-				  target->address);
+				  target->alias);
 			continue;
 		}
 
@@ -472,19 +487,19 @@ void init_targets(void)
 		ret = send_get_devices(&target->dq);
 		if (ret)
 			print_err("Could not get devices for target %s",
-				  target->address);
+				  target->alias);
 
 		// TODO build port config data
 		ret = send_set_port_config(&target->dq);
 		if (ret)
 			print_err("Could not set port config for target %s",
-				  target->address);
+				  target->alias);
 
 		// TODO build subsys config data
 		ret = send_set_subsys_config(&target->dq);
 		if (ret)
 			print_err("Could not set subsys config for target %s",
-				  target->address);
+				  target->alias);
 
 		fetch_log_pages(target);
 		target->refresh_countdown =
@@ -502,7 +517,7 @@ void *interface_thread(void *arg)
 	pthread_t		 pthread;
 	int			 ret;
 
-	ret = start_pseudo_target(listener, iface->trtype, iface->address,
+	ret = start_pseudo_target(listener, iface->type, iface->address,
 				  iface->pseudo_target_port);
 	if (ret) {
 		print_err("Failed to start pseudo target");
