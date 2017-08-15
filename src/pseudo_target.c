@@ -76,8 +76,6 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 	struct nvmf_connect_data *data = (void *) ep->data;
 	int			  ret;
 
-	print_debug("nvme_fabrics_type_connect");
-
 	ret = rma_read(ep->ep, ep->scq, data, length, desc, addr, key);
 	if (ret) {
 		print_err("rma_read returned %d", ret);
@@ -113,7 +111,7 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 
 	memset(hostnqn, 0, length);
 
-	get_host_nqn(json_ctx, ep->info->src_addr, hostnqn);
+	get_host_nqn(json_ctx, ep->prov->src_addr, hostnqn);
 
 	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
 	if (ret)
@@ -134,8 +132,6 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	}
 
 	memset(id, 0, sizeof(*id));
-
-	print_debug("identify");
 
 	memset(id->fr, ' ', sizeof(id->fr));
 	strncpy((char *)id->fr, " ", sizeof(id->fr));
@@ -182,8 +178,6 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 	int				 numrec = 0;
 	int				 ret;
 
-	print_debug("get_log_page_count");
-
 	list_for_each_entry(target, target_list, node)
 		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (!subsys->log_page_valid)
@@ -194,6 +188,10 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 
 	log->numrec = numrec;
 	log->genctr = 1;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("log_page count %d", numrec);
+#endif
 
 	ret = rma_write(ep->ep, ep->scq, log, length, desc, addr, key);
 	if (ret)
@@ -212,8 +210,6 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 	struct fid_mr			*mr;
 	int				 numrec = 0;
 	int				 ret;
-
-	print_debug("get_log_pages");
 
 	log = alloc_buffer(ep, len, &mr);
 	if (!log)
@@ -286,6 +282,8 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 		ret = handle_get_domain_nqn(ep, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, len, addr, key, desc);
+	else if (cmd->common.opcode == nvme_admin_keep_alive)
+		ret = 0;
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
 			ret = handle_get_log_page_count(ep, len, addr, key,

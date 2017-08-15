@@ -121,7 +121,7 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
-#define MAX_NQN_SIZE		128
+#define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
 
 #ifndef AF_IPV4
@@ -254,7 +254,7 @@ void build_target_list(void *context);
 void init_targets(int dem_restart);
 void cleanup_targets(int dem_restart);
 int check_modified(struct target *target);
-void get_host_nqn(void *context, char *haddr, char *nqn);
+void get_host_nqn(void *context, void *haddr, char *nqn);
 int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
 int run_pseudo_target(struct endpoint *ep);

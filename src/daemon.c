@@ -81,13 +81,21 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 static inline void refresh_log_pages(void)
 {
 	struct target		*target;
+	int			 ret;
 
 	list_for_each_entry(target, target_list, node) {
 		if (!target->dq_connected)
 			continue;
 
 		if (target->kato_countdown == 0) {
-			send_keep_alive(&target->dq);
+			ret = send_keep_alive(&target->dq);
+			if (ret) {
+				print_err("keep alive failed. disconnected %s",
+					  target->alias);
+				disconnect_target(&target->dq, 0);
+				target->dq_connected = 0;
+				continue;
+			}
 			target->kato_countdown = MINUTES / IDLE_TIMEOUT;
 		} else
 			target->kato_countdown--;

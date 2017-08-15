@@ -16,8 +16,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
-#include <sys/types.h>
 #include <dirent.h>
+#include <sys/types.h>
+#include <arpa/inet.h>
 
 #include "json.h"
 #include "tags.h"
@@ -261,7 +262,25 @@ err:
 	return -EINVAL;
 }
 
-void get_host_nqn(void *context, char *haddr, char *nqn)
+static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
+{
+	switch(sa->sa_family) {
+	case AF_INET:
+		inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
+			  s, len);
+		break;
+
+	case AF_INET6:
+		inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
+			  s, len);
+		break;
+
+	default:
+		strncpy(s, "Unknown AF", len);
+	}
+}
+
+void get_host_nqn(void *context, void *haddr, char *nqn)
 {
 	struct json_context	*ctx = context;
 	json_t			*groups;
@@ -270,7 +289,12 @@ void get_host_nqn(void *context, char *haddr, char *nqn)
 	json_t			*iter;
 	json_t			*obj;
 	json_t			*address;
-	int			 i, j, n, cnt;
+	json_t			*ifaces;
+	json_t			*tmp;
+	char			 str[INET_ADDRSTRLEN];
+	int			 i, j, k, n, m, cnt;
+
+	get_address_str(haddr, str, INET_ADDRSTRLEN);
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups)
@@ -278,7 +302,7 @@ void get_host_nqn(void *context, char *haddr, char *nqn)
 
 	cnt = json_array_size(groups);
 	for (j = 0; j < cnt; j++) {
-		group = json_array_get(groups, i);
+		group = json_array_get(groups, j);
 
 		hosts = json_object_get(group, TAG_HOSTS);
 		if (!hosts)
@@ -287,14 +311,23 @@ void get_host_nqn(void *context, char *haddr, char *nqn)
 		n = json_array_size(hosts);
 		for (i = 0; i < n; i++) {
 			iter = json_array_get(hosts, i);
-			address = json_object_get(iter, TAG_ADDRESS);
-			if (!address)
+			ifaces = json_object_get(iter, TAG_INTERFACES);
+			if (!ifaces)
 				continue;
+			m = json_array_size(ifaces);
 
-			if (strcmp(haddr, json_string_value(address)) == 0) {
-				obj = json_object_get(iter, TAG_HOSTNQN);
-				strcpy(nqn, json_string_value(obj));
-				return;
+			for (k = 0; k < m; k++) {
+				tmp = json_array_get(ifaces, k);
+				address = json_object_get(tmp, TAG_ADDRESS);
+				if (!address)
+					continue;
+
+				if (!strcmp(str, json_string_value(address))) {
+					obj = json_object_get(iter,
+							      TAG_HOSTNQN);
+					strcpy(nqn, json_string_value(obj));
+					return;
+				}
 			}
 		}
 	}
