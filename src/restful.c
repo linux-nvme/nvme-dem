@@ -87,8 +87,6 @@ static int get_dem_request(char *verb, char *resp)
 	if (verb)
 		return bad_request(resp);
 
-	// TODO Ping Sujoy - Rackscale may need info / provide input
-
 	n = sprintf(resp, "{\"%s\":[", TAG_INTERFACES);
 	resp += n;
 

@@ -31,9 +31,6 @@
 #include "common.h"
 #include "incl/nvme-rdma.h"
 
-#define IDLE_TIMEOUT 100
-#define PAGE_SIZE 4096
-
 #define NVME_CTRL_ENABLE 0x460001
 #define NVME_CTRL_DISABLE 0x464001
 
@@ -733,108 +730,119 @@ int send_keep_alive(struct endpoint *ep)
 	return send_cmd(ep, cmd, bytes);
 }
 
-int send_get_devices(struct endpoint *ep)
+int send_set_port_config(struct endpoint *ep, int len,
+			 struct nvmf_port_config_page_hdr *hdr)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
+	struct fid_mr			*mr;
 	int				 bytes;
+	int				 ret;
 
 	bytes = sizeof(*cmd);
 
-	data = (void *) &cmd[1];
-
 	memset(cmd, 0, BUF_SIZE);
 
+	ret = fi_mr_reg(ep->dom, hdr, len, FI_RECV | FI_SEND |
+			FI_REMOTE_READ | FI_REMOTE_WRITE |
+			FI_READ | FI_WRITE,
+			0, 0, 0, &mr, NULL);
+	if (ret) {
+		print_err("fi_mr_reg returned %d", ret);
+		return ret;
+	}
+
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_get_devices;
+	cmd->common.opcode	= nvme_fabrics_command;
+	cmd->fabrics.fctype	= nvme_fabrics_type_set_port_config;
 
 	sg = &cmd->common.dptr.ksgl;
 
-	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
+	sg->addr = (u64) hdr;
+	put_unaligned_le24(len, sg->length);
+	put_unaligned_le32(fi_mr_key(mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
-	return send_cmd(ep, cmd, bytes);
+	ret = send_cmd(ep, cmd, bytes);
+	fi_close(&mr->fid);
+
+	return ret;
 }
 
-int send_set_port_config(struct endpoint *ep)
+int send_set_subsys_config(struct endpoint *ep, int len,
+			   struct nvmf_subsys_config_page_hdr *hdr)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
+	struct fid_mr			*mr;
 	int				 bytes;
+	int				 ret;
 
 	bytes = sizeof(*cmd);
 
-	data = (void *) &cmd[1];
-
 	memset(cmd, 0, BUF_SIZE);
 
+	ret = fi_mr_reg(ep->dom, hdr, len, FI_RECV | FI_SEND |
+			FI_REMOTE_READ | FI_REMOTE_WRITE |
+			FI_READ | FI_WRITE,
+			0, 0, 0, &mr, NULL);
+	if (ret) {
+		print_err("fi_mr_reg returned %d", ret);
+		return ret;
+	}
+
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_set_port_config;
+	cmd->common.opcode	= nvme_fabrics_command;
+	cmd->fabrics.fctype	= nvme_fabrics_type_set_subsys_config;
 
 	sg = &cmd->common.dptr.ksgl;
 
-	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
+	sg->addr = (u64) hdr;
+	put_unaligned_le24(len, sg->length);
+	put_unaligned_le32(fi_mr_key(mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
-	return send_cmd(ep, cmd, bytes);
+	ret = send_cmd(ep, cmd, bytes);
+	fi_close(&mr->fid);
+	return ret;
 }
 
-int send_set_subsys_config(struct endpoint *ep)
+int send_get_subsys_usage(struct endpoint *ep, int len,
+			  struct nvmf_subsys_usage_rsp_page_hdr *hdr)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
+	struct fid_mr			*mr;	
 	int				 bytes;
+	int				 ret;
 
 	bytes = sizeof(*cmd);
 
-	data = (void *) &cmd[1];
-
 	memset(cmd, 0, BUF_SIZE);
 
+	ret = fi_mr_reg(ep->dom, hdr, len, FI_RECV | FI_SEND |
+			FI_REMOTE_READ | FI_REMOTE_WRITE |
+			FI_READ | FI_WRITE,
+			0, 0, 0, &mr, NULL);
+	if (ret) {
+		print_err("fi_mr_reg returned %d", ret);
+		return ret;
+	}
+
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_set_subsys_config;
+	cmd->common.opcode	= nvme_fabrics_command;
+	cmd->fabrics.fctype	= nvme_fabrics_type_get_subsys_usage;
 
 	sg = &cmd->common.dptr.ksgl;
 
-	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
+	sg->addr = (u64) hdr;
+	put_unaligned_le24(len, sg->length);
+	put_unaligned_le32(fi_mr_key(mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
-	return send_cmd(ep, cmd, bytes);
-}
-
-int send_get_subsys_usage(struct endpoint *ep)
-{
-	struct nvme_keyed_sgl_desc	*sg;
-	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
-	int				 bytes;
-
-	bytes = sizeof(*cmd);
-
-	data = (void *) &cmd[1];
-
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_get_subsys_usage;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
-	return send_cmd(ep, cmd, bytes);
+	ret = send_cmd(ep, cmd, bytes);
+	fi_close(&mr->fid);
+	return ret;
 }
 
 int send_get_property(struct endpoint *ep, u32 reg)

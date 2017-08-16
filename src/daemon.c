@@ -28,7 +28,6 @@
 #include "common.h"
 #include "tags.h"
 
-#define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
 
 #define DEV_DEBUG

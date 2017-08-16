@@ -70,3 +70,11 @@
 #define DEFAULT_ADDR		"127.0.0.1"
 #define DEFAULT_PORT		"22345"
 #define DEFAULT_GROUP		"local"
+
+#define TRTYPE_STR_RDMA		"rdma"
+#define TRTYPE_STR_FC		"fc"
+#define TRTYPE_STR_TCP		"tcp"
+
+#define ADRFAM_STR_IPV4		"ipv4"
+#define ADRFAM_STR_IPV6		"ipv6"
+#define ADRFAM_STR_FC		"fc"

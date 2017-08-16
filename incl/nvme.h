@@ -27,6 +27,7 @@
 #define NVMF_TRSVCID_SIZE	32
 #define NVMF_TRADDR_SIZE	256
 #define NVMF_TSAS_SIZE		256
+#define NVMF_DEV_PATH_SIZE	256
 
 #define NVME_DISC_SUBSYS_NAME	"nqn.2014-08.org.nvmexpress.discovery"
 #define NVME_DOMAIN_SUBSYS_NAME	"nqn.2017-08.org.nvmexpress.domain"
@@ -652,11 +653,6 @@ enum nvme_admin_opcode {
 	nvme_admin_keep_alive		= 0x18,
 	nvme_admin_directive_send	= 0x19,
 	nvme_admin_directive_recv	= 0x1a,
-	nvme_admin_get_domain_nqn	= 0x20,
-	nvme_admin_get_devices		= 0x22,
-	nvme_admin_get_subsys_usage	= 0x24,
-	nvme_admin_set_port_config	= 0x21,
-	nvme_admin_set_subsys_config	= 0x23,
 	nvme_admin_dbbuf		= 0x7C,
 	nvme_admin_format_nvm		= 0x80,
 	nvme_admin_security_send	= 0x81,
@@ -842,13 +838,17 @@ struct nvme_directive_cmd {
  * Fabrics subcommands.
  */
 enum nvmf_fabrics_opcode {
-	nvme_fabrics_command		= 0x7f,
+	nvme_fabrics_command			= 0x7f,
 };
 
 enum nvmf_capsule_command {
-	nvme_fabrics_type_property_set	= 0x00,
-	nvme_fabrics_type_connect	= 0x01,
-	nvme_fabrics_type_property_get	= 0x04,
+	nvme_fabrics_type_property_set		= 0x00,
+	nvme_fabrics_type_connect		= 0x01,
+	nvme_fabrics_type_property_get		= 0x04,
+	nvme_fabrics_type_get_domain_nqn	= 0x20,
+	nvme_fabrics_type_get_subsys_usage	= 0x22,
+	nvme_fabrics_type_set_port_config	= 0x21,
+	nvme_fabrics_type_set_subsys_config	= 0x23,
 };
 
 struct nvmf_common_command {
@@ -978,6 +978,47 @@ struct streams_directive_params {
 	__le16	nsa;
 	__le16	nso;
 	__u8	rsvd2[6];
+};
+
+struct nvmf_port_config_page_entry {
+	__le16		status;
+	__u8		trtype;
+	__u8		adrfam;
+	__u8		rsvd;	/* subtype */
+	__u8		treq;
+	__le16		portid;
+	char		trsvcid[NVMF_TRSVCID_SIZE];
+	char		traddr[NVMF_TRADDR_SIZE];
+};
+
+struct nvmf_port_config_page_hdr {
+	__u8		num_entries;
+	__u8		data;	/*Reference to start of config_page_entries */
+};
+
+struct nvmf_subsys_config_page_entry {
+	__le16		status;
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	char		devpath[NVMF_DEV_PATH_SIZE];
+	__u8		allowallhosts;
+	__u16		numhosts;
+	__u8		data;
+};
+
+struct nvmf_subsys_config_page_hdr {
+	__u8		num_entries;
+	__u8		data;	/*Reference to start of config_page_entries */
+};
+
+struct nvmf_subsys_usage_rsp_page_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	__u8		num_entries;
+	__u8		data;
+};
+
+struct nvmf_subsys_usage_rsp_page_hdr {
+	__u8		num_entries;
+	__u8		data;	/*Reference to start of usage entries */
 };
 
 struct nvme_command {

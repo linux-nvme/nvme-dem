@@ -32,10 +32,14 @@
 #include "incl/list.h"
 #include "incl/nvme.h"	/* NOTE: Using linux kernel include here */
 
+#define NVME_AUTH_STR	"nqn.2017-08.org.nvmexpress:dem"
+#define PAGE_SIZE	4096
 #define BUF_SIZE	4096
 #define NVMF_DQ_DEPTH	1
 #define CTIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
+
+#define IDLE_TIMEOUT	100
 
 #define FI_VER		FI_VERSION(1, 0)
 
@@ -208,6 +212,7 @@ struct nsdev {
 
 struct port_id {
 	struct list_head	 node;
+	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
@@ -267,9 +272,12 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
 int send_get_devices(struct endpoint *ep);
-int send_set_port_config(struct endpoint *ep);
-int send_set_subsys_config(struct endpoint *ep);
-int send_get_subsys_usage(struct endpoint *ep);
+int send_set_port_config(struct endpoint *ep, int len,
+			 struct nvmf_port_config_page_hdr *hdr);
+int send_set_subsys_config(struct endpoint *ep, int len,
+			   struct nvmf_subsys_config_page_hdr *hdr);
+int send_get_subsys_usage(struct endpoint *ep, int len,
+			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
 void fetch_log_pages(struct target *target);
 int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
 	     void *desc, u64 addr, u64 key);

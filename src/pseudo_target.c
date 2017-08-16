@@ -26,7 +26,6 @@
 #include "mongoose.h"
 #include "common.h"
 
-#define IDLE_TIMEOUT 100
 #define RETRY_COUNT  200
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
@@ -104,6 +103,7 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 				 u64 key, void *desc)
 {
 	char			*hostnqn = (void *) ep->data;
+	char			 alias[MAX_ALIAS_SIZE];
 	int			 ret;
 
 	if (length > MAX_NQN_SIZE)
@@ -111,7 +111,9 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 
 	memset(hostnqn, 0, length);
 
-	get_host_nqn(json_ctx, ep->prov->src_addr, hostnqn);
+	get_host_nqn(json_ctx, ep->prov->src_addr, alias);
+	
+	snprintf(hostnqn, NVMF_NQN_FIELD_LEN, "%s.%s", NVME_AUTH_STR, alias);
 
 	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
 	if (ret)
@@ -274,13 +276,14 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 		case nvme_fabrics_type_connect:
 			ret = handle_connect(ep, len, addr, key, desc);
 			break;
+		case nvme_fabrics_type_get_domain_nqn:
+			ret = handle_get_domain_nqn(ep, len, addr, key, desc);
+			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
 		}
-	} else if (cmd->common.opcode == nvme_admin_get_domain_nqn)
-		ret = handle_get_domain_nqn(ep, len, addr, key, desc);
-	else if (cmd->common.opcode == nvme_admin_identify)
+	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, len, addr, key, desc);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
 		ret = 0;
@@ -452,57 +455,6 @@ int check_modified(struct target *target)
 	/*TODO - Finish check_modified */
 
 	return 1;
-}
-
-void init_targets(int dem_restart)
-{
-	struct target		*target;
-	struct port_id		*portid;
-	int			 ret;
-
-	build_target_list(json_ctx);
-
-	list_for_each_entry(target, target_list, node) {
-		if (dem_restart && !check_modified(target))
-			continue;
-
-		// TODO walk interface list to find portid we can use
-
-		portid = list_first_entry(&target->portid_list,
-					  struct port_id, node);
-
-		ret = connect_target(&target->dq, portid->type,
-				     portid->address, portid->port);
-		if (ret) {
-			print_err("Could not connect to target %s",
-				  target->alias);
-			continue;
-		}
-
-		target->dq_connected = 1;
-
-		// TODO parse data from get devices
-		ret = send_get_devices(&target->dq);
-		if (ret)
-			print_err("Could not get devices for target %s",
-				  target->alias);
-
-		// TODO build port config data
-		ret = send_set_port_config(&target->dq);
-		if (ret)
-			print_err("Could not set port config for target %s",
-				  target->alias);
-
-		// TODO build subsys config data
-		ret = send_set_subsys_config(&target->dq);
-		if (ret)
-			print_err("Could not set subsys config for target %s",
-				  target->alias);
-
-		fetch_log_pages(target);
-		target->refresh_countdown =
-			target->refresh * MINUTES / IDLE_TIMEOUT;
-	}
 }
 
 void *interface_thread(void *arg)

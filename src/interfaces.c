@@ -43,7 +43,7 @@ int usage_target(char *alias, char *results)
 
 	list_for_each_entry(target, target_list, node)
 		if (!strcmp(target->alias, alias)) {
-			sprintf(results, "TODO: fill this in");
+			sprintf(results, "TODO: fill in provisioning info");
 			return 0;
 		}
 
@@ -145,6 +145,9 @@ static int get_transport_info(char *alias, json_t *grp, struct port_id *portid)
 	}
 	str = (char *) json_string_value(obj);
 	strncpy(portid->type, str, CONFIG_TYPE_SIZE);
+
+	obj = json_object_get(grp, TAG_PORTID);
+	portid->portid = json_integer_value(obj);
 
 	obj = json_object_get(grp, TAG_FAMILY);
 	if (!obj) {
@@ -501,36 +504,6 @@ static int read_dem_config_files(struct interface *iface)
 out:
 	closedir(dir);
 	return ret;
-}
-
-void cleanup_targets(int dem_restart)
-{
-	struct target		*target;
-	struct target		*next_target;
-	struct subsystem	*subsys;
-	struct subsystem	*next_subsys;
-	struct host		*host;
-	struct host		*next_host;
-
-	list_for_each_entry_safe(target, next_target, target_list, node) {
-		if (dem_restart && !check_modified(target))
-			continue;
-		list_for_each_entry_safe(subsys, next_subsys,
-					 &target->subsys_list, node) {
-			list_for_each_entry_safe(host, next_host,
-						 &subsys->host_list, node)
-				free(host);
-
-			free(subsys);
-		}
-
-		list_del(&target->node);
-
-		if (target->dq_connected)
-			disconnect_target(&target->dq, 0);
-
-		free(target);
-	}
 }
 
 int init_interfaces(void)
