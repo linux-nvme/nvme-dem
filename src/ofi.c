@@ -812,7 +812,7 @@ int send_get_subsys_usage(struct endpoint *ep, int len,
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
-	struct fid_mr			*mr;	
+	struct fid_mr			*mr;
 	int				 bytes;
 	int				 ret;
 

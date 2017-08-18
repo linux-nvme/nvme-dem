@@ -103,7 +103,6 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 				 u64 key, void *desc)
 {
 	char			*hostnqn = (void *) ep->data;
-	char			 alias[MAX_ALIAS_SIZE];
 	int			 ret;
 
 	if (length > MAX_NQN_SIZE)
@@ -111,9 +110,7 @@ static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
 
 	memset(hostnqn, 0, length);
 
-	get_host_nqn(json_ctx, ep->prov->src_addr, alias);
-	
-	snprintf(hostnqn, NVMF_NQN_FIELD_LEN, "%s.%s", NVME_AUTH_STR, alias);
+	get_host_nqn(json_ctx, ep->prov->src_addr, hostnqn);
 
 	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
 	if (ret)

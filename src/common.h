@@ -32,7 +32,6 @@
 #include "incl/list.h"
 #include "incl/nvme.h"	/* NOTE: Using linux kernel include here */
 
-#define NVME_AUTH_STR	"nqn.2017-08.org.nvmexpress:dem"
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
 #define NVMF_DQ_DEPTH	1
