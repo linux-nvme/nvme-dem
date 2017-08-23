@@ -36,18 +36,51 @@
 
 void dump(u8 *buf, int len)
 {
-	int			 i, j;
+	int			 i, j, n = 0;
+	char			 hex[49];
+	char			 prev[49];
+	char			 chr[17];
+	char			*p, *c;
+
+	memset(prev, 0, sizeof(prev));
+	memset(hex, 0, sizeof(hex));
+	memset(chr, 0, sizeof(chr));
+	c = chr;
+	p = hex;
 
 	for (i = j = 0; i < len; i++) {
-		printf("%02x ", buf[i]);
+		sprintf(p, "%02x ", buf[i]);
+		p += 3;
+		*c++ = (buf[i] >= 0x20 && buf[i] <= 0x7f) ? buf[i] : '.';
+
 		if (++j == 16) {
-			printf("\n");
+			if (strcmp(hex, prev)) {
+				if (n) {
+					printf("----  repeated %d %s  ----\n",
+					       n, n == 1 ? "time" : "times");
+					n = 0;
+				}
+				printf("%04x  %s  %s\n", i - j + 1, hex, chr);
+				strcpy(prev, hex);
+			} else
+				n++;
 			j = 0;
+			memset(hex, 0, sizeof(hex));
+			memset(chr, 0, sizeof(chr));
+			c = chr;
+			p = hex;
 		}
 	}
 
-	if (j)
-		printf("\n");
+	if (j) {
+		if (strcmp(hex, prev) == 0)
+			n++;
+		if (n)
+			printf("----  repeated %d %s  ----\n",
+			       n, n == 1 ? "time" : "times");
+		if (strcmp(hex, prev))
+			printf("%04x  %-48s  %s\n", i - j, hex, chr);
+	}
 }
 
 void print_cq_error(struct fid_cq *cq, int n)
@@ -646,9 +679,7 @@ static int send_cmd(struct endpoint *ep, struct nvme_command *cmd, int bytes)
 		ret = fi_cq_sread(ep->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
 		if (ret == 1) {
 			struct qe *qe = comp.op_context;
-			//print_info("completed recv");
-			//dump(qe->buf, comp.len);
-			//memset(qe->buf, 0, BUF_SIZE);
+
 			ret = fi_recv(ep->ep, qe->buf, BUF_SIZE,
 				      fi_mr_desc(qe->recv_mr), 0, qe);
 			if (ret)
@@ -765,7 +796,6 @@ int send_set_port_config(struct endpoint *ep, int len,
 
 	ret = send_cmd(ep, cmd, bytes);
 	fi_close(&mr->fid);
-
 	return ret;
 }
 
