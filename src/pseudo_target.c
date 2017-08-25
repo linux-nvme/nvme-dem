@@ -484,7 +484,7 @@ void *interface_thread(void *arg)
 	}
 
 	while (!stopped) {
-		ret = pseudo_target_check_for_host(listener, &info);
+		ret = wait_for_connection(listener, &info);
 		if (ret == 0)
 			ret = add_host_to_queue(info, &q);
 		else if (ret != -EAGAIN && ret != -EINTR)

@@ -200,6 +200,7 @@ struct endpoint {
 	struct nvme_command	*cmd;
 	void			*data;
 	struct qe		*qe;
+	int			 depth;
 	int			 state;
 	int			 csts;
 };
@@ -262,11 +263,21 @@ void get_host_nqn(void *context, void *haddr, char *nqn);
 int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
 			char *port);
 int run_pseudo_target(struct endpoint *ep);
-int pseudo_target_check_for_host(struct listener *pep, struct fi_info **info);
+int wait_for_connection(struct listener *pep, struct fi_info **info);
 int connect_target(struct endpoint *ep, char *addr_family, char *addr,
 		   char *port);
 void disconnect_target(struct endpoint *ep, int shutdown);
 void cleanup_listener(struct listener *pep);
+void print_eq_error(struct fid_eq *eq, int n);
+int init_fabric(struct endpoint *ep);
+int init_endpoint(struct endpoint *ep, char *provider, char *node, char *srvc);
+int init_listener(struct listener *pep, char *provider, char *node, char *srvc);
+int server_listen(struct listener *pep);
+int accept_connection(struct endpoint *ep);
+int create_endpoint(struct endpoint *ep, struct fi_info *info);
+int client_connect(struct endpoint *ep, void *data, int bytes);
+void cleanup_endpoint(struct endpoint *ep, int shutdown);
+
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
