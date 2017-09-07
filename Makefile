@@ -41,26 +41,23 @@ DEMT_SRC = ${DEMT_DIR}/daemon.c ${DEMT_DIR}/restful.c \
 	   ${COMMON_DIR}/ofi.c mongoose/mongoose.c
 DEMT_INC = ${DEMT_DIR}/common.h mongoose/mongoose.h ${INCL_DIR}/tags.h
 
-all: mongoose/ jansson/libjansson.a \
+all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
      ${BIN_DIR}/demd ${BIN_DIR}/dem ${BIN_DIR}/demt
 	echo Done.
 
-${BIN_DIR}/:
-	mkdir ${BIN_DIR}/
+${BIN_DIR}:
+	mkdir ${BIN_DIR}
 
-${BIN_DIR}/dem: ${BIN_DIR}/ ${DEM_SRC} ${DEM_INC} Makefile \
-		jansson/libjansson.a
+${BIN_DIR}/dem: ${DEM_SRC} ${DEM_INC} Makefile jansson/libjansson.a
 	echo CC dem
 	gcc ${DEM_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -Isrc/dem
 
-${BIN_DIR}/demd: ${BIN_DIR}/ ${DEMD_SRC} ${DEMD_INC} Makefile \
-		 jansson/libjansson.a
+${BIN_DIR}/demd: ${DEMD_SRC} ${DEMD_INC} Makefile jansson/libjansson.a
 	echo CC demd
 	gcc ${DEMD_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
 		${DEM_LIBS} -Isrc/demd
 
-${BIN_DIR}/demt: ${BIN_DIR}/ ${DEMT_SRC} ${DEMT_INC} Makefile \
-		 jansson/libjansson.a
+${BIN_DIR}/demt: ${DEMT_SRC} ${DEMT_INC} Makefile jansson/libjansson.a
 	echo CC demt
 	gcc ${DEMT_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
 		${DEM_LIBS} -Isrc/demt

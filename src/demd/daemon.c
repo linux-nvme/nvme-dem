@@ -28,7 +28,8 @@
 #include "mongoose.h"
 #include "common.h"
 
-#define RETRY_COUNT  200
+#define RETRY_COUNT	200
+#define DEFAULT_ROOT	"/"
 
 #define DEV_DEBUG
 
@@ -171,10 +172,9 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	const char		*arg_list =
 		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-q - quite mode, no debug prints\n"
-		"-d - run as a daemon process (default is standalone)"
-		"-p - port from RESTful interface (default "
-		DEFAULT_PORT ")\n"
-		"-r - root for RESTful interface (default .)\n"
+		"-d - run as a daemon process (default is standalone)\n"
+		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
+		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
 		"-c - cert file for RESTful interface use with ssl";
 #else
 	const char		*opt_list = "?dsp:r:c:";
@@ -182,9 +182,8 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
-		"-p - port from RESTful interface (default "
-		DEFAULT_PORT ")\n"
-		"-r - root for RESTful interface (default .)\n"
+		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
+		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
 		"-c - cert file for RESTful interface use with ssl";
 #endif
 
@@ -253,7 +252,6 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	const char		*err_str;
 
 	mg_mgr_init(mgr, NULL);
-	s_http_server_opts.document_root = NULL;
 
 	/* Use current binary directory as document root */
 	if (!s_http_server_opts.document_root) {
@@ -367,7 +365,10 @@ int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
+	char			 default_root[] = DEFAULT_ROOT;
 	int			 ret = 1;
+
+	s_http_server_opts.document_root = default_root;
 
 	if (init_dem(argc, argv, &ssl_cert))
 		goto out1;
