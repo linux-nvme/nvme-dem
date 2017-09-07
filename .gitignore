@@ -1,9 +1,8 @@
 archive/
 jansson/
 mongoose/
+.bin
 config.json
 libjansson.a
-dem
-demd
 .*.sw?
 *.vglog
