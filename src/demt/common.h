@@ -29,8 +29,8 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
-#include "incl/list.h"
-#include "incl/nvme.h"	/* NOTE: Using linux kernel include here */
+#include "linux/list.h"
+#include "linux/nvme.h"	/* NOTE: Using linux kernel include here */
 
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096

@@ -77,48 +77,10 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	}
 }
 
-static inline void refresh_log_pages(void)
-{
-	struct target		*target;
-	int			 ret;
-
-	list_for_each_entry(target, target_list, node) {
-		if (!target->dq_connected)
-			continue;
-
-		if (target->kato_countdown == 0) {
-			ret = send_keep_alive(&target->dq);
-			if (ret) {
-				print_err("keep alive failed. disconnected %s",
-					  target->alias);
-				disconnect_target(&target->dq, 0);
-				target->dq_connected = 0;
-				continue;
-			}
-			target->kato_countdown = MINUTES / IDLE_TIMEOUT;
-		} else
-			target->kato_countdown--;
-
-		if (!target->refresh)
-			continue;
-
-		target->refresh_countdown--;
-		if (!target->refresh_countdown) {
-			fetch_log_pages(target);
-			target->refresh_countdown =
-				target->refresh * MINUTES / IDLE_TIMEOUT;
-		}
-	}
-}
-
 static void *poll_loop(struct mg_mgr *mgr)
 {
-	while (stopped != 1) {
+	while (stopped != 1)
 		mg_mgr_poll(mgr, IDLE_TIMEOUT);
-
-		if (!stopped)
-			refresh_log_pages();
-	}
 
 	mg_mgr_free(mgr);
 
@@ -156,8 +118,8 @@ static int daemonize(void)
 		return -1;
 	}
 
-	freopen("/var/log/dem_debug.log", "a", stdout);
-	freopen("/var/log/dem.log", "a", stderr);
+	freopen("/var/log/demt_debug.log", "a", stdout);
+	freopen("/var/log/demt.log", "a", stderr);
 
 	return 0;
 }
@@ -316,6 +278,12 @@ static void cleanup_threads(pthread_t *listen_threads)
 	free(listen_threads);
 }
 
+void *interface_thread(void *arg)
+{
+	UNUSED(arg);
+	return NULL;
+}
+
 static int init_interface_threads(pthread_t **listen_threads)
 {
 	pthread_attr_t		 pthread_attr;
@@ -346,23 +314,6 @@ static int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
-int restart_dem(void)
-{
-	int			ret = 1;
-
-	stopped = 2;
-
-// TODO should only cleanup/init targets that where modified.
-
-	cleanup_targets(1);
-
-	stopped = 0;
-
-	init_targets(1);
-
-	return ret;
-}
-
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -375,20 +326,9 @@ int main(int argc, char *argv[])
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
 		goto out1;
 
-	json_ctx = init_json("config.json");
-	if (!json_ctx)
-		goto out1;
-
-	num_interfaces = init_interfaces();
-	if (num_interfaces <= 0)
-		goto out2;
-
-	init_targets(0);
-
 	signalled = stopped = 0;
 
-	print_info("Starting server on port %s, serving '%s'",
-		   s_http_port, s_http_server_opts.document_root);
+	print_info("Starting target daemon on port %s", s_http_port);
 
 	if (init_interface_threads(&listen_threads))
 		goto out3;
@@ -403,9 +343,6 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
-	cleanup_targets(0);
-out2:
-	cleanup_json(json_ctx);
 out1:
 	return ret;
 }

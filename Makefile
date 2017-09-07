@@ -1,15 +1,22 @@
 .SILENT:
 
+COMMON_DIR=src/common
+DEM_DIR=src/dem
+DEMD_DIR=src/demd
+DEMT_DIR=src/demt
+INCL_DIR=src/incl
+BIN_DIR=.bin
+
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
 CFLAGS = -W -Wall -Werror -Wno-unused-function
-CFLAGS += -Imongoose -Ijansson/src -Isrc -I.
+CFLAGS += -Imongoose -Ijansson/src -I${INCL_DIR}
 
 # ALT_CFLAGS used for sparse since mongoose has too many errors
 # a modified version of mongoose.h can be created and stored in /files
 # for sparse testing but is not valid for executable
 ALT_CFLAGS = -W -Wall -Werror -Wno-unused-function
-ALT_CFLAGS += -Ifiles -Ijansson/src -Isrc -I.
+ALT_CFLAGS += -Ifiles -Ijansson/src -I${INCL_DIR}
 
 SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 
@@ -22,26 +29,44 @@ CLI_LIBS = -lcurl jansson/libjansson.a
 
 GDB_OPTS = -g -O0
 
-CLI_SRC = src/cli.c src/curl.c src/show.c
-CLI_INC = src/curl.h src/show.h src/tags.h
-DEM_SRC = src/daemon.c src/json.c src/restful.c mongoose/mongoose.c \
-	  src/parse.c src/ofi.c src/logpages.c src/interfaces.c \
-	  src/pseudo_target.c src/domain.c src/nvmeof.c
-DEM_INC = src/json.h src/common.h mongoose/mongoose.h src/tags.h
+DEM_SRC = ${DEM_DIR}/cli.c ${DEM_DIR}/curl.c ${DEM_DIR}/show.c
+DEM_INC = ${DEM_DIR}/curl.h ${DEM_DIR}/show.h ${INCL_DIR}/tags.h
+DEMD_SRC = ${DEMD_DIR}/daemon.c ${DEMD_DIR}/json.c ${DEMD_DIR}/restful.c \
+	   ${DEMD_DIR}/parse.c ${DEMD_DIR}/domain.c ${DEMD_DIR}/logpages.c \
+	   ${DEMD_DIR}/interfaces.c ${DEMD_DIR}/pseudo_target.c \
+	   ${DEMD_DIR}/nvmeof.c ${COMMON_DIR}/ofi.c mongoose/mongoose.c
+DEMD_INC = ${DEMD_DIR}/json.h ${DEMD_DIR}/common.h \
+	   mongoose/mongoose.h ${INCL_DIR}/tags.h
+DEMT_SRC = ${DEMT_DIR}/daemon.c ${DEMT_DIR}/restful.c \
+	   ${COMMON_DIR}/ofi.c mongoose/mongoose.c
+DEMT_INC = ${DEMT_DIR}/common.h mongoose/mongoose.h ${INCL_DIR}/tags.h
 
-all: mongoose/ jansson/libjansson.a demd dem
+all: mongoose/ jansson/libjansson.a \
+     ${BIN_DIR}/demd ${BIN_DIR}/dem ${BIN_DIR}/demt
 	echo Done.
 
-dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
-	echo CC $@
-	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS}
+${BIN_DIR}/:
+	mkdir ${BIN_DIR}/
 
-demd: ${DEM_SRC} ${DEM_INC} Makefile jansson/libjansson.a
-	echo CC $@
-	gcc ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DEM_LIBS}
+${BIN_DIR}/dem: ${BIN_DIR}/ ${DEM_SRC} ${DEM_INC} Makefile \
+		jansson/libjansson.a
+	echo CC dem
+	gcc ${DEM_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -Isrc/dem
+
+${BIN_DIR}/demd: ${BIN_DIR}/ ${DEMD_SRC} ${DEMD_INC} Makefile \
+		 jansson/libjansson.a
+	echo CC demd
+	gcc ${DEMD_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${DEM_LIBS} -Isrc/demd
+
+${BIN_DIR}/demt: ${BIN_DIR}/ ${DEMT_SRC} ${DEMT_INC} Makefile \
+		 jansson/libjansson.a
+	echo CC demt
+	gcc ${DEMT_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${DEM_LIBS} -Isrc/demt
 
 clean:
-	rm -f dem demd config.json
+	rm -rf ${BIN_DIR}/ config.json *.vglog
 	echo Done.
 
 mongoose/:
@@ -113,7 +138,7 @@ run_test: archive/run_test.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
-	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile src/ files/ incl/
+	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile src/ files/
 
 test_cli: dem
 	./dem config
@@ -154,26 +179,26 @@ del_targets:
 
 put:
 	echo PUT Commands
-	curl -X PUT -d '' http://127.0.0.1:22345/group/local/host/host01
+	curl -X PUT -d '' http://127.0.0.1:22345/host/host01
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/group/local/host/host02
+	curl -X PUT -d '' http://127.0.0.1:22345/host/host02
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl1
+	curl -X PUT -d '' http://127.0.0.1:22345/target/ctrl1
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl2
+	curl -X PUT -d '' http://127.0.0.1:22345/target/ctrl2
 	echo
-	curl -X PUT -d '' http://127.0.0.1:22345/group/local/target/ctrl1/subsys/subsys1
+	curl -X PUT -d '' http://127.0.0.1:22345/target/ctrl1/subsys/subsys1
 	echo
 	echo
 get:
 	echo GET Commands
-	curl http://127.0.0.1:22345/group/local/target
+	curl http://127.0.0.1:22345/target
 	echo
-	curl http://127.0.0.1:22345/group/local/target/ctrl1
+	curl http://127.0.0.1:22345/target/ctrl1
 	echo
-	curl http://127.0.0.1:22345/group/local/host
+	curl http://127.0.0.1:22345/host
 	echo
-	curl http://127.0.0.1:22345/group/local/host/host01
+	curl http://127.0.0.1:22345/host/host01
 	echo
 	echo
 
@@ -181,21 +206,21 @@ del: delhost01 delhost02 delctrl1 delctrl2
 	echo
 
 delctrl2:
-	curl -X DELETE  http://127.0.0.1:22345/group/local/target/ctrl2
+	curl -X DELETE  http://127.0.0.1:22345/target/ctrl2
 	echo
 delctrl1:
-	curl -X DELETE  http://127.0.0.1:22345/group/local/target/ctrl1
+	curl -X DELETE  http://127.0.0.1:22345/target/ctrl1
 	echo
 delhost01:
 	echo DELETE Commands
-	curl -X DELETE  http://127.0.0.1:22345/group/local/host/host01
+	curl -X DELETE  http://127.0.0.1:22345/host/host01
 	echo
 delhost02:
-	curl -X DELETE  http://127.0.0.1:22345/group/local/host/host02
+	curl -X DELETE  http://127.0.0.1:22345/host/host02
 	echo
 post:
 	echo POST Commands
-	curl -d '{"HOSTNQN":"host02"}' http://127.0.0.1:22345/group/local/host/host01
+	curl -d '{"HOSTNQN":"host02"}' http://127.0.0.1:22345/host/host01
 	echo
 	echo
 
@@ -212,7 +237,7 @@ memcheck: demd
 sparse:
 	echo running sparse of each .c file with options
 	echo "${SPARSE_OPTS}"
-	for i in src/*.c ; do sparse $$i ${SPARSE_OPTS} ; done
+	for i in src/*/*.c ; do sparse $$i ${SPARSE_OPTS} ; done
 	echo Done.
 
 simple_test:
