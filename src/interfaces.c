@@ -69,7 +69,7 @@ static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 			memset(host, 0, sizeof(*host));
 			host->subsystem = subsys;
 			strcpy(host->nqn, nqn);
-			list_add(&host->node, &subsys->host_list);
+			list_add_tail(&host->node, &subsys->host_list);
 		}
 	}
 }
@@ -117,7 +117,7 @@ static void check_subsystems(struct target *target, json_t *array,
 		strcpy(subsys->nqn, json_string_value(nqn));
 
 		INIT_LIST_HEAD(&subsys->host_list);
-		list_add(&subsys->node, &target->subsys_list);
+		list_add_tail(&subsys->node, &target->subsys_list);
 
 		obj = json_object_get(iter, TAG_ALLOW_ALL);
 		if (obj && json_is_integer(obj))
@@ -224,7 +224,7 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 	INIT_LIST_HEAD(&target->portid_list);
 	INIT_LIST_HEAD(&target->device_list);
 
-	list_add(&target->node, target_list);
+	list_add_tail(&target->node, target_list);
 
 	obj = json_object_get(parent, TAG_REFRESH);
 	if (obj)
@@ -253,7 +253,7 @@ static int add_port_to_target(struct target *target, json_t *obj)
 
 	memset(portid, 0, sizeof(*portid));
 
-	list_add(&portid->node, &target->portid_list);
+	list_add_tail(&portid->node, &target->portid_list);
 
 	if (!get_transport_info(target->alias, obj, portid))
 		goto err;
