@@ -214,7 +214,6 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	const char		*err_str;
 
 	mg_mgr_init(mgr, NULL);
-	s_http_server_opts.document_root = NULL;
 
 	/* Use current binary directory as document root */
 	if (!s_http_server_opts.document_root) {
