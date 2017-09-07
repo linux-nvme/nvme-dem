@@ -9,25 +9,46 @@ _dem()
   COMPREPLY=()
 
   local i
+  local skip
+  skip=0
   if [ "${COMP_WORDS[1]:0:1}" != "-" ] ; then
     i=1
   else
     for i in `seq 1 $COMP_CWORD` ; do
+      if [ $skip -eq 1 ]; then
+        skip=0
+        continue
+      fi
       case "${COMP_WORDS[$((i-1))]:0:2}" in
       -g)
-        COMPREPLY=($(compgen -W "local" -- "$cur"))
-        return 0;
+        if [ $i == $COMP_CWORD ] ; then
+          COMPREPLY=($(compgen -W "local" -- "$cur"))
+          return 0;
+        fi
+        skip=1
+        continue;
       ;;
       -s)
-        COMPREPLY=($(compgen -W "127.0.0.1" -- "$cur"))
-        return 0;
+        if [ $i == $COMP_CWORD ] ; then
+          COMPREPLY=($(compgen -W "127.0.0.1" -- "$cur"))
+          return 0;
+        fi
+        skip=1
+        continue;
       ;;
       -p)
-        COMPREPLY=($(compgen -W "22345" -- "$cur"))
-        return 0;
+        if [ $i == $COMP_CWORD ] ; then
+          COMPREPLY=($(compgen -W "22345" -- "$cur"))
+          return 0;
+        fi
+        skip=1
+        continue;
       ;;
       esac
-      if [ "${COMP_WORDS[$i]:0:1}" != "-" ] ; then break; fi
+      if [ "${COMP_WORDS[$i]:0:1}" != "-" ] ; then
+        i=$((i-1))
+        break;
+      fi
     done 
   fi
 
