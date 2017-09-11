@@ -42,6 +42,10 @@ _dem()
     fi
   done
 
+  if [ $COMP_CWORD -lt $((max-1)) ] ; then
+    return 0
+  fi
+
   local options="-r -p -s -c -f -j -?"
 
   if [ $i -le $max -a $i -gt $COMP_CWORD -a "$cur" == "-" ] ; then
@@ -49,9 +53,7 @@ _dem()
     return 0
   fi
 
-  if [ $COMP_CWORD -lt $i ] ; then max=$i ; fi
-
-  if [ $i -le $max -a $COMP_CWORD -le $max ] ; then
+  if [ $i -le $max ] ; then
       case "${COMP_WORDS[$((COMP_CWORD-1))]:0:2}" in
       -g)
         if [ $i == $COMP_CWORD ] ; then
