@@ -35,18 +35,14 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-static LIST_HEAD(target_list_head);
+static LIST_HEAD(subsys_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_PORT;
-void					*json_ctx;
 int					 stopped;
 int					 debug;
-struct interface			*interfaces;
-int					 num_interfaces;
-struct list_head			*target_list = &target_list_head;
-static pthread_t			*listen_threads;
 static int				 signalled;
+struct list_head			*subsystems = &subsys_list_head;
 
 void shutdown_dem(void)
 {
@@ -64,7 +60,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 {
 	switch (ev) {
 	case MG_EV_HTTP_REQUEST:
-		handle_http_request(json_ctx, c, ev_data);
+		handle_http_request(c, ev_data);
 		break;
 	case MG_EV_HTTP_CHUNK:
 	case MG_EV_ACCEPT:
@@ -91,11 +87,6 @@ static void *poll_loop(struct mg_mgr *mgr)
 static int daemonize(void)
 {
 	pid_t			 pid, sid;
-
-	if (getuid() != 0) {
-		print_err("must be root to run demd as a daemon");
-		return -1;
-	}
 
 	pid = fork();
 	if (pid < 0) {
@@ -247,77 +238,20 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 	return 0;
 }
 
-static void cleanup_threads(pthread_t *listen_threads)
-{
-	int			i;
-
-	for (i = 0; i < num_interfaces; i++)
-		pthread_kill(listen_threads[i], SIGTERM);
-
-	/* wait for threads to cleanup before exiting so they can properly
-	 * cleanup the ofi interface. otherwise there is a race condition
-	 * that shows up as an assertion from fastlock_aquire from libfabric
-	 * fi_fabric_find(). retry countdown value is *arbitrary* since the
-	 * threads *should* shutdown gracefully.
-	 */
-	i = 100;
-
-	while (num_interfaces && i--)
-		usleep(100);
-
-	/* even thought the threads are finished, need to call join
-	 * otherwize, it will not release its memory and valgrind indicates
-	 * a leak
-	 */
-
-	for (i = 0; i < num_interfaces; i++)
-		pthread_join(listen_threads[i], NULL);
-
-	free(listen_threads);
-}
-
-void *interface_thread(void *arg)
-{
-	UNUSED(arg);
-	return NULL;
-}
-
-static int init_interface_threads(pthread_t **listen_threads)
-{
-	pthread_attr_t		 pthread_attr;
-	pthread_t		*pthreads;
-	int			 i;
-
-	pthreads = calloc(num_interfaces, sizeof(pthread_t));
-	if (!pthreads)
-		return -ENOMEM;
-
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-
-	pthread_attr_init(&pthread_attr);
-
-	for (i = 0; i < num_interfaces; i++) {
-		if (pthread_create(&pthreads[i], &pthread_attr,
-				   interface_thread, &(interfaces[i]))) {
-			print_err("failed to start transport thread");
-			free(pthreads);
-			return 1;
-		}
-		usleep(25); // allow new thread to get started
-	}
-
-	*listen_threads = pthreads;
-
-	return 0;
-}
-
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
 	char			 default_root[] = DEFAULT_ROOT;
 	int			 ret = 1;
+
+	if (getuid() != 0) {
+		print_info("must be root to allow access to configfs");
+		return -1;
+	}
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 
 	s_http_server_opts.document_root = default_root;
 
@@ -332,19 +266,12 @@ int main(int argc, char *argv[])
 	print_info("Starting target daemon on port %s, serving '%s'",
 		   s_http_port, s_http_server_opts.document_root);
 
-	if (init_interface_threads(&listen_threads))
-		goto out3;
-
 	poll_loop(&mgr);
-
-	cleanup_threads(listen_threads);
 
 	if (signalled)
 		printf("\n");
 
 	ret = 0;
-out3:
-	free(interfaces);
 out1:
 	return ret;
 }

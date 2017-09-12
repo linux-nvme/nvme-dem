@@ -79,9 +79,8 @@ static int parse_uri(char *p, int depth, char *part[])
 
 #define MAX_DEPTH 8
 
-void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
+void handle_http_request(struct mg_connection *c, void *ev_data)
 {
-// TODO NO context yet //	struct json_context	*context = ctx;
 	struct http_message	*hm = (struct http_message *) ev_data;
 	char			*resp = NULL;
 	char			*uri = NULL;
@@ -89,9 +88,6 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	char			*parts[MAX_DEPTH] = { NULL };
 	int			 ret;
 	int			 n;
-
-// TODO NO context yet //	pthread_spin_lock(&context->lock);
-UNUSED(ctx);
 
 	if (!hm->uri.len) {
 		strcpy(resp, "Bad page no uri");
@@ -151,6 +147,4 @@ out:
 		free(resp);
 
 	c->flags = MG_F_SEND_AND_CLOSE;
-
-// TODO NO context yet //	pthread_spin_unlock(&context->lock);
 }

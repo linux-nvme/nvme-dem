@@ -32,15 +32,9 @@
 #include "linux/list.h"
 #include "linux/nvme.h"	/* NOTE: Using linux kernel include here */
 
-#define PAGE_SIZE	4096
-#define BUF_SIZE	4096
-#define NVMF_DQ_DEPTH	1
-#define CTIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 
 #define IDLE_TIMEOUT	100
-
-#define FI_VER		FI_VERSION(1, 0)
 
 #define print_debug(f, x...) \
 	do { \
@@ -74,28 +68,12 @@
 
 extern int			 debug;
 extern int			 stopped;
-extern int			 num_interfaces;
-extern struct interface		*interfaces;
-extern struct list_head		*target_list;
-extern void			*json_ctx;
-
-enum { DISCONNECTED, CONNECTED };
+extern struct list_head		*subsystems;
 
 #define  u8  __u8
 #define  u16 __u16
 #define  u32 __u32
 #define  u64 __u64
-
-static inline u32 get_unaligned_le24(const u8 *p)
-{
-	return (u32) p[0] | (u32) p[1] << 8 | (u32) p[2] << 16;
-}
-
-static inline u32 get_unaligned_le32(const u8 *p)
-{
-	return (u32) p[0] | (u32) p[1] << 8 |
-		(u32) p[2] << 16 | (u32) p[3] << 24;
-}
 
 /*
  *  trtypes
@@ -111,15 +89,11 @@ static inline u32 get_unaligned_le32(const u8 *p)
  *	[NVMF_ADDR_FAMILY_FC]	= "fc",
  */
 
-/*HACK*/
-#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
-#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
-#define NUM_CONFIG_ITEMS	3
 #define CONFIG_TYPE_SIZE	8
 #define CONFIG_FAMILY_SIZE	8
 #define CONFIG_ADDRESS_SIZE	40
 #define CONFIG_PORT_SIZE	8
-#define CONFIG_DEVICE_SIZE	256
+#define CONFIG_DEVICE_SIZE	20
 #define LARGEST_TAG		8
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
@@ -136,77 +110,16 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define AF_FC			3
 #endif
 
-/* HACK - Figure out which of these we need */
-#define DISC_BUF_SIZE		4096
-#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
-#define PATH_NVMF_DISC		"/etc/nvme/discovery.conf"
-#define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
-#define SYS_NVME		"/sys/class/nvme"
-
-enum {RESTRICTED = 0, ALOW_ALL = 1};
-
-struct listener {
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_pep		*pep;
-	struct fid_eq		*peq;
-};
-
-struct interface {
-	char			 type[CONFIG_TYPE_SIZE + 1];
-	char			 family[CONFIG_FAMILY_SIZE + 1];
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	int			 addr[ADDR_LEN];
-	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
-	struct listener		 listener;
-};
-
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
 	char			 nqn[MAX_NQN_SIZE + 1];
-	int			 access;
-};
-
-struct subsystem {
-	struct list_head		 node;
-	struct list_head		 host_list;
-	struct target			*target;
-	char				 nqn[MAX_NQN_SIZE + 1];
-	struct nvmf_disc_rsp_page_entry	 log_page;
-	int				 access;
-	int				 log_page_valid;
-};
-
-struct qe {
-	struct fid_mr		*recv_mr;
-	u8			*buf;
-};
-
-struct endpoint {
-	char			 nqn[MAX_NQN_SIZE + 1];
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_ep		*ep;
-	struct fid_eq		*eq;
-	struct fid_cq		*rcq;
-	struct fid_cq		*scq;
-	struct fid_mr		*send_mr;
-	struct fid_mr		*data_mr;
-	struct nvme_command	*cmd;
-	void			*data;
-	struct qe		*qe;
-	int			 depth;
-	int			 state;
-	int			 csts;
 };
 
 struct nsdev {
 	struct list_head	 node;
+	int			 devid;
+	int			 devnsid;
 	char			 device[CONFIG_DEVICE_SIZE + 1];
 };
 
@@ -218,86 +131,34 @@ struct port_id {
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
-	int			 addr[ADDR_LEN];
+	int			 treq;
 };
 
-struct target {
-	struct list_head	 node;
-	struct list_head	 subsys_list;
-	struct list_head	 portid_list;
-	struct list_head	 device_list;
-	struct interface	*iface;
-	struct endpoint		 dq;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	int			 dq_connected;
-	int			 refresh;
-	int			 refresh_countdown;
-	int			 kato_countdown;
-	int			 num_subsystems;
+struct subsystem {
+	struct list_head		 node;
+	struct list_head		 host_list;
+	struct list_head		 portid_list;
+	struct list_head		 ns_list;
+	char				 nqn[MAX_NQN_SIZE + 1];
+	int				 allowany;
 };
 
 struct mg_connection;
 
-void shutdown_dem(void);
-int restart_dem(void);
-void handle_http_request(void *json_ctx, struct mg_connection *c,
-			 void *ev_data);
+void handle_http_request(struct mg_connection *c, void *ev_data);
 
-void *init_json(char *filename);
-void cleanup_json(void *context);
-
-int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
-
-int ipv4_to_addr(char *p, int *addr);
-int ipv6_to_addr(char *p, int *addr);
-int fc_to_addr(char *p, int *addr);
-
-int init_interfaces(void);
-void *interface_thread(void *arg);
-
-void build_target_list(void *context);
-void init_targets(int dem_restart);
-void cleanup_targets(int dem_restart);
-int check_modified(struct target *target);
-void get_host_nqn(void *context, void *haddr, char *nqn);
-int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
-			char *port);
-int run_pseudo_target(struct endpoint *ep);
-int wait_for_connection(struct listener *pep, struct fi_info **info);
-int connect_target(struct endpoint *ep, char *addr_family, char *addr,
-		   char *port);
-void disconnect_target(struct endpoint *ep, int shutdown);
-void cleanup_listener(struct listener *pep);
-void print_eq_error(struct fid_eq *eq, int n);
-int init_fabric(struct endpoint *ep);
-int init_endpoint(struct endpoint *ep, char *provider, char *node, char *srvc);
-int init_listener(struct listener *pep, char *provider, char *node, char *srvc);
-int server_listen(struct listener *pep);
-int accept_connection(struct endpoint *ep);
-int create_endpoint(struct endpoint *ep, struct fi_info *info);
-int client_connect(struct endpoint *ep, void *data, int bytes);
-void cleanup_endpoint(struct endpoint *ep, int shutdown);
-
-int send_get_log_page(struct endpoint *ep, int log_size,
-		      struct nvmf_disc_rsp_page_hdr **log);
-int send_keep_alive(struct endpoint *ep);
-int send_get_devices(struct endpoint *ep);
-int send_set_port_config(struct endpoint *ep, int len,
-			 struct nvmf_port_config_page_hdr *hdr);
-int send_set_subsys_config(struct endpoint *ep, int len,
-			   struct nvmf_subsys_config_page_hdr *hdr);
-int send_get_subsys_usage(struct endpoint *ep, int len,
-			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
-void fetch_log_pages(struct target *target);
-int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
-	     void *desc, u64 addr, u64 key);
-int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
-	      void *desc, u64 addr, u64 key);
-void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
-int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
-int refresh_target(char *alias);
-int usage_target(char *alias, char *results);
-void print_cq_error(struct fid_cq *cq, int n);
-void dump(u8 *buf, int len);
+int create_subsys(char *subsys, int allowany);
+int delete_subsys(char *subsys);
+int create_ns(char *subsys, int nsid, int devid, int devnsid);
+int delete_ns(char *subsys, int nsid);
+int create_host(char *host);
+int delete_host(char *host);
+int create_portid(int portid, char *fam, char *typ, int req, char *addr,
+		  int svcid);
+int delete_portid(int portid);
+int link_host_to_subsys(char *subsys, char *host);
+int unlink_host_to_subsys(char *subsys, char *host);
+int link_port_to_subsys(char *subsys, int portid);
+int unlink_port_to_subsys(char *subsys, int portid);
 
 #endif
