@@ -1146,6 +1146,11 @@ int main(int argc, char *argv[])
 	args = &argv[optind];
 	argc -= optind;
 
+	if (argc == 0) {
+		show_help(argv[0], "missing verb/object set", NULL);
+		return -1;
+	}
+
 	p = find_verb(args[0], (argc <= 1) ? NULL : args[1]);
 	if (!p) {
 		show_help(argv[0], "unknown verb/object set", NULL);
