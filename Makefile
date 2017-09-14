@@ -38,7 +38,7 @@ DEMD_SRC = ${DEMD_DIR}/daemon.c ${DEMD_DIR}/json.c ${DEMD_DIR}/restful.c \
 DEMD_INC = ${DEMD_DIR}/json.h ${DEMD_DIR}/common.h \
 	   mongoose/mongoose.h ${INCL_DIR}/tags.h
 DEMT_SRC = ${DEMT_DIR}/daemon.c ${DEMT_DIR}/restful.c ${DEMT_DIR}/configfs.c \
-	   mongoose/mongoose.c
+	   ${COMMON_DIR}/ofi.c mongoose/mongoose.c
 DEMT_INC = ${DEMT_DIR}/common.h mongoose/mongoose.h ${INCL_DIR}/tags.h
 
 all: ${BIN_DIR} mongoose/ jansson/libjansson.a \

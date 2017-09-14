@@ -77,6 +77,70 @@ static int parse_uri(char *p, int depth, char *part[])
 	return i;
 }
 
+static int get_request(char *p[], int n, char *resp)
+{
+	sprintf(resp, "GET %s cnt %d", p[0], n);
+	return 0;
+}
+
+static int put_request(char *p[], int n, struct mg_str *body, char *resp)
+{
+	int			 ret = 0;
+
+	if (!body->len) {
+		if (strcmp(p[0], METHOD_SHUTDOWN) == 0) {
+			shutdown_dem();
+			strcpy(resp, "DEMT shutting down");
+		} else
+			ret = bad_request(resp);
+	} else
+		sprintf(resp, "PUT %s cnt %d body %p", p[0], n, body);
+
+	return ret;
+}
+
+static int delete_request(char *p[], int n, char *resp)
+{
+	sprintf(resp, "DELETE %s cnt %d", p[0], n);
+	return 0;
+}
+
+static int post_request(char *p[], int n, char *resp)
+{
+	sprintf(resp, "POST %s cnt %d", p[0], n);
+	return 0;
+}
+
+static int patch_request(char *p[], int n, struct mg_str *body, char *resp)
+{
+	if (!body->len)
+		return -ENODATA;
+
+	sprintf(resp, "PATCH %s cnt %d", p[0], n);
+	return 0;
+}
+
+static int handle_target_requests(char *p[], int n, struct http_message *hm,
+				  char *resp)
+{
+	int			 ret;
+
+	if (is_equal(&hm->method, &s_get_method))
+		ret = get_request(p, n, resp);
+	else if (is_equal(&hm->method, &s_put_method))
+                ret = put_request(p, n, &hm->body, resp);
+        else if (is_equal(&hm->method, &s_delete_method))
+                ret = delete_request(p, n, resp);
+        else if (is_equal(&hm->method, &s_post_method))
+                ret = post_request(p, n, resp);
+        else if (is_equal(&hm->method, &s_patch_method))
+                ret = patch_request(p, n, &hm->body, resp);
+        else
+                ret = bad_request(resp);
+
+	return ret;
+}
+
 #define MAX_DEPTH 8
 
 void handle_http_request(struct mg_connection *c, void *ev_data)
@@ -123,16 +187,14 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	uri[hm->uri.len] = 0;
 
 	n = parse_uri(uri, MAX_DEPTH, parts);
-	if (n < 0)
-		goto bad_page;
+	if (n < 0) {
+		sprintf(resp, "Bad page %.*s", (int) hm->uri.len, hm->uri.p);
+		strcpy(error, "Page Not Found");
+		ret = HTTP_ERR_PAGE_NOT_FOUND;
+		goto out;
+	}
 
-	sprintf(resp, "TODO Handle %.*s", (int) hm->uri.len, hm->uri.p);
-	goto out;
-
-bad_page:
-	sprintf(resp, "Bad page %.*s", (int) hm->uri.len, hm->uri.p);
-	strcpy(error, "Page Not Found");
-	ret = HTTP_ERR_PAGE_NOT_FOUND;
+	ret = handle_target_requests(parts, n, hm, resp);
 out:
 	if (!ret)
 		mg_printf(c, "%s %d OK", HTTP_HDR, HTTP_OK);

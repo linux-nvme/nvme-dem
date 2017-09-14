@@ -36,6 +36,8 @@
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 static LIST_HEAD(subsys_list_head);
+static LIST_HEAD(device_list_head);
+static LIST_HEAD(interface_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_PORT;
@@ -43,6 +45,8 @@ int					 stopped;
 int					 debug;
 static int				 signalled;
 struct list_head			*subsystems = &subsys_list_head;
+struct list_head			*devices = &device_list_head;
+struct list_head			*interfaces = &interface_list_head;
 
 void shutdown_dem(void)
 {
@@ -266,12 +270,26 @@ int main(int argc, char *argv[])
 	print_info("Starting target daemon on port %s, serving '%s'",
 		   s_http_port, s_http_server_opts.document_root);
 
+	if (enumerate_devices() <= 0) {
+		print_info("no nvme devices found");
+		goto out1;
+	}
+	
+	if (enumerate_interfaces() <= 0) {
+		print_info("no interfaces found");
+		goto out2;
+	}
+	
 	poll_loop(&mgr);
 
 	if (signalled)
 		printf("\n");
 
 	ret = 0;
+
+	free_interfaces();
+out2:
+	free_devices();
 out1:
 	return ret;
 }

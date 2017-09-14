@@ -32,6 +32,8 @@
 #include "linux/list.h"
 #include "linux/nvme.h"	/* NOTE: Using linux kernel include here */
 
+#include "ofi.h"
+
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 
 #define IDLE_TIMEOUT	100
@@ -69,11 +71,8 @@
 extern int			 debug;
 extern int			 stopped;
 extern struct list_head		*subsystems;
-
-#define  u8  __u8
-#define  u16 __u16
-#define  u32 __u32
-#define  u64 __u64
+extern struct list_head		*devices;
+extern struct list_head		*interfaces;
 
 /*
  *  trtypes
@@ -98,7 +97,6 @@ extern struct list_head		*subsystems;
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
-#define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
 
 #ifndef AF_IPV4
@@ -110,6 +108,19 @@ extern struct list_head		*subsystems;
 #define AF_FC			3
 #endif
 
+
+#define IPV4_LEN		4
+#define IPV4_OFFSET		4
+#define IPV4_DELIM		"."
+
+#define IPV6_LEN		8
+#define IPV6_OFFSET		8
+#define IPV6_DELIM		":"
+
+#define FC_LEN			8
+#define FC_OFFSET		4
+#define FC_DELIM		":"
+
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
@@ -119,12 +130,12 @@ struct host {
 struct nsdev {
 	struct list_head	 node;
 	int			 devid;
-	int			 devnsid;
-	char			 device[CONFIG_DEVICE_SIZE + 1];
+	int			 nsid;
 };
 
 struct port_id {
 	struct list_head	 node;
+	struct fi_info		*prov;
 	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
@@ -135,17 +146,19 @@ struct port_id {
 };
 
 struct subsystem {
-	struct list_head		 node;
-	struct list_head		 host_list;
-	struct list_head		 portid_list;
-	struct list_head		 ns_list;
-	char				 nqn[MAX_NQN_SIZE + 1];
-	int				 allowany;
+	struct list_head	 node;
+	struct list_head	 host_list;
+	struct list_head	 portid_list;
+	struct list_head	 ns_list;
+	char			 nqn[MAX_NQN_SIZE + 1];
+	int			 allowany;
 };
 
 struct mg_connection;
 
+void shutdown_dem(void);
 void handle_http_request(struct mg_connection *c, void *ev_data);
+void dump(u8 *buf, int len);
 
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);
@@ -160,5 +173,9 @@ int link_host_to_subsys(char *subsys, char *host);
 int unlink_host_to_subsys(char *subsys, char *host);
 int link_port_to_subsys(char *subsys, int portid);
 int unlink_port_to_subsys(char *subsys, int portid);
+int enumerate_devices(void);
+int enumerate_interfaces(void);
+void free_devices(void);
+void free_interfaces(void);
 
 #endif

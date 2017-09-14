@@ -32,15 +32,12 @@
 #include "linux/list.h"
 #include "linux/nvme.h"	/* NOTE: Using linux kernel include here */
 
-#define PAGE_SIZE	4096
-#define BUF_SIZE	4096
+#include "ofi.h"
+
 #define NVMF_DQ_DEPTH	1
-#define CTIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 
 #define IDLE_TIMEOUT	100
-
-#define FI_VER		FI_VERSION(1, 0)
 
 #define print_debug(f, x...) \
 	do { \
@@ -78,13 +75,6 @@ extern int			 num_interfaces;
 extern struct interface		*interfaces;
 extern struct list_head		*target_list;
 extern void			*json_ctx;
-
-enum { DISCONNECTED, CONNECTED };
-
-#define  u8  __u8
-#define  u16 __u16
-#define  u32 __u32
-#define  u64 __u64
 
 static inline u32 get_unaligned_le24(const u8 *p)
 {
@@ -124,7 +114,6 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
-#define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
 
 #ifndef AF_IPV4
@@ -144,15 +133,6 @@ static inline u32 get_unaligned_le32(const u8 *p)
 #define SYS_NVME		"/sys/class/nvme"
 
 enum {RESTRICTED = 0, ALOW_ALL = 1};
-
-struct listener {
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_pep		*pep;
-	struct fid_eq		*peq;
-};
 
 struct interface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
@@ -178,31 +158,6 @@ struct subsystem {
 	struct nvmf_disc_rsp_page_entry	 log_page;
 	int				 access;
 	int				 log_page_valid;
-};
-
-struct qe {
-	struct fid_mr		*recv_mr;
-	u8			*buf;
-};
-
-struct endpoint {
-	char			 nqn[MAX_NQN_SIZE + 1];
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_ep		*ep;
-	struct fid_eq		*eq;
-	struct fid_cq		*rcq;
-	struct fid_cq		*scq;
-	struct fid_mr		*send_mr;
-	struct fid_mr		*data_mr;
-	struct nvme_command	*cmd;
-	void			*data;
-	struct qe		*qe;
-	int			 depth;
-	int			 state;
-	int			 csts;
 };
 
 struct nsdev {
