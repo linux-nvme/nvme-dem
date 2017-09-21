@@ -12,16 +12,14 @@
  * more details.
  */
 
-#include "mongoose.h"
+#include <mongoose.h>
+#include <jansson.h>
 
 #include "common.h"
 #include "tags.h"
 
 static const struct mg_str s_get_method = MG_MK_STR("GET");
 static const struct mg_str s_put_method = MG_MK_STR("PUT");
-static const struct mg_str s_post_method = MG_MK_STR("POST");
-static const struct mg_str s_patch_method = MG_MK_STR("PATCH");
-static const struct mg_str s_option_method = MG_MK_STR("OPTION");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 
 #define HTTP_HDR			"HTTP/1.1"
@@ -77,47 +75,537 @@ static int parse_uri(char *p, int depth, char *part[])
 	return i;
 }
 
+static int get_nsdev(char *resp)
+{
+	int			 ret = 0;
+
+	sprintf(resp, "%s", __func__);
+
+	return ret;
+}
+
+static int get_interface(char *resp)
+{
+	int			 ret = 0;
+
+	sprintf(resp, "%s", __func__);
+
+	return ret;
+}
+
 static int get_request(char *p[], int n, char *resp)
 {
-	sprintf(resp, "GET %s cnt %d", p[0], n);
-	return 0;
+	int			 ret;
+
+	if (n != 1)
+		goto bad;
+
+	if (strcmp(p[0], URI_NSDEV) == 0)
+		ret = get_nsdev(resp);
+	else if (strcmp(p[0], URI_INTERFACE) == 0)
+		ret = get_interface(resp);
+	else
+bad:
+		ret = bad_request(resp);
+
+	return ret;
+}
+
+static int put_portid(char *port, struct mg_str *body, char *resp)
+{
+	json_t			*new;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	char			*fam;
+	char			*typ;
+	char			*addr;
+	int			 portid;
+	int			 treq = 0;
+	int			 svcid;
+	int			 ret = 0;
+
+	portid = atoi(port);
+	if (portid < 1 || portid > 0xffff) {
+		sprintf(resp, "invalid data");
+		return http_error(-EINVAL);
+	}
+
+	data = malloc(body->len + 1);
+	if (!data) {
+		sprintf(resp, "no memory");
+		return http_error(-ENOMEM);
+	}
+	strncpy(data, body->p, body->len);
+	data[body->len] = 0;
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		free(data);
+                sprintf(resp, "invalid json syntax");
+		return http_error(-EINVAL);
+	}
+
+	obj = json_object_get(new, TAG_TREQ);
+	if (obj)
+		treq = json_integer_value(obj) ? 1 : 0;
+
+	obj = json_object_get(new, TAG_TYPE);
+	if (!obj)
+		goto err;
+
+	typ = (char *) json_string_value(obj);
+
+	obj = json_object_get(new, TAG_FAMILY);
+	if (!obj)
+		goto err;
+
+	fam = (char *) json_string_value(obj);
+
+	obj = json_object_get(new, TAG_ADDRESS);
+	if (!obj)
+		goto err;
+
+	addr = (char *) json_string_value(obj);
+
+	obj = json_object_get(new, TAG_TRSVCID);
+	if (!obj)
+		goto err;
+
+	svcid = json_integer_value(obj);
+
+	if (create_portid(portid, fam, typ, treq, addr, svcid))
+		goto err;		
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	json_decref(new);
+	free(data);
+
+	return ret;
+}
+
+static int put_subsys(char *subsys, struct mg_str *body, char *resp)
+{
+	json_t			*new;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	int			 allowany = 0;
+	int			 ret = 0;
+
+	data = malloc(body->len + 1);
+	if (!data) {
+		sprintf(resp, "no memory");
+		return http_error(-ENOMEM);
+	}
+	strncpy(data, body->p, body->len);
+	data[body->len] = 0;
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		free(data);
+                sprintf(resp, "invalid json syntax");
+		return http_error(-EINVAL);
+	}
+
+	obj = json_object_get(new, TAG_SUBNQN);
+	if (obj && !subsys)
+		subsys = (char *) json_string_value(obj);
+	if (!subsys)
+		goto err;
+
+	obj = json_object_get(new, TAG_ALLOW_ALL);
+	if (obj)
+		allowany = json_integer_value(obj) ? 1 : 0;
+
+	if (create_subsys(subsys, allowany))
+		goto err;		
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	json_decref(new);
+	free(data);
+
+	return ret;
+}
+
+static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
+{
+	json_t			*new;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	int			 nsid;
+	int			 devid;
+	int			 devnsid;
+	int			 ret = 0;
+
+	data = malloc(body->len + 1);
+	if (!data) {
+		sprintf(resp, "no memory");
+		return http_error(-ENOMEM);
+	}
+	strncpy(data, body->p, body->len);
+	data[body->len] = 0;
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		free(data);
+                sprintf(resp, "invalid json syntax");
+		return http_error(-EINVAL);
+	}
+
+	obj = json_object_get(new, TAG_NAMESPACE); //TODO should be NSID
+	if (obj && !ns)
+		nsid = json_integer_value(obj);
+	else if (ns)
+		nsid = atoi(ns);
+	else
+		goto err;
+
+	obj = json_object_get(new, TAG_NSDEV);	// TODO should be DEVID
+	if (!obj)
+		goto err;
+	devid = json_integer_value(obj);
+
+	obj = json_object_get(new, TAG_NSID);	// TODO should be DEVNSID
+	if (!obj && devid != -1)		// TODO should be NULLB_DEVID
+		goto err;
+	if (obj)
+		devnsid = json_integer_value(obj);
+		
+	if (create_ns(subsys, nsid, devid, devnsid))
+		goto err;
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	json_decref(new);
+	free(data);
+
+	return ret;
+}
+
+static int put_host(char *host, struct mg_str *body, char *resp)
+{
+	json_t			*new = NULL;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	int			 ret = 0;
+
+	if (!host) {
+		data = malloc(body->len + 1);
+		if (!data) {
+			sprintf(resp, "no memory");
+			return http_error(-ENOMEM);
+		}
+		strncpy(data, body->p, body->len);
+		data[body->len] = 0;
+
+		new = json_loads(data, JSON_DECODE_ANY, &error);
+		if (!new) {
+			free(data);
+			sprintf(resp, "invalid json syntax");
+			return http_error(-EINVAL);
+		}
+
+		obj = json_object_get(new, TAG_HOSTNQN);
+		if (!obj)
+			goto err;
+
+		host = (char *) json_string_value(obj);
+	}
+
+	if (create_host(host))
+		goto err;
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	if (new) {
+		json_decref(new);
+		free(data);
+	}
+
+	return ret;
+}
+
+static int link_host(char *subsys, struct mg_str *body, char *resp)
+{
+	json_t			*new = NULL;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	char			*host;
+	int			 ret = 0;
+
+	data = malloc(body->len + 1);
+	if (!data) {
+		sprintf(resp, "no memory");
+		return http_error(-ENOMEM);
+	}
+	strncpy(data, body->p, body->len);
+	data[body->len] = 0;
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		free(data);
+		sprintf(resp, "invalid json syntax");
+		return http_error(-EINVAL);
+	}
+
+	obj = json_object_get(new, TAG_HOSTNQN);
+	if (!obj)
+		goto err;
+
+	host = (char *) json_string_value(obj);
+
+	ret = link_host_to_subsys(subsys, host);
+	if (ret)
+		goto err;	
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	json_decref(new);
+	free(data);
+
+	return ret;
+}
+
+static int link_portid(char *subsys, struct mg_str *body, char *resp)
+{
+	json_t			*new = NULL;
+	json_t			*obj;
+	json_error_t		 error;
+	char			*data;
+	int			 portid;
+	int			 ret = 0;
+
+	data = malloc(body->len + 1);
+	if (!data) {
+		sprintf(resp, "no memory");
+		return http_error(-ENOMEM);
+	}
+	strncpy(data, body->p, body->len);
+	data[body->len] = 0;
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		free(data);
+		sprintf(resp, "invalid json syntax");
+		return http_error(-EINVAL);
+	}
+
+	obj = json_object_get(new, TAG_PORTID);
+	if (!obj)
+		goto err;
+
+	portid = json_integer_value(obj);
+
+	ret = link_port_to_subsys(subsys, portid);
+	if (ret)
+		goto err;	
+
+	resp[0] = 0;
+	goto out;
+err:
+	sprintf(resp, "invalid data");
+	ret = http_error(-EINVAL);
+out:
+	json_decref(new);
+	free(data);
+
+	return ret;
 }
 
 static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 {
-	int			 ret = 0;
+	int			 ret;
 
 	if (!body->len) {
-		if (strcmp(p[0], METHOD_SHUTDOWN) == 0) {
+		if (n == 1 && strcmp(p[0], METHOD_SHUTDOWN) == 0) {
 			shutdown_dem();
 			strcpy(resp, "DEMT shutting down");
+			ret = 0;
 		} else
-			ret = bad_request(resp);
+			goto bad;
+	} else if (n == 1) {
+		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
+			ret = put_subsys(NULL, body, resp);
+		else if (strcmp(p[0], URI_PORTID) == 0)
+			ret = put_portid(NULL, body, resp);
+		else if (strcmp(p[0], URI_HOST) == 0)
+			ret = put_host(NULL, body, resp);
+		else
+			goto bad;
+	} else if (n == 2) {
+		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
+			ret = put_subsys(p[1], body, resp);
+		else if (strcmp(p[0], URI_PORTID) == 0)
+			ret = put_portid(p[1], body, resp);
+		else
+			goto bad;
+	} else if (n == 3) {
+		if (strcmp(p[0], URI_SUBSYSTEM))
+			goto bad;
+		else if (strcmp(p[2], URI_NAMESPACE) == 0) 
+			ret = put_ns(p[1], NULL, body, resp);
+		else if (strcmp(p[2], URI_HOST) == 0) 
+			ret = link_host(p[1], body, resp);
+		else if (strcmp(p[2], URI_PORTID) == 0) 
+			ret = link_portid(p[1], body, resp);
+		else
+			goto bad;
+	} else if (n == 4) {
+		if (strcmp(p[0], URI_SUBSYSTEM))
+			goto bad;
+		else if (strcmp(p[2], URI_NAMESPACE))
+			goto bad;
+		else
+			ret = put_ns(p[1], p[3], body, resp);
 	} else
-		sprintf(resp, "PUT %s cnt %d body %p", p[0], n, body);
+bad:
+		ret = bad_request(resp);
+
+	return ret;
+}
+
+static int del_portid(char *port, char *resp)
+{
+	int			 ret = 0;
+
+	ret = delete_portid(atoi(port));
+	if (ret)
+		sprintf(resp, "Unable to delete portid %s", port);
+	else
+		resp[0] = 0;
+		
+
+	return ret;
+}
+
+static int del_subsys(char *subsys, char *resp)
+{
+	int			 ret = 0;
+
+	ret = delete_subsys(subsys);
+	if (ret)
+		sprintf(resp, "Unable to delete subsys %s", subsys);
+	else
+		resp[0] = 0;
+		
+
+	return ret;
+}
+
+static int del_ns(char *subsys, char *ns, char *resp)
+{
+	int			 ret = 0;
+
+	ret = delete_ns(subsys, atoi(ns));
+	if (ret)
+		sprintf(resp, "Unable to delete ns %s from subsys %s",
+			ns , subsys);
+	else
+		resp[0] = 0;
+		
+
+	return ret;
+}
+
+static int del_host(char *host, char *resp)
+{
+	int			 ret = 0;
+
+	ret = delete_host(host);
+	if (ret)
+		sprintf(resp, "Unable to delete host %s", host);
+	else
+		resp[0] = 0;
+		
+
+	return ret;
+}
+
+static int unlink_host(char *subsys, char *host, char *resp)
+{
+	int			 ret = 0;
+
+	ret = unlink_host_from_subsys(subsys, host);
+	if (ret)
+		sprintf(resp, "Unable to delete host %s from subsys %s",
+			host, subsys);
+	else
+		resp[0] = 0;
+		
+
+	return ret;
+}
+
+static int unlink_portid(char *subsys, char *portid, char *resp)
+{
+	int			 ret = 0;
+
+	ret = unlink_port_from_subsys(subsys, atoi(portid));
+	if (ret)
+		sprintf(resp, "Unable to delete port %s from subsys %s",
+			portid, subsys);
+	else
+		resp[0] = 0;
+		
 
 	return ret;
 }
 
 static int delete_request(char *p[], int n, char *resp)
 {
-	sprintf(resp, "DELETE %s cnt %d", p[0], n);
-	return 0;
-}
+	int			 ret = 0;
 
-static int post_request(char *p[], int n, char *resp)
-{
-	sprintf(resp, "POST %s cnt %d", p[0], n);
-	return 0;
-}
+	if (n == 2) {
+		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
+			ret = del_subsys(p[1], resp);
+		else if (strcmp(p[0], URI_PORTID) == 0)
+			ret = del_portid(p[1], resp);
+		else if (strcmp(p[0], URI_HOST) == 0)
+			ret = del_host(p[1], resp);
+		else
+			goto bad;
+	} else if (n == 4) {
+		if (strcmp(p[0], URI_SUBSYSTEM))
+			goto bad;
+		else if (strcmp(p[2], URI_NAMESPACE) == 0)
+			ret = del_ns(p[1], p[3], resp);
+		else if (strcmp(p[2], URI_PORTID) == 0)
+			ret = unlink_portid(p[1], p[3], resp);
+		else if (strcmp(p[2], URI_HOST) == 0)
+			ret = unlink_host(p[1], p[3], resp);
+		else
+			goto bad;
+	} else
+bad:
+		ret = bad_request(resp);
 
-static int patch_request(char *p[], int n, struct mg_str *body, char *resp)
-{
-	if (!body->len)
-		return -ENODATA;
-
-	sprintf(resp, "PATCH %s cnt %d", p[0], n);
-	return 0;
+	return ret;
 }
 
 static int handle_target_requests(char *p[], int n, struct http_message *hm,
@@ -131,10 +619,6 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
                 ret = put_request(p, n, &hm->body, resp);
         else if (is_equal(&hm->method, &s_delete_method))
                 ret = delete_request(p, n, resp);
-        else if (is_equal(&hm->method, &s_post_method))
-                ret = post_request(p, n, resp);
-        else if (is_equal(&hm->method, &s_patch_method))
-                ret = patch_request(p, n, &hm->body, resp);
         else
                 ret = bad_request(resp);
 
@@ -194,7 +678,7 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 		goto out;
 	}
 
-	ret = handle_target_requests(parts, n, hm, resp);
+	ret = handle_target_requests(parts, n+1, hm, resp);
 out:
 	if (!ret)
 		mg_printf(c, "%s %d OK", HTTP_HDR, HTTP_OK);

@@ -170,9 +170,9 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 		  int svcid);
 int delete_portid(int portid);
 int link_host_to_subsys(char *subsys, char *host);
-int unlink_host_to_subsys(char *subsys, char *host);
+int unlink_host_from_subsys(char *subsys, char *host);
 int link_port_to_subsys(char *subsys, int portid);
-int unlink_port_to_subsys(char *subsys, int portid);
+int unlink_port_from_subsys(char *subsys, int portid);
 int enumerate_devices(void);
 int enumerate_interfaces(void);
 void free_devices(void);

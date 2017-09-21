@@ -90,7 +90,7 @@ int create_subsys(char *subsys, int allowany)
 		return -errno;
 
 	ret = mkdir(subsys, 0x755);
-	if (ret)
+	if (ret && errno != EEXIST)
 		goto err;
 
 	ret = chdir(subsys);
@@ -220,7 +220,7 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 
 	sprintf(path, "%s/" CFS_NS "%d", subsys, nsid);
 	ret = mkdir(path, 0x755);
-	if (ret)
+	if (ret && errno != EEXIST)
 		goto err;
 
 	ret = chdir(path);
@@ -290,7 +290,7 @@ int create_host(char *host)
 		return -errno;
 
 	ret = mkdir(host, 0x755);
-	if (ret)
+	if (ret && errno != EEXIST)
 		ret = -errno;
 
 	chdir(dir);
@@ -339,7 +339,7 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 
 	snprintf(str, sizeof(str) - 1, "%d", portid);
 	ret = mkdir(str, 0x755);
-	if (ret)
+	if (ret && errno != EEXIST)
 		goto err;
 
 	ret = chdir(str);
@@ -425,7 +425,7 @@ int link_host_to_subsys(char *subsys, char *host)
 
 // cd /sys/kernel/config/nvmet/subsystems
 // rm ${SUBSYSTEM}/hosts/{HOSTNQN}
-int unlink_host_to_subsys(char *subsys, char *host)
+int unlink_host_from_subsys(char *subsys, char *host)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -474,7 +474,7 @@ int link_port_to_subsys(char *subsys, int portid)
 
 // cd /sys/kernel/config/nvmet/ports
 // rm ${NVME_PORT}/subsystems/${SUBSYSTEM}
-int unlink_port_to_subsys(char *subsys, int portid)
+int unlink_port_from_subsys(char *subsys, int portid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -662,6 +662,7 @@ int enumerate_interfaces(void)
 	struct fi_info		*prov;
 	struct fi_info		*p;
 	struct port_id		*interface;
+	char			*ib_name = "ib";
 	int			 ret;
 	int			 cnt = 0;
 	u8			 ipv4_loopback[] = {
@@ -687,6 +688,9 @@ int enumerate_interfaces(void)
 
 	for (p = prov; p; p = p->next)
 		if (p->src_addrlen && !find_interface(p)) {
+			if (strncmp(p->domain_attr->name, ib_name, 
+				    strlen(ib_name)))
+				continue;
 			if (p->addr_format == FI_SOCKADDR_IN &&
 			    memcmp(ipv4_loopback, p->src_addr,
 				   sizeof(ipv4_loopback)) == 0)
