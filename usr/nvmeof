@@ -1,0 +1,189 @@
+#!/bin/bash
+#
+# Bring up the NVMe-oF stack
+#
+# This is usually run automatically by systemd after a hardware activation
+# event in udev has triggered a start of the nvmeof.service unit
+#
+# file: /usr/libexec/nvmeof
+
+shopt -s nullglob
+
+CONFIG=/etc/nvme/nvmeof.conf
+
+LOAD_NVMEOF_MODULES="nvme_core"
+
+if [ -f $CONFIG ]; then
+    . $CONFIG
+
+    if [ "${PCI_HOST_LOAD}" == "yes" ]; then
+        LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme"
+    fi
+
+    if [ "${NVMEOF_HOST_LOAD}" == "yes" ]; then
+        LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme"
+
+    if [ "${RDMA_HOST_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_rdma"
+        fi
+
+    if [ "${FC_HOST_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_fc"
+        fi
+
+    if [ "${TCP_HOST_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_tcp"
+        fi
+    fi
+
+    if [ "${NVMEOF_TARGET_LOAD}" == "yes" ]; then
+        LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet"
+
+    if [ "${RDMA_TARGET_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_rdma"
+        fi
+
+    if [ "${FC_TARGET_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_fc"
+        fi
+
+    if [ "${NULL_BLK_TARGET_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES null_blk"
+        fi
+
+    if [ "${TCP_TARGET_LOAD}" == "yes" ]; then
+            LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_tcp"
+        fi
+    fi
+else
+    LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme"
+fi
+
+# If module $1 is loaded return - 0 else - 1
+is_module()
+{
+    /sbin/lsmod | grep -w "$1" > /dev/null 2>&1
+    return $?
+}
+
+load_modules()
+{
+    local RC=0
+
+    for module in $*; do
+    if ! is_module $module; then
+        echo Loading $module
+        /sbin/modprobe $module
+        res=$?
+        RC=$[ $RC + $res ]
+        if [ $res -ne 0 ]; then
+            echo "ERROR: Failed to load module $module"
+        fi
+    fi
+    done
+}
+
+unload_modules()
+{
+    modprobe -r nvme_rdma 2>/dev/null
+    modprobe -r nvme_tcp 2>/dev/null
+    modprobe -r nvme_fc 2>/dev/null
+    modprobe -r nvmet_rdma 2>/dev/null
+    modprobe -r nvmet_tcp 2>/dev/null
+    modprobe -r nvmet_fc 2>/dev/null
+    modprobe -r null_blk 2>/dev/null
+    modprobe -r nvmet 2>/dev/null
+    modprobe -r nvme 2>/dev/null
+    modprobe -r nvme_core 2>/dev/null
+
+    res=$?
+    RC=$[ $RC + $res ]
+}
+
+kill_daemon()
+{
+    PROC=`ps -ef | grep demd | grep -v grep | awk '{print $2}'`
+    if [ ${#PROC} -ne 0 ] ; then
+        kill -9 $PROC
+    fi
+}
+
+start_service()
+{
+    load_modules $LOAD_NVMEOF_MODULES
+    RC=$[ $RC + $? ]
+
+    if [ "${START_DEMT}" == "yes" ]; then
+        if [ `/usr/bin/demt --help | grep -c ^-d` -eq 1 ] ; then
+            DEMT_OPTS=-d
+        fi
+        /usr/bin/demt $DEMT_OPTS
+        res=$?
+        RC=$[ $RC + $res ]
+    fi
+
+    if [ "${START_DEMD}" == "yes" ]; then
+        if [ `/usr/bin/demd --help | grep -c ^-d` -eq 1 ] ; then
+            DEMD_OPTS=-d
+        fi
+        /usr/bin/demd $DEMD_OPTS
+        res=$?
+        RC=$[ $RC + $res ]
+    fi
+}
+
+cleanup_sysfs()
+{
+    if [ -e /sys/class/nvme-fabrics/ctl/ ] ; then
+        cd /sys/class/nvme-fabrics/ctl/
+        for i in `find . -name delete_controller` ; do echo 1 > $i ; done
+    fi
+
+    if [ -e /sys/kernel/config/nvmet/hosts ] ; then
+        cd /sys/kernel/config/nvmet/hosts
+        for i in `ls` ; do
+            rmdir $i
+        done
+    fi
+
+    if [ -e /sys/kernel/config/nvmet/ports ] ; then
+        cd /sys/kernel/config/nvmet/ports
+        for i in `ls` ; do
+            rm -f $i/subsystems/*
+            rmdir $i
+        done
+    fi
+
+    if [ -e /sys/kernel/config/nvmet/subsystems/ ] ; then
+        cd /sys/kernel/config/nvmet/subsystems/
+        for i in `ls` ; do
+            cd $i/namespaces
+            for j in `ls` ; do
+                echo -n 0 > $j/enable
+                rmdir $j
+            done
+            cd ../..
+            rmdir $i
+        done
+    fi
+}
+
+stop_service()
+{
+    kill_daemon demt
+    kill_daemon demd
+
+    cleanup_sysfs
+
+    unload_modules
+}
+
+RC=0
+
+if [ x$1 == xstop ] ; then
+    stop_service
+else
+    start_service
+fi
+
+exit $RC

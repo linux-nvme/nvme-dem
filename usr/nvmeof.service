@@ -1,0 +1,16 @@
+# file: /usr/lib/systemd/system/nvmeof.service
+
+[Unit]
+Description=NVMe-oF stack (kernel dirvers and user-mode daemons)
+Documentation=file:/etc/nvme/nvmeof.conf
+Conflicts=emergency.target emergency.service
+After=network.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/libexec/nvmeof
+ExecStop=/usr/libexec/nvmeof stop
+
+[Install]
+WantedBy=sysinit.target
