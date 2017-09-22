@@ -35,7 +35,6 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-static LIST_HEAD(subsys_list_head);
 static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
 
@@ -44,7 +43,6 @@ static char				*s_http_port = DEFAULT_PORT;
 int					 stopped;
 int					 debug;
 static int				 signalled;
-struct list_head			*subsystems = &subsys_list_head;
 struct list_head			*devices = &device_list_head;
 struct list_head			*interfaces = &interface_list_head;
 

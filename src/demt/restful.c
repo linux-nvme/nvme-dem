@@ -34,6 +34,10 @@ static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 #define HTTP_ERR_NOT_IMPLEMENTED	405
 #define HTTP_ERR_CONFLICT		409
 
+#define JSTAG		"\"%s\":"
+#define JSSTR		"\"%s\":\"%s\""
+#define JSINT		"\"%s\":%d"
+
 static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 {
 	return s1->len == s2->len && memcmp(s1->p, s2->p, s2->len) == 0;
@@ -77,18 +81,54 @@ static int parse_uri(char *p, int depth, char *part[])
 
 static int get_nsdev(char *resp)
 {
+	struct nsdev		*dev;
+	int			 len;
+	int			 once = 0;
 	int			 ret = 0;
 
-	sprintf(resp, "%s", __func__);
+	len = sprintf(resp, "{ " JSTAG " [", TAG_NSDEVS);
+	resp += len;
+
+	list_for_each_entry(dev, devices, node) {
+		len = sprintf(resp, "%s{", once ? "," : "");
+		resp += len;
+		len = sprintf(resp, JSINT ",", TAG_NSDEV, dev->devid);
+		resp += len;
+		len = sprintf(resp, JSINT "}", TAG_NSID, dev->nsid);
+		resp += len;
+		once = 1;
+	}
+
+	sprintf(resp, "]}");
 
 	return ret;
 }
 
 static int get_interface(char *resp)
 {
+	struct port_id		*iface;
+	int			 len;
+	int			 once = 0;
 	int			 ret = 0;
 
-	sprintf(resp, "%s", __func__);
+	len = sprintf(resp, "{ " JSTAG " [", TAG_INTERFACES);
+	resp += len;
+
+	list_for_each_entry(iface, interfaces, node) {
+		len = sprintf(resp, "%s{", once ? "," : "");
+		resp += len;
+		len = sprintf(resp, JSINT ",", TAG_PORTID, iface->portid);
+		resp += len;
+		len = sprintf(resp, JSSTR ",", TAG_FAMILY, iface->family);
+		resp += len;
+		len = sprintf(resp, JSSTR ",", TAG_TYPE, iface->type);
+		resp += len;
+		len = sprintf(resp, JSSTR "}", TAG_ADDRESS, iface->address);
+		resp += len;
+		once = 1;
+	}
+
+	sprintf(resp, "]}");
 
 	return ret;
 }
@@ -142,7 +182,7 @@ static int put_portid(char *port, struct mg_str *body, char *resp)
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		free(data);
-                sprintf(resp, "invalid json syntax");
+		sprintf(resp, "invalid json syntax");
 		return http_error(-EINVAL);
 	}
 
@@ -175,7 +215,7 @@ static int put_portid(char *port, struct mg_str *body, char *resp)
 	svcid = json_integer_value(obj);
 
 	if (create_portid(portid, fam, typ, treq, addr, svcid))
-		goto err;		
+		goto err;
 
 	resp[0] = 0;
 	goto out;
@@ -209,7 +249,7 @@ static int put_subsys(char *subsys, struct mg_str *body, char *resp)
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		free(data);
-                sprintf(resp, "invalid json syntax");
+		sprintf(resp, "invalid json syntax");
 		return http_error(-EINVAL);
 	}
 
@@ -224,7 +264,7 @@ static int put_subsys(char *subsys, struct mg_str *body, char *resp)
 		allowany = json_integer_value(obj) ? 1 : 0;
 
 	if (create_subsys(subsys, allowany))
-		goto err;		
+		goto err;
 
 	resp[0] = 0;
 	goto out;
@@ -260,7 +300,7 @@ static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		free(data);
-                sprintf(resp, "invalid json syntax");
+		sprintf(resp, "invalid json syntax");
 		return http_error(-EINVAL);
 	}
 
@@ -282,7 +322,7 @@ static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 		goto err;
 	if (obj)
 		devnsid = json_integer_value(obj);
-		
+
 	if (create_ns(subsys, nsid, devid, devnsid))
 		goto err;
 
@@ -378,7 +418,7 @@ static int link_host(char *subsys, struct mg_str *body, char *resp)
 
 	ret = link_host_to_subsys(subsys, host);
 	if (ret)
-		goto err;	
+		goto err;
 
 	resp[0] = 0;
 	goto out;
@@ -424,7 +464,7 @@ static int link_portid(char *subsys, struct mg_str *body, char *resp)
 
 	ret = link_port_to_subsys(subsys, portid);
 	if (ret)
-		goto err;	
+		goto err;
 
 	resp[0] = 0;
 	goto out;
@@ -468,11 +508,11 @@ static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 	} else if (n == 3) {
 		if (strcmp(p[0], URI_SUBSYSTEM))
 			goto bad;
-		else if (strcmp(p[2], URI_NAMESPACE) == 0) 
+		else if (strcmp(p[2], URI_NAMESPACE) == 0)
 			ret = put_ns(p[1], NULL, body, resp);
-		else if (strcmp(p[2], URI_HOST) == 0) 
+		else if (strcmp(p[2], URI_HOST) == 0)
 			ret = link_host(p[1], body, resp);
-		else if (strcmp(p[2], URI_PORTID) == 0) 
+		else if (strcmp(p[2], URI_PORTID) == 0)
 			ret = link_portid(p[1], body, resp);
 		else
 			goto bad;
@@ -499,7 +539,6 @@ static int del_portid(char *port, char *resp)
 		sprintf(resp, "Unable to delete portid %s", port);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -513,7 +552,6 @@ static int del_subsys(char *subsys, char *resp)
 		sprintf(resp, "Unable to delete subsys %s", subsys);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -528,7 +566,6 @@ static int del_ns(char *subsys, char *ns, char *resp)
 			ns , subsys);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -542,7 +579,6 @@ static int del_host(char *host, char *resp)
 		sprintf(resp, "Unable to delete host %s", host);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -557,7 +593,6 @@ static int unlink_host(char *subsys, char *host, char *resp)
 			host, subsys);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -572,7 +607,6 @@ static int unlink_portid(char *subsys, char *portid, char *resp)
 			portid, subsys);
 	else
 		resp[0] = 0;
-		
 
 	return ret;
 }
@@ -616,11 +650,11 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_request(p, n, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-                ret = put_request(p, n, &hm->body, resp);
-        else if (is_equal(&hm->method, &s_delete_method))
-                ret = delete_request(p, n, resp);
-        else
-                ret = bad_request(resp);
+		ret = put_request(p, n, &hm->body, resp);
+	else if (is_equal(&hm->method, &s_delete_method))
+		ret = delete_request(p, n, resp);
+	else
+		ret = bad_request(resp);
 
 	return ret;
 }

@@ -70,7 +70,6 @@
 
 extern int			 debug;
 extern int			 stopped;
-extern struct list_head		*subsystems;
 extern struct list_head		*devices;
 extern struct list_head		*interfaces;
 
