@@ -272,12 +272,12 @@ int main(int argc, char *argv[])
 		print_info("no nvme devices found");
 		goto out1;
 	}
-	
+
 	if (enumerate_interfaces() <= 0) {
 		print_info("no interfaces found");
 		goto out2;
 	}
-	
+
 	poll_loop(&mgr);
 
 	if (signalled)

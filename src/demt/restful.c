@@ -73,7 +73,8 @@ static int parse_uri(char *p, int depth, char *part[])
 		if (*p == '/') {
 			*p = '\0';
 			i++, depth--;
-			if (depth) part[i] = &p[1];
+			if (depth)
+				part[i] = &p[1];
 		}
 
 	return i;
@@ -145,10 +146,11 @@ static int get_request(char *p[], int n, char *resp)
 	else if (strcmp(p[0], URI_INTERFACE) == 0)
 		ret = get_interface(resp);
 	else
-bad:
-		ret = bad_request(resp);
+		goto bad;
 
-	return ret;
+	return 0;
+bad:
+	return bad_request(resp);
 }
 
 static int put_portid(char *port, struct mg_str *body, char *resp)
@@ -524,10 +526,11 @@ static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 		else
 			ret = put_ns(p[1], p[3], body, resp);
 	} else
-bad:
-		ret = bad_request(resp);
+		goto bad;
 
-	return ret;
+	return 0;
+bad:
+	return bad_request(resp);
 }
 
 static int del_portid(char *port, char *resp)
@@ -563,7 +566,7 @@ static int del_ns(char *subsys, char *ns, char *resp)
 	ret = delete_ns(subsys, atoi(ns));
 	if (ret)
 		sprintf(resp, "Unable to delete ns %s from subsys %s",
-			ns , subsys);
+			ns, subsys);
 	else
 		resp[0] = 0;
 
@@ -636,10 +639,11 @@ static int delete_request(char *p[], int n, char *resp)
 		else
 			goto bad;
 	} else
-bad:
-		ret = bad_request(resp);
+		goto bad;
 
-	return ret;
+	return 0;
+bad:
+	return bad_request(resp);
 }
 
 static int handle_target_requests(char *p[], int n, struct http_message *hm,

@@ -688,7 +688,7 @@ int enumerate_interfaces(void)
 
 	for (p = prov; p; p = p->next)
 		if (p->src_addrlen && !find_interface(p)) {
-			if (strncmp(p->domain_attr->name, ib_name, 
+			if (strncmp(p->domain_attr->name, ib_name,
 				    strlen(ib_name)))
 				continue;
 			if (p->addr_format == FI_SOCKADDR_IN &&
