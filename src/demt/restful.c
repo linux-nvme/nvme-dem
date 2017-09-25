@@ -22,6 +22,9 @@ static const struct mg_str s_get_method = MG_MK_STR("GET");
 static const struct mg_str s_put_method = MG_MK_STR("PUT");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 
+#define MIN_PORTID			1
+#define MAX_PORTID			0xfffe
+
 #define HTTP_HDR			"HTTP/1.1"
 #define SMALL_RSP			128
 #define LARGE_RSP			512
@@ -34,9 +37,9 @@ static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 #define HTTP_ERR_NOT_IMPLEMENTED	405
 #define HTTP_ERR_CONFLICT		409
 
-#define JSTAG		"\"%s\":"
-#define JSSTR		"\"%s\":\"%s\""
-#define JSINT		"\"%s\":%d"
+#define JSTAG				"\"%s\":"
+#define JSSTR				"\"%s\":\"%s\""
+#define JSINT				"\"%s\":%d"
 
 static int is_equal(const struct mg_str *s1, const struct mg_str *s2)
 {
@@ -118,8 +121,6 @@ static int get_interface(char *resp)
 	list_for_each_entry(iface, interfaces, node) {
 		len = sprintf(resp, "%s{", once ? "," : "");
 		resp += len;
-		len = sprintf(resp, JSINT ",", TAG_PORTID, iface->portid);
-		resp += len;
 		len = sprintf(resp, JSSTR ",", TAG_FAMILY, iface->family);
 		resp += len;
 		len = sprintf(resp, JSSTR ",", TAG_TYPE, iface->type);
@@ -136,7 +137,7 @@ static int get_interface(char *resp)
 
 static int get_request(char *p[], int n, char *resp)
 {
-	int			 ret;
+	int			 ret = 0;
 
 	if (n != 1)
 		goto bad;
@@ -148,7 +149,7 @@ static int get_request(char *p[], int n, char *resp)
 	else
 		goto bad;
 
-	return 0;
+	return ret;
 bad:
 	return bad_request(resp);
 }
@@ -168,7 +169,7 @@ static int put_portid(char *port, struct mg_str *body, char *resp)
 	int			 ret = 0;
 
 	portid = atoi(port);
-	if (portid < 1 || portid > 0xffff) {
+	if (portid < MIN_PORTID || portid > MAX_PORTID) {
 		sprintf(resp, "invalid data");
 		return http_error(-EINVAL);
 	}
@@ -306,7 +307,7 @@ static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 		return http_error(-EINVAL);
 	}
 
-	obj = json_object_get(new, TAG_NAMESPACE); //TODO should be NSID
+	obj = json_object_get(new, TAG_NSID);
 	if (obj && !ns)
 		nsid = json_integer_value(obj);
 	else if (ns)
@@ -314,13 +315,13 @@ static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 	else
 		goto err;
 
-	obj = json_object_get(new, TAG_NSDEV);	// TODO should be DEVID
+	obj = json_object_get(new, TAG_DEVID);
 	if (!obj)
 		goto err;
 	devid = json_integer_value(obj);
 
-	obj = json_object_get(new, TAG_NSID);	// TODO should be DEVNSID
-	if (!obj && devid != -1)		// TODO should be NULLB_DEVID
+	obj = json_object_get(new, TAG_DEVNSID);
+	if (!obj && devid != NULLB_DEVID)
 		goto err;
 	if (obj)
 		devnsid = json_integer_value(obj);
@@ -528,7 +529,7 @@ static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 	} else
 		goto bad;
 
-	return 0;
+	return ret;
 bad:
 	return bad_request(resp);
 }
@@ -641,7 +642,7 @@ static int delete_request(char *p[], int n, char *resp)
 	} else
 		goto bad;
 
-	return 0;
+	return ret;
 bad:
 	return bad_request(resp);
 }

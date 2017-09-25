@@ -50,6 +50,10 @@
 #define TRUE			'1'
 #define FALSE			'0'
 
+#define REQUIRED		"required"
+#define NOT_REQUIRED		"not required"
+#define NOT_SPECIFIED		"not specified"
+
 #define MAXPATHLEN		512
 
 #define for_each_dir(entry, subdir)			\
@@ -310,10 +314,12 @@ int delete_host(char *host)
 	if (ret)
 		return -errno;
 
-	rmdir(host);
+	ret = rmdir(host);
+	if (ret)
+		ret = -errno;
 
 	chdir(dir);
-	return 0;
+	return ret;
 }
 
 // cd /sys/kernel/config/nvmet/ports
@@ -349,7 +355,12 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 	write_str(CFS_TR_ADRFAM, fam);
 	write_str(CFS_TR_TYPE, typ);
 	write_str(CFS_TR_ADDR, addr);
-	write_chr(CFS_TREQ, req ? TRUE : FALSE);
+	if (req == NVMF_TREQ_REQUIRED)
+		write_str(CFS_TREQ, REQUIRED);
+	else if (req == NVMF_TREQ_NOT_REQUIRED)
+		write_str(CFS_TREQ, NOT_REQUIRED);
+	else
+		write_str(CFS_TREQ, NOT_SPECIFIED);
 
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
 	write_str(CFS_TR_SVCID, str);
