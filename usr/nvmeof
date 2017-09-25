@@ -23,15 +23,15 @@ if [ -f $CONFIG ]; then
     if [ "${NVMEOF_HOST_LOAD}" == "yes" ]; then
         LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme"
 
-    if [ "${RDMA_HOST_LOAD}" == "yes" ]; then
+        if [ "${RDMA_HOST_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_rdma"
         fi
 
-    if [ "${FC_HOST_LOAD}" == "yes" ]; then
+        if [ "${FC_HOST_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_fc"
         fi
 
-    if [ "${TCP_HOST_LOAD}" == "yes" ]; then
+        if [ "${TCP_HOST_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvme_tcp"
         fi
     fi
@@ -39,19 +39,19 @@ if [ -f $CONFIG ]; then
     if [ "${NVMEOF_TARGET_LOAD}" == "yes" ]; then
         LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet"
 
-    if [ "${RDMA_TARGET_LOAD}" == "yes" ]; then
+        if [ "${RDMA_TARGET_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_rdma"
         fi
 
-    if [ "${FC_TARGET_LOAD}" == "yes" ]; then
+        if [ "${FC_TARGET_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_fc"
         fi
 
-    if [ "${NULL_BLK_TARGET_LOAD}" == "yes" ]; then
+        if [ "${NULL_BLK_TARGET_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES null_blk"
         fi
 
-    if [ "${TCP_TARGET_LOAD}" == "yes" ]; then
+        if [ "${TCP_TARGET_LOAD}" == "yes" ]; then
             LOAD_NVMEOF_MODULES="$LOAD_NVMEOF_MODULES nvmet_tcp"
         fi
     fi
