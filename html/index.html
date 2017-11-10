@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta content="text/html;charset=utf-8" http-equiv="Content-Type">
+    <meta content="utf-8" http-equiv="encoding">
+    <script
+      src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js">
+    </script>
+    <script src="encode.js"></script>
+    <script src="scripts.js"></script>
+    <link rel="stylesheet" type="text/css" href="stylesheet.css">
+  </head>
+  <body onload="checkAddress()">
+    <div class="bg">
+      <h2>Distributed Endpoint Manager
+        <span style="float:right;padding-right:20px">
+        <img src="nvme.png"
+             style="height:22px;margin-bottom:11px;padding-right:7px">
+        <img src="logo.png" style="height:48px;margin-top:-10px">
+        </span>
+      </h2>
+      <h4>an implementation of the NVMe-oF Discovery Manager</h4>
+      <div class="page">
+        <div id="addrForm" style="display:none">
+          <div class="static-menu"></div>
+          <div class="content">
+            <div style="float:left; width:25%; min-width:430px">
+              <p style="padding-top:12px">
+                Please select the <b>Distributed Endpoint Manager (DEM)</b>
+                <br> to connect to.</p>
+              <form id="form" action="javascript:console.log('');">
+                <p class="innerform">
+                  IP Address:
+                  <input type="text" name="addr" value="10.23.221.71"><br>
+                  Port Number:
+                  <input type="number" name="port" value="22345"><br>
+                  User ID:
+                  <input type="text" name="user" value=""><br>
+                  Password:
+                  <input type="password" name="pswd" id="pswd" value=""><br>
+                </p>
+                <input type="submit" value="Submit">
+              </form>
+              <span id="loginMessage"><p><b>Please login</b></p></span>
+            </div>
+            <div style="float:left; width:50%">
+              <p style="padding-top:5px">
+              <p>
+              An <b>NVMe-oF Discovery Manager</b> is centralized
+              repository of information necessary for Hosts to connect to
+              NVMe-oF subsystems.<p>
+              <p>The <b>Distributed Endpoint Manager (DEM)</b> is an
+              implementation of the NVMe-oF Discovery Manager.</p>
+              <p><b>This tool:</b><p>
+              <ul>
+              <li><p>Lists which Hosts and which Targets are managed by this
+                     DEM</p>
+              <li><p>Notifies Hosts of resource changes on provisioned
+                     NVMe-oF subsystems</p>
+              <li><p>Visualizes groups which consist of Endpoints and the
+                     Hosts provisioned with them </p>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div id="menu" style="display:none;">
+          <div class="static-menu">
+            <div class="dropdown-menu">
+              <button onclick="myFunction('Info')" class="dropbtn">
+                Info</button>
+              <div id="Info" class="dropdown-content">
+                <a onclick="showContents('dem')">About</a>
+                <a onclick="showContacts()">Contact</a>
+                <a onclick="clearSession()">Logout</a>
+              </div>
+            </div>
+            <div class="dropdown-menu">
+              <button onclick="myFunction('Objects')" class="dropbtn">
+                Objects</button>
+              <div id="Objects" class="dropdown-content">
+                <a onclick="showList('target')">Targets</a>
+                <a onclick="showList('host')">Hosts</a>
+                <a onclick="showList('group')">Groups</a>
+              </div>
+            </div>
+            <div class="dropdown-menu" id="apply-menu" style="display:none;">
+              <button onclick="sendapply()" id="apply" class="dropbtn">
+                Apply</button>
+            </div>
+          </div>
+        </div>
+        <script src="forms.js"></script>
+        <br>
+        <div id="addrCancelled" class="content" style="display:none;">
+          Unable to connect to the DEM
+        </div>
+        <div id="contentPage" class="content" style="display:none;">
+          Disconnect from DEM
+        </div>
+        <div id="listPage" class="content" style="display:none;">
+          Disconnect from DEM
+        </div>
+        <div id="detailPage" class="content" style="display:none;">
+          Disconnect from DEM
+        </div>
+        <div id="notSupported" class="content" style="display:none;">
+          Sorry, your browser does not support web storage...
+        </div>
+        <div id="editPage" class="overlay">
+          <a href="javascript:void(0)" class="closebtn"
+             onclick="closeDialog(false)">&#10008;</a>
+          <a href="javascript:void(0)" class="savebtn"
+             onclick="closeDialog(true)">&#10004;</a>
+          <div id="editForm" class="overlay-content"></div>
+        </div>
+	<div id="workspace">
+          <div id="objectType"></div>
+          <div id="objectValue"></div>
+          <div id="args"></div>
+          <div id="parentargs"></div>
+          <div id="post_err"></div>
+          <div id="editVerb"></div>
+          <div id="editUri"></div>
+          <div id="parentUri"></div>
+          <div id="renamedUri"></div>
+	</div>
+        <div id="contactPage" class="content" style="display:none;">
+         <h1>Contacts</h1>
+         <div style="padding-left:1.3em">
+           <p>If you have any questions regarding this implementation of this
+              NVMe-oF Discovery Manager, please contact either</p>
+           <p class="email"><a href='javascript:email("cayton")'>
+             <img src="email.png" alt="email" class="email"></a>
+             Phil Cayton &lt;phil.cayton@intel.com&gt;</p>
+           <p class="email"><a href='javascript:email("jay")'>
+             <img src="email.png" alt="email" class="email"></a>
+             Jay Sternberg &lt;jay.e.sternberg@intel.com&gt;</p>
+          </div>
+        </div>
+      </div>
+      <div class="footer">
+        Copyright &copy; Intel Corporation
+      </div>
+    </div>
+  </body>
+</html>
