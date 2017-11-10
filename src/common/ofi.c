@@ -30,6 +30,8 @@
 
 #include "common.h"
 
+#define CTIMEOUT	100
+
 void dump(u8 *buf, int len)
 {
 	int			 i, j, n = 0;

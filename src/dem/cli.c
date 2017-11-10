@@ -39,9 +39,11 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 
 #define JSSTR		"\"%s\":\"%s\""
 #define JSINT		"\"%s\":%d"
+#define JSTAG		"\"%s\":"
 
 #define _ADD		"add"
 #define _SET		"set"
+#define _EDIT		"edit"
 #define _DEL		"delete"
 #define _RENA		"rename"
 #define _GET		"get"
@@ -54,7 +56,6 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _NSDEV		"drive"
 #define _ACL		"acl"
 #define _NS		"ns"
-#define _TRANSPORT	"transport"
 #define _REFRESH	"refresh"
 #define _LINK		"link"
 #define _UNLINK		"unlink"
@@ -72,7 +73,7 @@ struct verbs {
 	char		*help;
 };
 
-static char *error(int ret)
+static char *error_str(int ret)
 {
 	if (ret == -EEXIST)
 		return "already exists";
@@ -83,10 +84,12 @@ static char *error(int ret)
 	return "unknown error";
 }
 
-static inline int cancel_delete()
+static inline int cancel_delete(void)
 {
 	char			 c;
+
 	c = getchar();
+
 	return (c != 'y' && c != 'Y');
 }
 
@@ -236,19 +239,24 @@ static int set_group(void *ctx, char *url, int n, char **p)
 static int del_group(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
-	char			*group = *p;
-
-	UNUSED(n);
+	int			 i;
 
 	if (prompt_deletes) {
-		printf(DELETE_PROMPT "%s '%s'? (N/y) ", TAG_GROUP, group);
+		if (n > 1)
+			printf(DELETE_PROMPT "these " TAG_GROUP "s? (N/y) ");
+		else
+			printf(DELETE_PROMPT TAG_GROUP "'%s'? (N/y) ", *p);
+
 		if (cancel_delete())
 			return 0;
 	}
 
-	snprintf(url, sizeof(url), "%s/%s", base, group);
+	for (i = 0; i < n; i++) {
+		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
+		exec_delete(ctx, url);
+	}
 
-	return exec_delete(ctx, url);
+	return 0;
 }
 
 static int rename_group(void *ctx, char *base, int n, char **p)
@@ -345,6 +353,25 @@ static int get_target(void *ctx, char *base, int n, char **p)
 
 static int set_target(void *ctx, char *base, int n, char **p)
 {
+	char			 data[256];
+	char			*alias = *p++;
+	char			*family = *p++;
+	char			*address = *p++;
+	int			 port = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
+
+	len = snprintf(data, sizeof(data),
+		     "{" JSSTR "," JSTAG "{" JSSTR "," JSSTR "," JSINT "}}",
+		     TAG_ALIAS, alias, TAG_INTERFACE, TAG_IFFAMILY, family,
+		     TAG_IFADDRESS, address, TAG_IFPORT, port);
+
+	return exec_put(ctx, base, data, len);
+}
+
+static int edit_target(void *ctx, char *base, int n, char **p)
+{
 	char			 url[128];
 	char			 data[256];
 	char			*alias = *p++;
@@ -354,11 +381,12 @@ static int set_target(void *ctx, char *base, int n, char **p)
 	int			 len;
 
 	UNUSED(n);
-	snprintf(url, sizeof(url), "%s/%s", base, URI_INTERFACE);
+
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
 	len = snprintf(data, sizeof(data),
-		     "{" JSSTR "," JSSTR "," JSSTR "," JSINT "}",
-		     TAG_ALIAS, alias, TAG_IFFAMILY, family,
+		     "{" JSTAG "{" JSSTR "," JSSTR "," JSINT "}}",
+		     TAG_INTERFACE, TAG_IFFAMILY, family,
 		     TAG_IFADDRESS, address, TAG_IFPORT, port);
 
 	return exec_put(ctx, url, data, len);
@@ -373,6 +401,7 @@ static int set_refresh(void *ctx, char *base, int n, char **p)
 	int			 len;
 
 	UNUSED(n);
+
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
 	len = snprintf(data, sizeof(data),
@@ -384,19 +413,24 @@ static int set_refresh(void *ctx, char *base, int n, char **p)
 static int del_target(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
-	char			*alias = *p;
-
-	UNUSED(n);
+	int			 i;
 
 	if (prompt_deletes) {
-		printf(DELETE_PROMPT "%s '%s'? (N/y) ", TAG_TARGET, alias);
+		if (n > 1)
+			printf(DELETE_PROMPT "these " TAG_TARGET "s? (N/y) ");
+		else
+			printf(DELETE_PROMPT TAG_TARGET "'%s'? (N/y) ", *p);
+
 		if (cancel_delete())
 			return 0;
 	}
 
-	snprintf(url, sizeof(url), "%s/%s", base, alias);
-	
-	return exec_delete(ctx, url);
+	for (i = 0; i < n; i++) {
+		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
+		exec_delete(ctx, url);
+	}
+
+	return 0;
 }
 
 static int rename_target(void *ctx, char *base, int n, char **p)
@@ -455,8 +489,8 @@ static int unlink_target(void *ctx, char *base, int n, char **p)
 
 	UNUSED(n);
 	if (prompt_deletes) {
-		printf(DELETE_PROMPT "these %s from %s '%s'? (N/y) ",
-		       target, TAG_GROUP, group);
+		printf(DELETE_PROMPT "%s '%s' from %s '%s'? (N/y) ",
+		       TAG_TARGET, target, TAG_GROUP, group);
 		if (cancel_delete())
 			return 0;
 	}
@@ -510,12 +544,31 @@ static int add_subsys(void *ctx, char *base, int n, char **p)
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s/%s",
-		 base, alias, URI_SUBSYSTEM,nqn);
+		 base, alias, URI_SUBSYSTEM, nqn);
 
 	return exec_post(ctx, url, NULL, 0);
 }
 
 static int set_subsys(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*nqn = *p++;
+	int			 allow_any = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, URI_SUBSYSTEM);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "," JSINT "}",
+		       TAG_SUBNQN, nqn, TAG_ALLOW_ANY, allow_any);
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int edit_subsys(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -538,7 +591,7 @@ static int set_subsys(void *ctx, char *base, int n, char **p)
 static int del_subsys(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
-	char			*alias = *p;
+	char			*alias = *p++;
 	int			 i;
 
 	if (prompt_deletes) {
@@ -548,9 +601,9 @@ static int del_subsys(void *ctx, char *base, int n, char **p)
 			return 0;
 	}
 
-	for (i = 0; i < n; i++) {
+	for (i = 0, n--; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s", base, alias,
-			 URI_SUBSYSTEM, *++p);
+			 URI_SUBSYSTEM, p[i]);
 		exec_delete(ctx, url);
 	}
 
@@ -596,9 +649,34 @@ static int set_portid(void *ctx, char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, URI_PORTID);
 
 	len = snprintf(data, sizeof(data),
-		     "{" JSINT "," JSSTR "," JSSTR "," JSSTR "," JSINT "}",
-		     TAG_PORTID, portid, TAG_TYPE, type, TAG_FAMILY, family,
-		     TAG_ADDRESS, address, TAG_TRSVCID, trsvcid);
+		       "{" JSINT "," JSSTR "," JSSTR "," JSSTR "," JSINT "}",
+		       TAG_PORTID, portid, TAG_TYPE, type, TAG_FAMILY, family,
+		       TAG_ADDRESS, address, TAG_TRSVCID, trsvcid);
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int edit_portid(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	int			 portid = atoi(*p++);
+	char			*type = *p++;
+	char			*family = *p++;
+	char			*address = *p++;
+	int			 trsvcid = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s/%s/%d", base, alias, URI_PORTID,
+		 portid);
+
+	len = snprintf(data, sizeof(data),
+		       "{" JSSTR "," JSSTR "," JSSTR "," JSINT "}",
+		       TAG_TYPE, type, TAG_FAMILY, family,
+		       TAG_ADDRESS, address, TAG_TRSVCID, trsvcid);
 
 	return exec_put(ctx, url, data, len);
 }
@@ -606,7 +684,7 @@ static int set_portid(void *ctx, char *base, int n, char **p)
 static int del_portid(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
-	char			*alias = *p;
+	char			*alias = *p++;
 	int			 i;
 
 	if (prompt_deletes) {
@@ -616,9 +694,9 @@ static int del_portid(void *ctx, char *base, int n, char **p)
 			return 0;
 	}
 
-	for (i = 0; i < n; i++) {
+	for (i = 0, n--; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s", base, alias,
-			 URI_PORTID, *++p);
+			 URI_PORTID, p[i]);
 		exec_delete(ctx, url);
 	}
 
@@ -633,15 +711,15 @@ static int set_acl(void *ctx, char *base, int n, char **p)
 	char			 url[128];
 	char			*alias = *p++;
 	char			*ss = *p++;
-	char			*nqn = *p;
+	char			*host = *p;
 	int			 len;
 
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s/%s/%s", base, alias,
 		 URI_SUBSYSTEM, ss, URI_HOST);
-	
-	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_HOSTNQN, nqn);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, host);
 
 	return exec_put(ctx, url, data, len);
 }
@@ -650,7 +728,7 @@ static int del_acl(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
-	char			*ss = *p;
+	char			*ss = *p++;
 	int			 i;
 
 	if (prompt_deletes) {
@@ -660,9 +738,9 @@ static int del_acl(void *ctx, char *base, int n, char **p)
 			return 0;
 	}
 
-	for (i = 0; i < n - 1; i++) {
+	for (i = 0, n -= 2; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s/%s/%s", base, alias,
-			 URI_SUBSYSTEM, ss, URI_HOST, *++p);
+			 URI_SUBSYSTEM, ss, URI_HOST, p[i]);
 		exec_delete(ctx, url);
 	}
 
@@ -698,25 +776,22 @@ static int del_ns(void *ctx, char *base, int n, char **p)
 	char			 base_url[128];
 	char			 url[128];
 	char			*alias = *p++;
-	char			*subsys = *p;
+	char			*subsys = *p++;
 	int			 i;
 
 	if (prompt_deletes) {
 		printf(DELETE_PROMPT
 		       "these %s from %s '%s' on %s '%s'? (N/y) ",
-		       TAG_NSIDS, TAG_SUBSYSTEM, subsys,
-		       TAG_TARGET, alias);
+		       TAG_NSIDS, TAG_SUBSYSTEM, subsys, TAG_TARGET, alias);
 		if (cancel_delete())
 			return 0;
 	}
 
 	snprintf(base_url, sizeof(base_url), "%s/%s/%s/%s/%s",
 		base, alias, URI_SUBSYSTEM, subsys, URI_NAMESPACE);
-	n--;
 
-	for (i = 0; i < n; i++) {
-		p++;
-		snprintf(url, sizeof(url), "%s/%d", base_url, atoi(*p));
+	for (i = 0, n -= 2; i < n; i++) {
+		snprintf(url, sizeof(url), "%s/%d", base_url, atoi(p[i]));
 		exec_delete_ex(ctx, url, NULL, 0);
 	}
 
@@ -814,22 +889,44 @@ static int set_host(void *ctx, char *url, int n, char **p)
 	return exec_put(ctx, url, data, len);
 }
 
-static int del_host(void *ctx, char *base, int n, char **p)
+static int edit_host(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
-	char			*nqn = *p;
+	char			 data[256];
+	char			*alias = *p++;
+	char			*nqn = *p++;
+	int			 len;
 
 	UNUSED(n);
 
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_HOSTNQN, nqn);
+
+	return exec_put(ctx, url, data, len);
+}
+
+static int del_host(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	int			 i;
+
 	if (prompt_deletes) {
-		printf(DELETE_PROMPT "%s '%s'? (N/y) ", TAG_HOST, nqn);
+		if (n > 1)
+			printf(DELETE_PROMPT "these " TAG_HOST "s? (N/y) ");
+		else
+			printf(DELETE_PROMPT TAG_HOST "'%s'? (N/y) ", *p);
+
 		if (cancel_delete())
 			return 0;
 	}
 
-	snprintf(url, sizeof(url), "%s/%s", base, nqn);
-	
-	return exec_delete(ctx, url);
+	for (i = 0; i < n; i++) {
+		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
+		exec_delete(ctx, url);
+	}
+
+	return 0;
 }
 
 static int rename_host(void *ctx, char *base, int n, char **p)
@@ -849,49 +946,6 @@ static int rename_host(void *ctx, char *base, int n, char **p)
 	return exec_patch(ctx, url, data, len);
 }
 
-/* INTERFACES */
-
-static int set_transport(void *ctx, char *base, int n, char **p)
-{
-	char			 url[128];
-	char			 data[256];
-	char			*alias = *p++;
-	char			*type = *p++;
-	char			*family = *p++;
-	char			*address = *p++;
-	int			 len;
-
-	UNUSED(n);
-
-	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, URI_TRANSPORT);
-
-	len = snprintf(data, sizeof(data), "{" JSSTR "," JSSTR "," JSSTR "}",
-		     TAG_TYPE, type, TAG_FAMILY, family, TAG_ADDRESS, address);
-
-	return exec_put(ctx, url, data, len);
-}
-
-static int del_transport(void *ctx, char *base, int n, char **p)
-{
-	char			 url[128];
-	char			 data[256];
-	char			*alias = *p++;
-	char			*type = *p++;
-	char			*family = *p++;
-	char			*address = *p++;
-	int			 len;
-
-	UNUSED(n);
-
-	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, URI_TRANSPORT);
-
-	len = snprintf(data, sizeof(data), "{" JSSTR "," JSSTR "," JSSTR "}",
-		       TAG_TYPE, type, TAG_FAMILY, family,
-		       TAG_ADDRESS, address);
-
-	return exec_delete_ex(ctx, url, data, len);
-}
-
 /* GROUP LINK */
 
 static int link_host(void *ctx, char *base, int n, char **p)
@@ -903,7 +957,7 @@ static int link_host(void *ctx, char *base, int n, char **p)
 	int			 len;
 
 	UNUSED(n);
-	
+
 	snprintf(url, sizeof(url), "%s/%s/%s", base, group, URI_HOST);
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, host);
@@ -918,10 +972,10 @@ static int unlink_host(void *ctx, char *base, int n, char **p)
 	char			*group = *p;
 
 	UNUSED(n);
-        
+
 	if (prompt_deletes) {
-		printf(DELETE_PROMPT "these %s from %s '%s'? (N/y) ",
-		       host, TAG_GROUP, group);
+		printf(DELETE_PROMPT "%s '%s' from %s '%s'? (N/y) ",
+		       TAG_HOST, host, TAG_GROUP, group);
 		if (cancel_delete())
 			return 0;
 	}
@@ -939,14 +993,13 @@ static int unlink_host(void *ctx, char *base, int n, char **p)
  * Object	- Sub-entity action addresses
  * Args		- Can be NULL, fixed, or variable based on "Num Args"
  * Help		- Message describing what this verb does to this object
-*/
+ */
 static struct verbs verb_list[] = {
 	/* DEM */
 	{ dem_config,	 DEM,     0, "config",   NULL, NULL,
 	  "show dem configuration including interfaces" },
 	{ dem_apply,	 DEM,     0, "apply",    NULL, NULL,
-	  "signal the dem to apply changes and rebuild"
-	  " internal data structures" },
+	  "apply changes and rebuild internal data structures" },
 	{ dem_shutdown,	 DEM,     0, "shutdown", NULL, NULL,
 	  "signal the dem to shutdown" },
 
@@ -956,13 +1009,13 @@ static struct verbs verb_list[] = {
 	{ add_group,	 GROUP,   1, _ADD,  _GROUP, "<name>",
 	  "create a group (using POST)" },
 	{ get_group,	 GROUP,   1, _GET,  _GROUP, "<name>",
-	  "show the targets and hosts associated with a specific group" },
+	  "show the targets and hosts associated with a group" },
 	{ set_group,	 GROUP,   1, _SET,  _GROUP, "<name>",
-	  "create/update a group (using PUT)" },
-	{ del_group,	 GROUP,   1, _DEL,  _GROUP, "<name>",
-	  "delete a specific group and all associated links" },
+	  "create a group (using PUT)" },
+	{ del_group,	 GROUP,   -1, _DEL,  _GROUP, "<name> {<name> ...}",
+	  "delete group(s) and all associated links" },
 	{ rename_group,	 GROUP,   2, _RENA, _GROUP, "<old> <new>",
-	  "rename a specific group (using PATCH)" },
+	  "rename a group (using PATCH)" },
 
 	/* TARGETS */
 	{ list_target,	 TARGET,  0, _LIST, _TARGET,  NULL,
@@ -970,90 +1023,91 @@ static struct verbs verb_list[] = {
 	{ add_target,	 TARGET,  1, _ADD,  _TARGET, "<alias>",
 	  "create a target (using POST)" },
 	{ get_target,	 TARGET,  1, _GET,  _TARGET, "<alias>",
-	  "show the specified target including refresh rate, ports,"
-	  " ss's, and ns's" },
+	  "show the specified target e.g. ports, subsys's, and ns's" },
 	{ set_target,	 TARGET,  4, _SET,  _TARGET,
-		"<alias> <family> <address> <port>",
-		"create/update a target (using PUT)" },
-	{ del_target,	 TARGET,  1, _DEL,  _TARGET, "<alias>",
-	  "delete a target" },
+	  "<alias> <family> <address> <port>",
+	  "create a target (using PUT)" },
+	{ edit_target,	 TARGET,  4, _EDIT,  _TARGET,
+	  "<alias> <family> <address> <port>",
+	  "update a target (using PUT)" },
+	{ del_target,	 TARGET,  -1, _DEL,  _TARGET, "<alias> {<alias> ...}",
+	  "delete target(s) and all associated subsystems and port ids" },
 	{ rename_target, TARGET,  2, _RENA, _TARGET, "<old> <new>",
 	  "rename a target in the specified group (using PATCH)" },
-	{ refresh_target,TARGET,  1, "refresh", _TARGET, "<alias>",
+	{ refresh_target, TARGET, 1, "refresh", _TARGET, "<alias>",
 	  "signal the dem to refresh the log pages of a target" },
-	{ usage_target,	 TARGET,  1, "usage",_TARGET, "<alias>",
+	{ usage_target,	 TARGET,  1, "usage", _TARGET, "<alias>",
 	  "get usage for subsystems of a target" },
-	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refreshcount>",
-	  "create/update a target refresh count (using PUT)" },
+	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refresh>",
+	  "update a target's refresh rate in minutes (using PUT)" },
 	{ link_target,	 GROUP,   2, _LINK,  _TARGET, "<alias> <group>",
-	  "create/update a target link to a group (using PUT)" },
+	  "link a target to a group (using PUT)" },
 	{ unlink_target, GROUP,   2, _UNLINK,  _TARGET, "<alias> <group>",
 	  "unlink a target from a group (using PUT)" },
 
 	/* SUBSYSTEMS */
 	{ add_subsys,	 TARGET,  2, _ADD,  _SUBSYS, "<alias> <subnqn>",
-	  "create a subsystem on a specific target (using POST)" },
+	  "create a subsystem on a target (using POST)" },
 	{ set_subsys,	 TARGET,  3, _SET,  _SUBSYS,
-		"<alias> <subnqn> <allow_any>",
-	  "create/update a subsystem on a specific target (using PUT)" },
+	  "<alias> <subnqn> <allow_any>",
+	  "create a subsystem on a target (using PUT)" },
+	{ edit_subsys,	 TARGET,  3, _EDIT,  _SUBSYS,
+	  "<alias> <subnqn> <allow_any>",
+	  "create a subsystem on a target (using PUT)" },
 	{ del_subsys,	 TARGET, -2, _DEL,  _SUBSYS,
-		"<alias> <subnqn> {<subnqn> ...}",
-	  "delete a set of subsystems from a target (one at a time)" },
+	  "<alias> <subnqn> {<subnqn> ...}",
+	  "delete subsystems from a target (one at a time)" },
 	{ rename_subsys, TARGET,  3, _RENA, _SUBSYS,
-		"<alias> <subnqn> <newnqn>",
-	  "rename a subsustem on a specific target (using PATCH)" },
+	  "<alias> <subnqn> <newnqn>",
+	  "rename a subsustem on a target (using PATCH)" },
 
 	/* PORTID */
 	{ set_portid,	 TARGET,  6, _SET,  _PORT,
 	  "<alias> <portid> <trtype> <adrfam> <traddr> <trsrvid>",
-	  "create a port on a specific target (using PUT)" },
+	  "create a port on a target (using PUT)" },
+	{ edit_portid,	 TARGET,  6, _EDIT,  _PORT,
+	  "<alias> <portid> <trtype> <adrfam> <traddr> <trsrvid>",
+	  "update a port on a target (using PUT)" },
 	{ del_portid,	 TARGET, -2, _DEL,  _PORT,
 	  "<alias> <portid> {<portid> ...}",
-	  "delete a set of ports from a target (one at a time)" },
+	  "delete ports from a target (one at a time)" },
 
 	/* ACL */
 	{ set_acl,	 TARGET,  3, _SET,  _ACL,
 	  "<target_alias> <subnqn> <host_alias>",
-	  "create/update a hosts access to a subsystem/target (using PUT)" },
+	  "allow a host access to a subsystem/target (using PUT)" },
 	{ del_acl,	 TARGET, -3, _DEL,  _ACL,
 	  "<target_alias> <subnqn> <host_alias> {<host_alias> ...}",
-	  "delete a set of hosts from access to a subsystem/target" },
+	  "delete hosts from access to a subsystem/target" },
 
 	/* NAMESPACES */
 	{ set_ns,	 TARGET,  5, _SET,  _NS,
 	  "<alias> <subnqn> <nsid> <devid> <devnsid>",
-	  "create/update a namespace on a specific subsystem/target"
-	  " (using PUT)" },
+	  "create a namespace in a subsys on a target (using PUT)" },
 	{ del_ns,	 TARGET, -3, _DEL,  _NS,
 	  "<alias> <subnqn> <nsid> {<nsid> ...}",
-	  "delete a set of namespaces from a subsystem/target"
-	  " (one at a time)" },
+	  "delete namespaces from a subsys on a target (one at a time)" },
 
 	/* HOSTS */
 	{ list_host,	 HOST,  0, _LIST, _HOST,  NULL,
 	  "list all hosts" },
 	{ add_host,	 HOST,  1, _ADD,  _HOST, "<alias>",
-	  "create a host in the specified group (using POST)" },
+	  "create a host (using POST)" },
 	{ get_host,	 HOST,  1, _GET,  _HOST, "<alias>",
-	  "show the specified host including interfaces" },
+	  "show the specified host" },
 	{ set_host,	 HOST,  2, _SET,  _HOST, "<alias> <hostnqn>",
-	  "create/update a host in the specified group (using PUT)" },
-	{ del_host,	 HOST,  1, _DEL,  _HOST, "<alias>",
-	  "delete a host in the specified group" },
+	  "create a host (using PUT)" },
+	{ edit_host,	 HOST,  2, _EDIT,  _HOST, "<alias> <hostnqn>",
+	  "update a host (using PUT)" },
+	{ del_host,	 HOST,  -1, _DEL,  _HOST, "<alias> {<alias> ...}",
+	  "delete hosts (one at a time)" },
 	{ rename_host,	 HOST,  2, _RENA, _HOST, "<alias> <new_alias>",
-	  "rename a host in the specified group (using PATCH)" },
+	  "rename a host (using PATCH)" },
 	{ link_host,     GROUP, 2, _LINK,  _HOST, "<alias> <group>",
-	  "create/update a host link to a group (using PUT)" },
+	  "link a host to a group (using PUT)" },
 	{ unlink_host,   GROUP, 2, _UNLINK,  _HOST, "<alias> <group>",
 	  "unlink a host from a group (using PUT)" },
 
-	/* TRANSPORT INTERFACES */
-	{ set_transport, HOST,  4, _SET,  _TRANSPORT,
-	  "<host_alias> <trtype> <adrfam> <traddr>",
-	  "create/update a transport interface on a specific host (using PUT)" },
-	{ del_transport, HOST, -3, _DEL,  _TRANSPORT,
-	  "<host_alias> <trtype> <adrfam> <traddr>",
-	  "delete a transport interface from a specific host" },
 	{ NULL,		 END,   0,  NULL,  NULL,   NULL, "" },
 };
 
@@ -1083,12 +1137,12 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("  -s -- specify server (default %s)\n", DEFAULT_ADDR);
 	printf("  -p -- specify port (default %s)\n", DEFAULT_PORT);
 	printf("\n");
-	printf("  verb : list | get | add | set | rename"
-	       " | delete | link | unlink\n");
+	printf("  verb : list | get | add | set | rename");
+	printf(" | delete | link | unlink\n");
 	printf("	 | refresh | config | apply | shutdown\n");
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
 	printf("object : group | target | drive | subsystem | portid | acl\n");
-	printf("	 | ns | host | transport\n");
+	printf("	 | ns | host\n");
 	printf("       : shorthand objects may be used (first character)\n");
 	printf("allow_any -- 0 : use host list\n");
 	printf("	  -- 1 : allow any host to access a subsystem\n");
@@ -1237,7 +1291,7 @@ int main(int argc, char *argv[])
 	if (argc <= 1)
 		opts = args;
 	else {
-		argc -= 3;
+		argc -= 2;
 		opts = &args[2];
 	}
 
@@ -1245,7 +1299,7 @@ int main(int argc, char *argv[])
 	if (ret < 0) {
 		n = (strcmp(p->verb, _RENA) == 0 && ret == -EEXIST) ? 4 : 3;
 		printf("Error: %s: %s '%s' %s\n",
-		       argv[0], args[1], args[n], error(ret));
+		       argv[0], args[1], args[n], error_str(ret));
 	}
 
 	cleanup_curl(ctx);

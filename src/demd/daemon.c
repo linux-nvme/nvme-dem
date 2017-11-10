@@ -336,7 +336,7 @@ static int init_interface_threads(pthread_t **listen_threads)
 			free(pthreads);
 			return 1;
 		}
-		usleep(25); // allow new thread to get started
+		usleep(25); // allow new thread to start
 	}
 
 	*listen_threads = pthreads;
@@ -350,7 +350,7 @@ int restart_dem(void)
 
 	stopped = 2;
 
-// TODO should only cleanup/init targets that where modified.
+// TODO should only cleanup/init targets that were modified.
 
 	cleanup_targets(1);
 

@@ -22,48 +22,10 @@
 
 #include "show.h"
 
-/* FMT_ON Schema implemented for standalone:
- *  {
- *    "Groups": [{
- *      "Name": "string",
- *	"Targets": [{
- *	    "Alias": "string",
- *	    "Refresh": "int",		N/A for RDS controlled network
- *	    "Ports": [{
- *		"PORTID": "int",
- *		"TRTYRE": "string",
- *		"TREQ": "int",
- *		"ADRFAM": "string",
- *		"TRADDR": "string",
- *		"TRSVCID": "int"
- *	    }],
- *	    "Subsystems": [{
- *		"SUBNQN": "string",
- *		"AllowAllHosts": "int",
- *		"Namespaces": [{	N/A for RDS controlled network
- *		    "NSID": "int",
- *		    "NSDEV": "string"
- *		}],
- *		"Hosts": [ "string" ]
- *	    }],
- *	    "NSDEV": [ "string" ]	N/A for RDS controlled network
- *	}],
- *	"Hosts": [{
- *	    "HOSTNQN": "string",
- *	    "Transport": [{
- *		"TRTYRE": "string",
- *		"ADRFAM": "string",
- *		"TRADDR": "string",
- *	    }]
- *	}]
- *    }]
- *  }
- */
-
-#define FMT_TAG "\"%s\": "
-#define FMT_STR FMT_TAG "\"%s\""
-#define FMT_INT FMT_TAG "%lld"
-#define FMT_VAL "\"%s\""
+#define FMT_TAG		"\"%s\": "
+#define FMT_STR		FMT_TAG "\"%s\""
+#define FMT_INT		FMT_TAG "%lld"
+#define FMT_VAL		"\"%s\""
 
 static int list_array(json_t *array, int formatted, int indent)
 {
@@ -164,10 +126,19 @@ static void show_nsids(json_t *parent, int formatted)
 		obj = json_object_get(iter, TAG_DEVID);
 		if (obj) {
 			if (formatted)
-				printf(", " FMT_STR " ", TAG_DEVID,
-				       json_string_value(obj));
+				printf(", " FMT_INT " ", TAG_DEVID,
+				       json_integer_value(obj));
 			else
-				printf("'%s'", json_string_value(obj));
+				printf("nvme%lld", json_integer_value(obj));
+		}
+
+		obj = json_object_get(iter, TAG_DEVNSID);
+		if (obj) {
+			if (formatted)
+				printf(", " FMT_INT " ", TAG_DEVNSID,
+				       json_integer_value(obj));
+			else
+				printf("n%lld", json_integer_value(obj));
 		}
 
 		if (formatted)
@@ -184,7 +155,6 @@ static void show_acl(json_t *parent, int formatted)
 {
 	json_t			*array;
 	json_t			*iter;
-	json_t			*obj;
 	char			 tab[] = "      ";
 	int			 i, cnt;
 
@@ -198,20 +168,16 @@ static void show_acl(json_t *parent, int formatted)
 	for (i = 0; i < cnt; i++) {
 		iter = json_array_get(array, i);
 
-		obj = json_object_get(iter, TAG_HOSTNQN);
-		if (!obj)
-			continue;
-
 		if (formatted)
-			printf("%s\n%s  { " FMT_STR "}", i ? "," : "",
-			       tab, TAG_HOSTNQN, json_string_value(obj));
+			printf(" %s\"%s\"", i ? "," : "",
+			       json_string_value(iter));
 		else
-			printf("%s%s ", i ? ", " : tab,
-			       json_string_value(obj));
+			printf("%s%s", i ? ", " : tab,
+			       json_string_value(iter));
 	}
 
 	if (formatted)
-		printf("%s ],\n", cnt ? "\n      " : "");
+		printf(" ],\n");
 	else if (cnt)
 		printf("\n");
 }
@@ -252,7 +218,7 @@ static void show_subsystems(json_t *parent, int formatted)
 				       TAG_ALLOW_ANY,
 				       json_integer_value(obj));
 			else if (json_integer_value(obj))
-				printf("(allow_all_hosts)\n");
+				printf("(allow_any_host)\n");
 			else
 				printf("(restricted)\n");
 		}
@@ -268,7 +234,55 @@ static void show_subsystems(json_t *parent, int formatted)
 	if (formatted)
 		printf("%s ],\n", cnt ? "\n " : "");
 	else if (!cnt)
-		printf("No Subsystems defined\n");
+		printf("    No Subsystems defined\n");
+}
+
+static void show_interface(json_t *iter, int formatted, int indent)
+{
+	json_t			*obj;
+	char			 tab[8];
+
+	memset(tab, 0, 16);
+
+	if (formatted) {
+		memset(tab, ' ', indent - 2);
+		printf(",\n%s" FMT_TAG "{", tab, TAG_INTERFACE);
+	} else
+		printf("- ");
+
+	memset(tab, ' ', indent);
+
+	obj = json_object_get(iter, TAG_IFFAMILY);
+	if (obj) {
+		if (formatted)
+			printf("\n%s" FMT_STR, tab,
+			       TAG_IFFAMILY, json_string_value(obj));
+		else
+			printf("%s ", json_string_value(obj));
+	}
+
+	obj = json_object_get(iter, TAG_IFADDRESS);
+	if (obj) {
+		if (formatted)
+			printf(",\n%s" FMT_STR, tab,
+			       TAG_IFADDRESS, json_string_value(obj));
+		else
+			printf("%s ", json_string_value(obj));
+	}
+
+	obj = json_object_get(iter, TAG_IFPORT);
+	if (obj) {
+		if (formatted)
+			printf(",\n%s" FMT_INT, tab,
+			       TAG_IFPORT, json_integer_value(obj));
+		else
+			printf("%lld", json_integer_value(obj));
+	}
+
+	if (formatted) {
+		tab[indent-2] = 0;
+		printf("\n%s},", tab);
+	}
 }
 
 static void show_transport(json_t *iter, int formatted, int indent)
@@ -344,8 +358,6 @@ static void show_transport(json_t *iter, int formatted, int indent)
 		tab[indent-2] = 0;
 		printf("\n%s},", tab);
 	}
-
-	printf("\n");
 }
 
 static void show_portids(json_t *parent, int formatted)
@@ -364,49 +376,20 @@ static void show_portids(json_t *parent, int formatted)
 		printf("  %s\n", TAG_PORTIDS);
 
 	for (i = 0; i < cnt; i++) {
+		if (!formatted && i)
+			printf("\n");
+
 		iter = json_array_get(array, i);
 		show_transport(iter, formatted, 4);
 	}
+
+	if (cnt)
+		printf("\n");
 
 	if (formatted)
 		printf("%s ],\n", cnt ? " " : "");
 	else if (!cnt)
 		printf("    No Port IDs defined\n");
-}
-
-static void show_devices(json_t *parent, int formatted)
-{
-	json_t			*array;
-	json_t			*iter;
-	json_t			*obj;
-	int			 i, cnt = 0;
-
-	array = json_object_get(parent, TAG_NSIDS);
-	if (array)
-		cnt = json_array_size(array);
-
-	if (formatted)
-		printf("  " FMT_TAG "[", TAG_NSIDS);
-	else
-		printf("  %s\n    ", TAG_NSIDS);
-
-	for (i = 0; i < cnt; i++) {
-		iter = json_array_get(array, i);
-		obj = json_object_get(iter, TAG_DEVID);
-		if (!obj)
-			continue;
-
-		if (formatted)
-			printf("%s " FMT_VAL, i ? "," : "",
-			       json_string_value(obj));
-		else
-			printf("%s ", json_string_value(obj));
-	}
-
-	if (formatted)
-		printf(" ],\n");
-	else if (!cnt)
-		printf("No NS Devices defined\n");
 }
 
 void show_usage_data(json_t *parent, int formatted)
@@ -433,18 +416,21 @@ void show_target_data(json_t *parent, int formatted)
 	attrs = json_object_get(parent, TAG_REFRESH);
 	if (attrs) {
 		if (formatted)
-			printf(",\n  " FMT_INT ",\n", TAG_REFRESH,
+			printf(",\n  " FMT_INT, TAG_REFRESH,
 			       json_integer_value(attrs));
 		else
-			printf("%s %lld\n", TAG_REFRESH,
+			printf("%s %lld ", TAG_REFRESH,
 			       json_integer_value(attrs));
 	}
+	attrs = json_object_get(parent, TAG_INTERFACE);
+	if (attrs)
+		show_interface(attrs, formatted, 4);
+
+	printf("\n");
 
 	show_portids(parent, formatted);
 
 	show_subsystems(parent, formatted);
-
-	show_devices(parent, formatted);
 
 	if (formatted)
 		printf("}");
@@ -547,26 +533,77 @@ err:
 		printf("  " FMT_TAG " [ ]", TAG_ACL);
 }
 
+static void show_allowed_subsys(json_t *list, int formatted, char *tag)
+{
+	json_t			*obj;
+	json_t			*alias;
+	json_t			*nqn;
+	int			 i, n;
+
+	if (formatted)
+		printf(",\n  " FMT_TAG "[", tag);
+	else
+		printf("\n  %s: ", tag);
+
+	n = json_array_size(list);
+	for (i = 0; i < n; i++) {
+		obj = json_array_get(list, i);
+		alias = json_object_get(obj, TAG_ALIAS);
+		nqn = json_object_get(obj, TAG_SUBNQN);
+		if (alias && json_is_string(alias) &&
+		    nqn && json_is_string(nqn)) {
+			if (formatted)
+				printf("%s\n    {" FMT_STR ", " FMT_STR "}",
+				       i ? "," : "",
+				       TAG_ALIAS, json_string_value(alias),
+				       TAG_SUBNQN, json_string_value(nqn));
+			else
+				printf("%s%s / %s", i ? ", " : "",
+				       json_string_value(alias),
+				       json_string_value(nqn));
+		}
+	}
+
+	if (formatted)
+		printf("%s ]", n ? "\n " : "");
+}
+
 void show_host_data(json_t *parent, int formatted)
 {
 	json_t			*obj;
+	json_t			*list;
 
-	obj = json_object_get(parent, TAG_HOSTNQN);
+	obj = json_object_get(parent, TAG_ALIAS);
 	if (!obj)
 		return;
 
 	if (formatted)
-		printf("{\n  " FMT_STR ",\n", TAG_HOSTNQN,
-		       json_string_value(obj));
+		printf("{\n  " FMT_STR, TAG_ALIAS, json_string_value(obj));
 	else
-		printf("%s '%s'\n", TAG_HOST, json_string_value(obj));
+		printf("%s '%s'", TAG_HOST, json_string_value(obj));
 
-	show_interfaces(parent, formatted);
+	obj = json_object_get(parent, TAG_HOSTNQN);
+	if (obj) {
+		if (formatted)
+			printf(",\n  " FMT_STR, TAG_HOSTNQN,
+			       json_string_value(obj));
+		else
+			printf(", %s '%s'", TAG_HOSTNQN,
+			       json_string_value(obj));
+	}
 
-	if (formatted)
-		printf("\n}");
+	list = json_object_get(parent, TAG_SHARED);
+	if (list)
+		show_allowed_subsys(list, formatted, TAG_SHARED);
+
+	list = json_object_get(parent, TAG_RESTRICTED);
+	if (list)
+		show_allowed_subsys(list, formatted, TAG_RESTRICTED);
 
 	printf("\n");
+
+	if (formatted)
+		printf("}\n");
 }
 
 void show_group_data(json_t *parent, int formatted)

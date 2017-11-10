@@ -48,6 +48,8 @@
 #define TAG_SHARED		"Shared"
 #define TAG_RESTRICTED		"Restricted"
 
+/* DEMT specific */
+#define TAG_NSDEVS		"NSDevices"
 
 /* DEM config specific */
 #define TAG_ID			"ID"

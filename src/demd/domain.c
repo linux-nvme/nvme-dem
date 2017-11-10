@@ -19,7 +19,7 @@
 #include "common.h"
 #include "tags.h"
 
-inline static u8 to_trtype(char *str)
+static inline u8 to_trtype(char *str)
 {
 	if (strcmp(str, TRTYPE_STR_RDMA) == 0)
 		return NVMF_TRTYPE_RDMA;
@@ -32,7 +32,7 @@ inline static u8 to_trtype(char *str)
 	return 0;
 }
 
-inline static u8 to_adrfam(char *str)
+static inline u8 to_adrfam(char *str)
 {
 	if (strcmp(str, ADRFAM_STR_IPV4) == 0)
 		return NVMF_ADDR_FAMILY_IP4;
@@ -162,22 +162,22 @@ void init_targets(int dem_restart)
 
 		len = build_port_config_data(target, &port_hdr);
 		if (!len)
-			print_err("Could not init port config data"
-				  " for target %s", target->alias);
+			print_err("Cannot init port config data for target %s",
+				  target->alias);
 
 		ret = send_set_port_config(&target->dq, len, port_hdr);
 		if (ret)
-			print_err("Could not set port config for target %s",
+			print_err("Cannot set port config for target %s",
 				  target->alias);
 
 		len = build_subsys_config_data(target, &subsys_hdr);
 		if (!len)
-			print_err("Could not init port config data"
-				  " for target %s", target->alias);
+			print_err("Cannot init port config data for target %s",
+				  target->alias);
 
 		ret = send_set_subsys_config(&target->dq, len, subsys_hdr);
 		if (ret)
-			print_err("Could not set subsys config for target %s",
+			print_err("Cannot set subsys config for target %s",
 				  target->alias);
 
 		fetch_log_pages(target);

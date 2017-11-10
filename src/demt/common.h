@@ -120,9 +120,6 @@ extern struct list_head		*interfaces;
 #define FC_OFFSET		4
 #define FC_DELIM		":"
 
-//TODO remove once tags.h is updated
-#define TAG_DEVID		"devid"
-#define TAG_DEVNSID		"devnsid"
 #define NULLB_DEVID		-1
 
 struct host {

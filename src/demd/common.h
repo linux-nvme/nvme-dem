@@ -35,12 +35,8 @@
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
 #define NVMF_DQ_DEPTH	1
-#define CTIMEOUT	100
-#define MINUTES		(60 * 1000) /* convert ms to minutes */
-
 #define IDLE_TIMEOUT	100
-#define MUST_EXIST	0
-#define CAN_CREATE	1
+#define MINUTES		(60 * 1000) /* convert ms to minutes */
 
 #define FI_VER		FI_VERSION(1, 0)
 
@@ -73,6 +69,12 @@
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
+
+#define JSARRAY		"\"%s\":["
+#define JSEMPTYARRAY	"\"%s\":[]"
+#define JSSTR		"\"%s\":\"%s\""
+#define JSINT		"\"%s\":%lld"
+#define JSINDX		"\"%s\":%d"
 
 extern int			 debug;
 extern int			 stopped;

@@ -267,17 +267,15 @@ err:
 
 static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
 {
-	switch(sa->sa_family) {
+	switch (sa->sa_family) {
 	case AF_INET:
 		inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
 			  s, len);
 		break;
-
 	case AF_INET6:
 		inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
 			  s, len);
 		break;
-
 	default:
 		strncpy(s, "Unknown AF", len);
 	}
@@ -347,7 +345,7 @@ void build_target_list(void *context)
 	json_t			*ports;
 	json_t			*iter;
 	json_t			*obj;
-	int			 i, j, n, cnt;
+	int			 i, j, k, n, cnt;
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups)
@@ -371,9 +369,9 @@ void build_target_list(void *context)
 
 			ports = json_object_get(iter, TAG_PORTIDS);
 			if (ports) {
-				int i, n = json_array_size(ports);
-				for (i = 0; i < n; i++) {
-					obj = json_array_get(ports, i);
+				n = json_array_size(ports);
+				for (k = 0; k < n; k++) {
+					obj = json_array_get(ports, k);
 					add_port_to_target(target, obj);
 				}
 			}

@@ -96,9 +96,9 @@ static int get_nsdev(char *resp)
 	list_for_each_entry(dev, devices, node) {
 		len = sprintf(resp, "%s{", once ? "," : "");
 		resp += len;
-		len = sprintf(resp, JSINT ",", TAG_NSDEV, dev->devid);
+		len = sprintf(resp, JSINT ",", TAG_DEVID, dev->devid);
 		resp += len;
-		len = sprintf(resp, JSINT "}", TAG_NSID, dev->nsid);
+		len = sprintf(resp, JSINT "}", TAG_DEVNSID, dev->nsid);
 		resp += len;
 		once = 1;
 	}
@@ -262,7 +262,7 @@ static int put_subsys(char *subsys, struct mg_str *body, char *resp)
 	if (!subsys)
 		goto err;
 
-	obj = json_object_get(new, TAG_ALLOW_ALL);
+	obj = json_object_get(new, TAG_ALLOW_ANY);
 	if (obj)
 		allowany = json_integer_value(obj) ? 1 : 0;
 
