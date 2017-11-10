@@ -123,6 +123,18 @@ function loadDel(sub, item, val) {
 
   openDialog("Are you sure you want to " + str, "DELETE", uri);
 }
+
+function loadAltDel(alias, nqn, host) {
+  var str;
+  var uri = "target/" + alias + "/subsystem/" + nqn + "/host/" + host;
+
+  str = "Are you sure you want to delete Host '" + host + "'" +
+        " from Allowed list on Subsytem '" + nqn + "'" +
+        " on Target '" + alias + "'?";
+
+  openDialog(str, "DELETE", uri);
+}
+
 function toggleMode() {
   $("#oob_data").hide();
   $("#oob_note").hide();
@@ -774,7 +786,8 @@ function parseACL(obj, itemA, itemB) {
   var listC = Object.keys(obj[itemA][itemB]);
   var str = "";
   var alias = "";
-  var nsn = "";
+  var nqn = "";
+  var ref = "";
   listC.forEach(function(itemC){
     if (itemC == "Alias")
       alias = obj[itemA][itemB][itemC];
@@ -784,6 +797,13 @@ function parseACL(obj, itemA, itemB) {
 
   str += '<p class="data">';
   str += "Target '" + alias + "' Subsystem '" + nqn + "'"; 
+
+  if (itemA == "Restricted") {
+    ref = "'" + alias + "','" + nqn + "','" + $("#objectValue").html() + "'"; 
+    str += ' &nbsp; <img src="trash.png" alt="del" class="icon"'
+    str += ' onclick="loadAltDel(' + ref + ')">&nbsp; ';
+  }
+
   str += '</p>';
   return str;
 }
