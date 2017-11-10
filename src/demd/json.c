@@ -23,7 +23,7 @@
 
 /* helper functions */
 
-static int find_array(json_t *array, const char *tag, char *val,
+int find_array(json_t *array, const char *tag, char *val,
 		      json_t **result)
 {
 	json_t			*iter;
@@ -194,9 +194,32 @@ static json_t *get_group_array(struct json_context *ctx, char *group, char *tag)
 	return array;
 }
 
+static json_t *get_host_array(struct json_context *ctx, char *host, char *tag)
+{
+	int			 idx;
+	json_t			*hosts;
+	json_t			*parent;
+	json_t			*array;
+
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
+	if (!hosts)
+		return NULL;
+
+	idx = find_array(hosts, TAG_NAME, host, &parent);
+	if (idx < 0)
+		return NULL;
+
+	array = json_object_get(parent, tag);
+	if (!array) {
+		array = json_array();
+		json_object_set_new(parent, tag, array);
+	}
+
+	return array;
+}
+
 /* walk all host acls for ss name change */
-static void rename_host_acl(struct json_context *ctx, char *group, char *old,
-			    char *new)
+static void rename_host_acl(struct json_context *ctx, char *old, char *new)
 {
 	json_t			*hosts;
 	json_t			*array;
@@ -207,7 +230,7 @@ static void rename_host_acl(struct json_context *ctx, char *group, char *old,
 	int			 i;
 	int			 cnt;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts)
 		return;
 
@@ -292,15 +315,15 @@ void cleanup_json(void *context)
 	free(ctx);
 }
 
-static int _list_target(void *context, char *group, char *resp)
+static int _list_target(void *context, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	char			*p = resp;
 	int			 n;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
-
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	
 	start_json_array(TAG_TARGETS, p, n);
 
 	if (targets) {
@@ -313,21 +336,19 @@ static int _list_target(void *context, char *group, char *resp)
 	return p - resp;
 }
 
-static int _list_host(void *context, char *group, char *resp)
+static int _list_host(void *context, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
 	char			*p = resp;
 	int			 n;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
-	if (!hosts)
-		return 0;
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 
 	start_json_array(TAG_HOSTS, p, n);
 
 	if (hosts) {
-		n = list_array(hosts, TAG_HOSTNQN, p);
+		n = list_array(hosts, TAG_ALIAS, p);
 		p += n;
 	}
 
@@ -435,11 +456,12 @@ int add_a_group(void *context, char *group, char *resp)
 	return 0;
 }
 
-int update_group(void *context, char *group, char *data, char *resp)
+int update_group(void *context, char *group, char *data, char *resp, int c_flag)
 {
 	struct json_context	*ctx = context;
 	json_t			*groups;
-	json_t			*iter = NULL;
+	json_t			*iter1 = NULL;
+	json_t			*iter2 = NULL;
 	json_t			*tmp;
 	json_t			*new;
 	json_t			*value;
@@ -452,48 +474,168 @@ int update_group(void *context, char *group, char *data, char *resp)
 	if (len == 0)
 		return -EINVAL;
 
-	groups = json_object_get(ctx->root, TAG_GROUPS);
-	if (!groups) {
-		groups = json_array();
-		json_object_set_new(ctx->root, TAG_GROUPS, groups);
-	}
-
-	i = find_array(groups, TAG_NAME, group, &iter);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
-	}
-
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		sprintf(resp, "invalid json syntax");
 		return -EINVAL;
 	}
-
+	
 	value = json_object_get(new, TAG_NAME);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined", TAG_NAME);
-		ret = -EINVAL;
-		goto out;
+	if (value) {
+		strcpy(newname, json_string_value(value));
 	}
 
-	strcpy(newname, json_string_value(value));
+	if(c_flag == MUST_EXIST) {
+		groups = json_object_get(ctx->root, TAG_GROUPS);
+		if(!groups) {
+			sprintf(resp, "%s '%s' not found", TAG_GROUPS, group);
+			return -ENOENT;
+		}
+		i = find_array(groups, TAG_NAME, group, &iter1);
+		if (i < 0) {
+			sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+			return -ENOENT;
+		}
+		if(value && (strcmp(group, newname) != 0)) {
+			i = find_array(groups, TAG_NAME, newname, &iter2);
+			if (i >= 0) {
+				sprintf(resp, "%s '%s' exists", 
+					TAG_GROUP, newname);
+				ret = -EEXIST;
+				goto out;
+			}
+			json_update_string(iter1, new, TAG_NAME, value);	
+		}
+	}
+	else {
+		if (!value) {
+                        sprintf(resp, "invalid json syntax, no %s defined",
+                                TAG_NAME);
+                        ret = -EINVAL;
+                        goto out;
+                }
+                i = -ENOENT;
+                groups = json_object_get(ctx->root, TAG_GROUPS);
+                if (!groups) {
+                        groups = json_array();
+                        json_object_set_new(ctx->root, TAG_GROUPS, groups);
+                }
+                else
+                        i = find_array(groups, TAG_NAME, newname, &iter1);
 
-	i = find_array(groups, TAG_NAME, newname, NULL);
-	if (i >= 0) {
-		sprintf(resp, "%s '%s' exists", TAG_GROUP, newname);
-		ret = -EEXIST;
-		goto out;
+                if(i == -ENOENT) {
+                        iter1 = json_object();
+                        json_set_string(iter1, TAG_NAME, newname);
+                        json_array_append_new(groups, iter1);
+		        
+			tmp = json_array();
+		        json_object_set_new(iter1, TAG_TARGETS, tmp);
+	
+			tmp = json_array();
+		        json_object_set_new(iter1, TAG_HOSTS, tmp);
+                }
 	}
 
-	json_set_string(iter, TAG_NAME, newname);
 
-	sprintf(resp, "%s '%s' renamed to '%s'", TAG_GROUP, group, newname);
+	sprintf(resp, "%s '%s' updated", TAG_GROUP, group);
 out:
 	json_decref(new);
 
 	return ret;
 }
+
+int set_group_host(void *context, char *group, char *data, char *resp)
+{
+	struct json_context	*ctx = context;
+	json_t                  *groups;
+	json_t                  *new;
+	json_t                  *hosts;
+        json_t                  *value;
+	json_t                  *iter1;
+	json_error_t             error;
+	char                     host_nqn[MAX_STRING + 1];
+	int			 i;
+
+	
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups) {
+                        sprintf(resp, "%s '%s' not found", TAG_GROUPS, group);
+                        return -ENOENT;
+        }
+	
+	i = find_array(groups, TAG_NAME, group, &iter1);
+	if (i == -ENOENT) {
+                  sprintf(resp, "%s '%s' does not exists",
+			  TAG_GROUP, group);
+		  return -ENOENT;
+	}	
+
+	hosts = json_object_get(iter1, TAG_HOSTS);
+	if (!hosts) {
+		hosts = json_array();
+		json_object_set_new(iter1, TAG_HOSTS, hosts);
+	}
+		
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+        if (!new) {
+                sprintf(resp, "invalid json syntax");
+                return -EINVAL;
+        }
+
+        value = json_object_get(new, TAG_HOSTNQN);
+        if (value) {
+                strcpy(host_nqn, (char *)json_string_value(value));
+        }
+	json_array_append_new(hosts, value);	
+
+	return 0;	
+}
+
+int set_group_target(void *context, char *group, char *data, char *resp)
+{
+	struct json_context	*ctx = context;
+	json_t                  *groups;
+	json_t                  *new;
+	json_t                  *targets;
+        json_t                  *value;
+	json_t                  *iter1;
+	json_error_t             error;
+	char                     tgt_alias[MAX_STRING + 1];
+	int			 i;
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups) {
+                        sprintf(resp, "%s '%s' not found", TAG_GROUPS, group);
+                        return -ENOENT;
+        }
+	
+	i = find_array(groups, TAG_NAME, group, &iter1);
+	if (i == -ENOENT) {
+                  sprintf(resp, "%s '%s' does not exists",
+			  TAG_GROUP, group);
+		  return -ENOENT;
+	}	
+
+	targets = json_object_get(iter1, TAG_TARGETS);
+	if (!targets) {
+		targets = json_array();
+		json_object_set_new(iter1, TAG_TARGETS, targets);
+	}
+		
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+        if (!new) {
+                sprintf(resp, "invalid json syntax");
+                return -EINVAL;
+        }
+
+        value = json_object_get(new, TAG_ALIAS);
+        if (value) {
+                strcpy(tgt_alias, (char *)json_string_value(value));
+        }
+	
+	json_array_append_new(targets, value);	
+	return 0;
+}
+
 
 int del_group(void *context, char *group, char *resp)
 {
@@ -547,8 +689,8 @@ int show_group(void *context, char *group, char *resp)
 	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*obj;
-	char			*p = resp;
-	int			 i, n;
+//	char			*p = resp;
+	int			 i;
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups) {
@@ -562,27 +704,27 @@ int show_group(void *context, char *group, char *resp)
 		return -ENOENT;
 	}
 
-	n = sprintf(p, "{" JSSTR ",", TAG_NAME, group);
-	p += n;
+//	n = sprintf(p, "{" JSSTR ",", TAG_NAME, group);
+//	p += n;
+	
+//	n = _list_target(context, p);
+//	p += n;
 
-	n = _list_target(context, group, p);
-	p += n;
+//	n = sprintf(p, ",");
+//	p += n;
 
-	n = sprintf(p, ",");
-	p += n;
+//	n = _list_host(context, p);
+//	p += n;
 
-	n = _list_host(context, group, p);
-	p += n;
-
-	sprintf(p, "}");
+//	sprintf(p, "}");
+	sprintf(resp, "%s", json_dumps(obj, 0));
 
 	return 0;
 }
 
 /* HOST INTERFACES */
 
-int set_interface(void *context, char *group, char *host, char *data,
-		  char *resp)
+int set_transport(void *context, char *host, char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
@@ -599,16 +741,15 @@ int set_interface(void *context, char *group, char *host, char *data,
 	int			 ret;
 	int			 i, cnt = 0;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
-	i = find_array(hosts, TAG_HOSTNQN, host, &iter);
+	i = find_array(hosts, TAG_ALIAS, host, &iter);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOST, host, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
@@ -651,10 +792,10 @@ int set_interface(void *context, char *group, char *host, char *data,
 	sprintf(adrfam, "%.*s", (int) sizeof(adrfam) - 1,
 		(char *) json_string_value(value));
 
-	array = json_object_get(iter, TAG_INTERFACES);
+	array = json_object_get(iter, TAG_TRANSPORT);
 	if (!array) {
 		array = json_array();
-		json_object_set_new(iter, TAG_INTERFACES, array);
+		json_object_set_new(iter, TAG_TRANSPORT, array);
 	} else
 		cnt = json_array_size(array);
 
@@ -673,8 +814,8 @@ int set_interface(void *context, char *group, char *host, char *data,
 		if (strcmp(adrfam, (char *) json_string_value(value)) != 0)
 			continue;
 
-		sprintf(resp, "%s exists for %s '%s' in %s '%s'",
-			TAG_INTERFACE, TAG_HOST, host, TAG_GROUP, group);
+		sprintf(resp, "%s exists for %s '%s'",
+			TAG_INTERFACE, TAG_HOST, host );
 
 		ret = -EEXIST;
 		goto out;
@@ -688,8 +829,7 @@ int set_interface(void *context, char *group, char *host, char *data,
 
 	json_array_append_new(array, obj);
 
-	sprintf(resp, "%s added to %s '%s' in %s '%s'",
-		TAG_INTERFACE, TAG_HOST, host, TAG_GROUP, group);
+	sprintf(resp, "%s added to %s '%s'", TAG_TRANSPORT, TAG_HOST, host);
 	ret = 0;
 out:
 	json_decref(new);
@@ -697,8 +837,7 @@ out:
 	return ret;
 }
 
-int del_interface(void *context, char *group, char *host, char *data,
-		  char *resp)
+int del_transport(void *context, char *host, char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
@@ -713,16 +852,15 @@ int del_interface(void *context, char *group, char *host, char *data,
 	int			 ret;
 	int			 i, cnt = 0;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
-	i = find_array(hosts, TAG_HOSTNQN, host, &iter);
+	i = find_array(hosts, TAG_ALIAS, host, &iter);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOST, host, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
@@ -765,7 +903,7 @@ int del_interface(void *context, char *group, char *host, char *data,
 	sprintf(adrfam, "%.*s", (int) sizeof(adrfam) - 1,
 		(char *) json_string_value(value));
 
-	array = json_object_get(iter, TAG_INTERFACES);
+	array = json_object_get(iter, TAG_TRANSPORT);
 	if (!array)
 		goto notfound;
 
@@ -788,14 +926,14 @@ int del_interface(void *context, char *group, char *host, char *data,
 
 		json_array_remove(array, i);
 
-		sprintf(resp, "%s deleted from %s '%s' in %s '%s'",
-			TAG_INTERFACE, TAG_HOST, host, TAG_GROUP, group);
+		sprintf(resp, "%s deleted from %s '%s",
+			TAG_TRANSPORT, TAG_HOST, host);
 		ret = 0;
 		goto out;
 	}
 notfound:
-	sprintf(resp, "%s does not exist for %s '%s' in %s '%s'",
-		TAG_INTERFACE, TAG_HOST, host, TAG_GROUP, group);
+	sprintf(resp, "%s does not exist for %s '%s' ",
+		TAG_TRANSPORT, TAG_HOST, host);
 	ret = -ENOENT;
 
 out:
@@ -803,176 +941,236 @@ out:
 
 	return ret;
 }
+
 /* HOSTS */
 
-int add_to_hosts(void *context, char *group, char *data, char *resp)
+int add_to_hosts(void *context, char *host, char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
-	json_t			*iter;
+	json_t			*parent;
+//	json_t			*array;
+//	json_t			*iter;
 	json_t			*tmp;
 	json_t			*new;
 	json_t			*value;
 	json_error_t		 error;
 	char			 newname[MAX_STRING + 1];
-	int			 i;
+//	int			 i;
+	int			 idx;
 	int			 ret = 0;
 	int			 added = 0;
+	int			 create_flag = 0;
+	int			 exists = 0;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
-	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
-	}
+// We know we do not have host data in this case ... see code flow
+// We will just have data and we need to get HOST alias from data
 
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
+	if (!hosts)
+		return -1;
+	
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		sprintf(resp, "invalid json syntax");
 		return -EINVAL;
 	}
 
-	value = json_object_get(new, TAG_HOSTNQN);
+	value = json_object_get(new, TAG_ALIAS);
 	if (!value) {
 		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_HOSTNQN);
+			TAG_ALIAS);
 		ret = -EINVAL;
 		goto out;
 	}
-
 	strcpy(newname, (char *) json_string_value(value));
-
-	i = find_array(hosts, TAG_HOSTNQN, newname, &iter);
-	if (i < 0) {
-		iter = json_object();
-		json_set_string(iter, TAG_HOSTNQN, newname);
-		json_array_append_new(hosts, iter);
-		added = 1;
+	
+	idx = find_array(hosts, TAG_ALIAS, host, &parent);
+	if (idx < 0) {
+		// entry alias is not present in the list so add it
+//		json_update_string(hosts, newname, TAG_ALIAS, value);
+		
 	}
+	else {
+		// entry Alias exists
+	}		
+//	if((strcmp(host,"") == 0)) {
+//		create_flag = 1;
+//		value = json_object_get(new, TAG_ALIAS);
+//	}	
+//	else {
+//		create_flag = 0;
+//	}
 
+	if ( (create_flag == 0) && !exists )
+		return -EINVAL;
+
+	value = json_object_get(new, TAG_ALIAS);
+	if (!value) {
+		sprintf(resp, "invalid json syntax, no %s defined",
+			TAG_ALIAS);
+		ret = -EINVAL;
+		goto out;
+	}
+	
+	idx = find_array(hosts, TAG_ALIAS, newname, &parent);
+	if (idx < 0)
+              return -1;
+	
+	json_update_string(hosts, new, TAG_ALIAS, value);
+	json_update_string(hosts, new, TAG_HOSTNQN, value);
 	sprintf(resp, "%s '%s' %s %s '%s'", TAG_HOST, newname,
-		added ? "added to" : "updated in ", TAG_GROUP, group);
+		added ? "added to" : "updated in ", TAG_HOST, host);
 out:
 	json_decref(new);
 
 	return ret;
 }
 
-int add_a_host(void *context, char *group, char *nqn, char *resp)
+int add_a_host(void *context, char *host, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*iter;
 	json_t			*tmp;
 	int			 i;
-
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+		
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
+		hosts = json_array();
+		json_object_set_new(ctx->root, TAG_HOSTS, hosts);
 	}
-
-	i = find_array(hosts, TAG_HOSTNQN, nqn, &iter);
-	if (i >= 0) {
-		sprintf(resp, "%s '%s' exists in %s '%s'",
-			TAG_HOST, nqn, TAG_GROUP, group);
-		return -EEXIST;
+	else {
+		i = find_array(hosts, TAG_ALIAS, host, NULL);
+		if (i >= 0) {
+			sprintf(resp, "%s '%s' exists",	TAG_HOST, host);
+			return -EEXIST;
+		}
 	}
 
 	iter = json_object();
-	json_set_string(iter, TAG_HOSTNQN, nqn);
+	json_set_string(iter, TAG_ALIAS, host);
+	
 	json_array_append_new(hosts, iter);
-
-	sprintf(resp, "%s '%s' added to %s '%s'",
-		TAG_HOST, nqn, TAG_GROUP, group);
+	
+	sprintf(resp, "%s '%s' added", TAG_HOST, host);
 
 	return 0;
 }
 
-int update_host(void *context, char *group, char *nqn, char *data, char *resp)
+int update_host(void *context, char *host, char *data, char *resp, int c_flag)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
-	json_t			*iter;
+	json_t			*iter1;
+	json_t			*iter2;
 	json_t			*tmp;
 	json_t			*new;
 	json_t			*value;
 	json_error_t		 error;
-	char			 newname[MAX_STRING + 1];
-	int			 i;
+	char			 hostnqn[MAX_STRING + 1];
+	char			 hostalias[MAX_STRING + 1];
 	int			 ret = 0;
-
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
-	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
-	}
+	int			 i;
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		sprintf(resp, "invalid json syntax");
 		return -EINVAL;
 	}
-
-	value = json_object_get(new, TAG_HOSTNQN);
+	value = json_object_get(new, TAG_ALIAS);
 	if (value) {
-		strcpy(newname, (char *) json_string_value(value));
-
-		i = find_array(hosts, TAG_HOSTNQN, newname, &iter);
-		if (i >= 0) {
-			sprintf(resp, "%s '%s' exists in %s '%s'",
-				TAG_HOST, newname, TAG_GROUP, group);
-			ret = -EEXIST;
+		strcpy(hostalias, (char *)json_string_value(value));
+	}
+	
+	if ( c_flag == MUST_EXIST) {
+		// must exist; host is part of URI and must exist
+		hosts = json_object_get(ctx->root, TAG_HOSTS);
+		if (!hosts) {
+			return -ENOENT;
+		}
+		i = find_array(hosts, TAG_ALIAS, host, &iter1);
+                if (i == -ENOENT) {
+                        sprintf(resp, "%s '%s' does not exists", 
+                                TAG_HOST, host);
+                        return -ENOENT;
+                }
+		if(value && (strcmp(host, hostalias) != 0)) {
+			i = find_array(hosts, TAG_ALIAS, hostalias, &iter2);
+			if (i != -ENOENT) {
+				sprintf(resp, "%s '%s' exists", 
+					TAG_HOSTS, hostalias);
+				ret = -EEXIST;
+				goto out;	
+			}
+			json_update_string(iter1, new, TAG_ALIAS, value);
+		}		
+	}
+	else {
+		//can creat; host is not part of URI
+		if (!value) {
+			sprintf(resp, "invalid json syntax, no %s defined", 
+				TAG_ALIAS);
+			ret = -EINVAL;
 			goto out;
 		}
+//		add_a_host(ctx, hostalias, resp);
+		i = -ENOENT;
+		hosts = json_object_get(ctx->root, TAG_HOSTS);
+	        if (!hosts) {
+		        hosts = json_array();
+			json_object_set_new(ctx->root, TAG_HOSTS, hosts);
+		}
+		else 
+			i = find_array(hosts, TAG_ALIAS, hostalias, &iter1);
+
+		if(i == -ENOENT) {
+			iter1 = json_object();
+			json_set_string(iter1, TAG_ALIAS, hostalias);
+			json_array_append_new(hosts, iter1);
+		}
 	}
-
-	i = find_array(hosts, TAG_HOSTNQN, nqn, &iter);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOST, nqn, TAG_GROUP, group);
-		ret = -ENOENT;
-		goto out;
+		
+	value = json_object_get(new, TAG_HOSTNQN);
+	if (value) {
+		strcpy(hostnqn, (char *) json_string_value(value));
+		json_update_string(iter1, new, TAG_HOSTNQN, value);
+		sprintf(resp, "%s '%s' updated ", TAG_HOSTS, hostalias);
 	}
-
-	json_update_string(iter, new, TAG_HOSTNQN, value);
-
-	sprintf(resp, "%s '%s' updated in %s '%s'",
-		TAG_HOST, nqn, TAG_GROUP, group);
+	
 out:
 	json_decref(new);
 
 	return ret;
 }
 
-int del_host(void *context, char *group, char *nqn, char *resp)
+int del_host(void *context, char *host, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*iter;
 	int			 i;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
-	i = find_array(hosts, TAG_HOSTNQN, nqn, &iter);
+	i = find_array(hosts, TAG_ALIAS, host, &iter);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOST, nqn, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
 		return -ENOENT;
 	}
 
 	json_array_remove(hosts, i);
 
-	sprintf(resp, "%s '%s' deleted from %s '%s'",
-		TAG_HOST, nqn, TAG_GROUP, group);
+	sprintf(resp, "%s '%s' deleted", TAG_HOST, host);
 
 	return 0;
 }
 
-int list_host(void *context, char *group, char *resp)
+int list_host(void *context, char *resp)
 {
 	char			*p = resp;
 	int			 n;
@@ -980,7 +1178,7 @@ int list_host(void *context, char *group, char *resp)
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_host(context, group, p);
+	n = _list_host(context, p);
 	p += n;
 
 	sprintf(p, "}");
@@ -988,139 +1186,164 @@ int list_host(void *context, char *group, char *resp)
 	return 0;
 }
 
-int show_host(void *context, char *group, char *nqn, char *resp)
+int show_host(void *context, char *alias, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*obj;
 	int			 i;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);	
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "'%s' not found", TAG_HOSTS);
 		return -ENOENT;
 	}
 
-	i = find_array(hosts, TAG_HOSTNQN, nqn, &obj);
+	i = find_array(hosts, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOST, nqn, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, alias);
 		return -ENOENT;
 	}
 
-	return sprintf(resp, "%s", json_dumps(obj, 0));
+	sprintf(resp, "%s", json_dumps(obj, 0));
+	return 0; 
 }
 
+/* TARGET */
 /* SUBSYSTEMS */
 
-int set_subsys(void *context, char *group, char *alias, char *ss, char *data,
-	       int create, char *resp)
+int set_subsys(void *context, char *alias, char *ss, char *data,
+	       int c_flag, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
+	json_t			*subsyss;
 	json_t			*obj;
-	json_t			*iter;
-	json_t			*array;
+	json_t			*iter1;
+	json_t			*iter2;
 	json_t			*new;
 	json_t			*value;
 	json_t			*tmp;
+	char			 ss_nqn[MAX_STRING + 1];
 	json_error_t		 error;
 	int			 i;
+	int			 ret = 0;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found ", TAG_TARGET, alias);
 		return -ENOENT;
 	}
-
-	json_get_array(obj, TAG_SUBSYSTEMS, array);
-	if (!array)
-		return -EINVAL;
-
-	i = find_array(array, TAG_SUBNQN, ss, &iter);
-	if (i < 0) {
-		if (!create) {
-			sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-				TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-				TAG_GROUP, group);
-			return -ENOENT;
-		}
-		iter = json_object();
-		json_set_string(iter, TAG_SUBNQN, ss);
-		json_array_append_new(array, iter);
-	}
-
-	if (strlen(data) == 0) {
-		if (create)
-			return 0;
-		sprintf(resp, "no data to update %s '%s' in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias, TAG_GROUP, group);
-		return -EINVAL;
-	}
-
+	
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
+		return-EINVAL;
 	}
+	value = json_object_get(new, TAG_SUBNQN);
+	if (value)
+		strcpy(ss_nqn, (char *)json_string_value(value));
 
-	if (!create) {
-		json_update_string(iter, new, TAG_SUBNQN, value);
-		rename_host_acl(ctx, group, ss,
-				(char *) json_string_value(value));
+	if (c_flag == MUST_EXIST) {
+		json_get_array(obj, TAG_SUBSYSTEMS, subsyss);
+		if (!subsyss)
+			return -EINVAL;
+		i = find_array(subsyss, TAG_SUBNQN, ss, &iter1);
+		if (i < 0) {
+			sprintf(resp, "%s '%s' not found in %s '%s'",
+				TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
+			return -ENOENT;
+		}
+		if (value && (strcmp(ss, ss_nqn) != 0)) {
+			i = find_array(subsyss, TAG_SUBNQN, ss_nqn, &iter2);
+			if (i != -ENOENT) {
+                                sprintf(resp, "%s '%s' exists",
+                                        TAG_SUBNQN, ss_nqn);
+                                ret = -EEXIST;
+                                goto out;
+                        }
+			json_update_string(iter1, new, TAG_SUBNQN, value);
+		}
+
 	}
+	else {
+		if (!value) {
+                        sprintf(resp, "invalid json syntax, no %s defined",
+                                TAG_SUBNQN);
+                        ret = -EINVAL;
+                        goto out;
+                }
+                i = -ENOENT;
+		json_get_array(obj, TAG_SUBSYSTEMS, subsyss);
+		if (!subsyss) {	
+			subsyss = json_array();
+			json_object_set_new(obj, TAG_SUBSYSTEMS, subsyss);
+		} 
+		else
+			i = find_array(subsyss, TAG_SUBNQN, ss_nqn, &iter1);
+		if (i == -ENOENT) {
+			iter1 = json_object();
+			json_set_string(iter1, TAG_SUBNQN, ss_nqn);
+			json_array_append_new(subsyss, iter1);
+		}
+	}
+	
+//	if (!create) {
+//		json_update_string(iter, new, TAG_SUBNQN, value);
+//		rename_host_acl(ctx, ss, (char *) json_string_value(value));
+//	}
 
-	json_update_int(iter, new, TAG_ALLOW_ALL, value);
+	json_update_int(iter1, new, TAG_ALLOW_ANY, value);
+	sprintf(resp, "%s '%s' updated in %s '%s'",
+		TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 
+out:
 	json_decref(new);
-
-	sprintf(resp, "%s '%s' updated in %s '%s' in %s '%s'",
-		TAG_SUBSYSTEM, ss, TAG_TARGET, alias, TAG_GROUP, group);
-
-	return 0;
+	
+	return ret;
 }
 
-int del_subsys(void *context, char *group, char *alias, char *ss, char *resp)
+int del_subsys(void *context, char *alias, char *ss, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*hosts;
 	int			 ret;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (hosts)
 		del_host_acl(hosts, ss);
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	ret = del_from_array(targets, TAG_ALIAS, alias, TAG_SUBSYSTEMS, ss);
 	if (ret) {
 		sprintf(resp,
-			"Unable to delete %s '%s' from %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias, TAG_GROUP, group);
+			"Unable to delete %s '%s' from %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return ret;
 	}
 
-	sprintf(resp, "%s '%s' deleted from %s '%s' in %s '%s'",
-		TAG_SUBSYSTEM, ss, TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%s' deleted from %s '%s'",
+		TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 
 	return 0;
 }
 
 /* DRIVE */
 
-int set_drive(void *context, char *group, char *alias, char *data, char *resp)
+int set_drive(void *context, char *alias, char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
@@ -1133,23 +1356,22 @@ int set_drive(void *context, char *group, char *alias, char *data, char *resp)
 	char			 val[128];
 	int			 i, cnt;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_ALIAS, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_ALIAS, alias);
 		return -ENOENT;
 	}
 
-	json_get_array(obj, TAG_NSDEVS, array);
+	json_get_array(obj, TAG_NSIDS, array);
 	if (!array) {
 		array = json_array();
-		json_object_set_new(array, TAG_NSDEVS, obj);
+		json_object_set_new(array, TAG_NSIDS, obj);
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
@@ -1158,7 +1380,7 @@ int set_drive(void *context, char *group, char *alias, char *data, char *resp)
 		return -EINVAL;
 	}
 
-	obj = json_object_get(new, TAG_NSDEV);
+	obj = json_object_get(new, TAG_DEVID);
 	if (!obj) {
 		sprintf(resp, "invalid json syntax");
 		json_decref(new);
@@ -1175,29 +1397,28 @@ int set_drive(void *context, char *group, char *alias, char *data, char *resp)
 		iter = json_array_get(array, i);
 		if (!json_is_object(iter))
 			continue;
-		obj = json_object_get(iter, TAG_NSDEV);
+		obj = json_object_get(iter, TAG_DEVID);
 		if (!obj || !json_is_string(obj))
 			continue;
 		if (strcmp(json_string_value(obj), val) == 0) {
 			sprintf(resp,
-				"%s '%s' exists in %s '%s' in %s '%s'",
-				TAG_NSDEV, val, TAG_TARGET, alias,
-				TAG_GROUP, group);
+				"%s '%s' exists in %s '%s'",
+				TAG_DEVID, val, TAG_TARGET, alias);
 			return -EEXIST;
 		}
 	}
 
 	obj = json_object();
-	json_set_string(obj, TAG_NSDEV, val);
+	json_set_string(obj, TAG_DEVID, val);
 	json_array_append_new(array, obj);
 
-	sprintf(resp, "Added %s '%s' to %s '%s' in %s '%s'",
-		TAG_NSDEV, val, TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "Added %s '%s' to %s '%s'",
+		TAG_DEVID, val, TAG_TARGET, alias);
 
 	return 0;
 }
 
-int del_drive(void *context, char *group, char *alias, char *data, char *resp)
+int del_drive(void *context, char *alias, char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
@@ -1210,23 +1431,22 @@ int del_drive(void *context, char *group, char *alias, char *data, char *resp)
 	int			 i;
 	int			 cnt;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_ALIAS, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found ", TAG_ALIAS, alias);
 		return -ENOENT;
 	}
 
-	json_get_array(obj, TAG_NSDEVS, array);
+	json_get_array(obj, TAG_NSIDS, array);
 	if (!array) {
 		array = json_array();
-		json_object_set_new(array, TAG_NSDEVS, obj);
+		json_object_set_new(array, TAG_NSIDS, obj);
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
@@ -1235,7 +1455,7 @@ int del_drive(void *context, char *group, char *alias, char *data, char *resp)
 		return -EINVAL;
 	}
 
-	obj = json_object_get(new, TAG_NSDEV);
+	obj = json_object_get(new, TAG_DEVID);
 	if (!obj) {
 		sprintf(resp, "invalid json syntax");
 		json_decref(new);
@@ -1252,7 +1472,7 @@ int del_drive(void *context, char *group, char *alias, char *data, char *resp)
 		iter = json_array_get(array, i);
 		if (!json_is_object(iter))
 			continue;
-		obj = json_object_get(iter, TAG_NSDEV);
+		obj = json_object_get(iter, TAG_DEVID);
 		if (!obj || !json_is_string(obj))
 			continue;
 		if (strcmp(json_string_value(obj), val) == 0)
@@ -1260,22 +1480,21 @@ int del_drive(void *context, char *group, char *alias, char *data, char *resp)
 	}
 
 	if (i == cnt) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_NSDEV, val, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_DEVID, val, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	json_array_remove(array, i);
 
-	sprintf(resp, "%s '%s' deleted from %s '%s' in %s '%s'",
-		TAG_NSDEV, val, TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%s' deleted from %s '%s'",
+		TAG_DEVID, val, TAG_TARGET, alias);
 	return 0;
 }
 
 /* PORTID */
 
-int set_portid(void *context, char *group, char *alias, int portid,
+int set_portid(void *context, char *target, int portid,
 	       char *data, char *resp)
 {
 	struct json_context	*ctx = context;
@@ -1289,16 +1508,15 @@ int set_portid(void *context, char *group, char *alias, int portid,
 	json_error_t		 error;
 	int			 i, ret = 0;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS); 
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGETS, target);
 		return -ENOENT;
 	}
 
-	i = find_array(targets, TAG_ALIAS, alias, &obj);
+	i = find_array(targets, TAG_ALIAS, target, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
 		return -ENOENT;
 	}
 
@@ -1308,9 +1526,8 @@ int set_portid(void *context, char *group, char *alias, int portid,
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (strlen(data) == 0) {
-		sprintf(resp, "no data to update %s '%d' in %s '%s' in %s '%s'",
-			TAG_PORTID, portid, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "no data to update %s '%d' in %s '%s'",
+			TAG_PORTID, portid, TAG_TARGET, target);
 
 		return -EINVAL;
 	}
@@ -1324,8 +1541,8 @@ int set_portid(void *context, char *group, char *alias, int portid,
 		tmp = json_object_get(new, TAG_PORTID);
 		portid = json_integer_value(tmp);
 		if (!portid) {
-			sprintf(resp, "no port id give for %s '%s' in %s '%s'",
-				TAG_TARGET, alias, TAG_GROUP, group);
+			sprintf(resp, "no port id give for %s '%s'",
+				TAG_TARGET, target);
 			ret = -EINVAL;
 			goto out;
 		}
@@ -1344,24 +1561,24 @@ int set_portid(void *context, char *group, char *alias, int portid,
 	json_update_string(iter, new, TAG_TREQ, value);
 	json_update_int(iter, new, TAG_TRSVCID, value);
 
-	sprintf(resp, "%s '%d' updated in %s '%s' in %s '%s'",
-		TAG_PORTID, portid, TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%d' updated in %s '%s'",
+		TAG_PORTID, portid, TAG_TARGET, target);
 out:
 	json_decref(new);
 
 	return ret;
 }
 
-int del_portid(void *context, char *group, char *alias, int portid,
+int del_portid(void *context, char *alias, int portid,
 	       char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	int			 ret;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGET);
 		return -ENOENT;
 	}
 
@@ -1369,21 +1586,20 @@ int del_portid(void *context, char *group, char *alias, int portid,
 				 TAG_PORTID, portid);
 	if (ret) {
 		sprintf(resp,
-			"Unable to delete %s '%d' from %s '%s' in %s '%s'",
-			TAG_PORTID, portid, TAG_TARGET, alias,
-			TAG_GROUP, group);
+			"Unable to delete %s '%d' from %s '%s'",
+			TAG_PORTID, portid, TAG_TARGET, alias);
 		return ret;
 	}
 
-	sprintf(resp, "%s '%d' deleted from %s '%s' in %s '%s'",
-		TAG_PORTID, portid, TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%d' deleted from %s '%s'",
+		TAG_PORTID, portid, TAG_TARGET, alias);
 
 	return 0;
 }
 
 /* NAMESPACE */
 
-int set_ns(void *context, char *group, char *alias, char *ss, char *data,
+int set_ns(void *context, char *alias, char *ss, char *data,
 	   char *resp)
 {
 	struct json_context	*ctx = context;
@@ -1399,31 +1615,29 @@ int set_ns(void *context, char *group, char *alias, char *ss, char *data,
 	int			 val;
 	int			 i;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found",TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &subgroup);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	json_get_array(subgroup, TAG_SUBSYSTEMS, array);
 	if (!array) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	i = find_array(array, TAG_SUBNQN, ss, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
@@ -1453,18 +1667,17 @@ int set_ns(void *context, char *group, char *alias, char *ss, char *data,
 		json_array_append_new(array, iter);
 	}
 
-	json_update_string(iter, new, TAG_NSDEV, value);
+	json_update_string(iter, new, TAG_DEVID, value);
 
 	json_decref(new);
 
-	sprintf(resp, "%s %d updated in %s '%s' of %s '%s' in %s '%s'",
-		TAG_NSID, val, TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-		TAG_GROUP, group);
+	sprintf(resp, "%s %d updated in %s '%s' of %s '%s'",
+		TAG_NSID, val, TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 
 	return 0;
 }
 
-int del_ns(void *context, char *group, char *alias, char *ss, int ns,
+int del_ns(void *context, char *alias, char *ss, int ns,
 	   char *resp)
 {
 	struct json_context	*ctx = context;
@@ -1474,24 +1687,22 @@ int del_ns(void *context, char *group, char *alias, char *ss, int ns,
 	int			 i;
 	int			 ret;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &subgroup);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found'", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	array = json_object_get(subgroup, TAG_SUBSYSTEMS);
 	if (!array) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
@@ -1499,23 +1710,20 @@ int del_ns(void *context, char *group, char *alias, char *ss, int ns,
 				 TAG_NSID, ns);
 	if (ret) {
 		sprintf(resp,
-			"Unable to delete %s '%d' from %s '%s' "
-			"in %s '%s' in %s '%s'",
-			TAG_NSID, ns, TAG_SUBSYSTEM, ss, TAG_TARGET,
-			alias, TAG_GROUP, group);
+			"Unable to delete %s '%d' from %s '%s in %s '%s'",
+			TAG_NSID, ns, TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return ret;
 	}
 
-	sprintf(resp, "%s '%d' deleted from %s '%s' in %s '%s' in %s '%s'",
-		TAG_NSID, ns, TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-		TAG_GROUP, group);
+	sprintf(resp, "%s '%d' deleted from %s '%s' in %s '%s'",
+		TAG_NSID, ns, TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 
 	return 0;
 }
 
 /* TARGET */
 
-int del_target(void *context, char *group, char *alias, char *resp)
+int del_target(void *context, char *alias, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
@@ -1525,16 +1733,15 @@ int del_target(void *context, char *group, char *alias, char *resp)
 	json_t			*ss;
 	int			 i, n, idx;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);	
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	idx = find_array(targets, TAG_ALIAS, alias, &iter);
 	if (idx < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
@@ -1545,20 +1752,19 @@ int del_target(void *context, char *group, char *alias, char *resp)
 		for (i = 0; i < n; i++) {
 			obj = json_array_get(array, 0);
 			ss = json_object_get(obj, TAG_SUBNQN);
-			del_subsys(ctx, group, alias,
+			del_subsys(ctx, alias,
 				   (char *) json_string_value(ss), resp);
 		}
 	}
 
 	json_array_remove(targets, idx);
 
-	sprintf(resp, "%s '%s' deleted from %s '%s'",
-		TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%s' deleted", TAG_TARGET, alias);
 
 	return 0;
 }
 
-int list_target(void *context, char *group, char *resp)
+int list_target(void *context, char *resp)
 {
 	char			*p = resp;
 	int			 n;
@@ -1566,11 +1772,49 @@ int list_target(void *context, char *group, char *resp)
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_target(context, group, p);
+	n = _list_target(context, p);
 	p += n;
 
 	sprintf(p, "}");
 
+	return 0;
+}
+
+int  set_interface(void *context, char *target, char *data, char *resp)
+{
+	struct json_context     *ctx = context;
+	json_t                  *targets;
+        json_t                  *new;
+        json_t                  *obj;
+        json_t                  *iter;
+        json_t                  *value;
+        json_t                  *tmp;
+        int                      i;
+	json_error_t             error;
+
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+        if (!targets) {
+                sprintf(resp, "%s '%s' not found", TAG_TARGETS, target);
+                return -ENOENT;
+        }
+
+        i = find_array(targets, TAG_ALIAS, target, &obj);
+        if (i < 0) {
+                sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+                return -ENOENT;
+        }
+
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	
+	iter = json_object();
+	json_update_string(iter, new, TAG_IFFAMILY, value);
+	json_update_string(iter, new, TAG_IFADDRESS, value);
+	json_update_string(iter, new, TAG_IFPORT, value);
+	
+	json_object_set(obj, TAG_INTERFACE, iter);
+
+	json_decref(new);		
 	return 0;
 }
 
@@ -1615,11 +1859,11 @@ static void add_nsdevice(json_t *parent, json_t *newparent)
 	int			 i, cnt;
 	int			 j, n;
 
-	json_get_array(parent, TAG_NSDEVS, subgroup);
+	json_get_array(parent, TAG_NSIDS, subgroup);
 	if (!subgroup)
 		return;
 
-	new = json_object_get(newparent, TAG_NSDEVS);
+	new = json_object_get(newparent, TAG_NSIDS);
 	if (!new)
 		return;
 
@@ -1667,13 +1911,13 @@ static void add_subsys(json_t *parent, json_t *newparent)
 		obj = json_array_get(new, i);
 
 		json_update_string(subgroup, obj, TAG_SUBNQN, value);
-		json_update_int(subgroup, new, TAG_ALLOW_ALL, value);
+		json_update_int(subgroup, new, TAG_ALLOW_ANY, value);
 	}
 }
 
-int add_to_targets(void *context, char *group, char *data, char *resp)
+int add_to_targets(void *ct, char *target, char *data, char *resp, int c_flag)
 {
-	struct json_context	*ctx = context;
+	struct json_context	*ctx = ct;
 	json_t			*targets;
 	json_t			*iter;
 	json_t			*new;
@@ -1681,15 +1925,16 @@ int add_to_targets(void *context, char *group, char *data, char *resp)
 	json_t			*tmp;
 	json_error_t		 error;
 	char			 newname[MAX_STRING + 1];
+	char			 tgtalias[MAX_STRING + 1];
 	int			 i;
 	int			 ret = 0;
 	int			 added = 0;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
-	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
-	}
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+        if (!targets) {
+                sprintf(resp, "%s '%s' not found", TAG_TARGETS, target);
+                return -ENOENT;
+        }
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
@@ -1697,13 +1942,30 @@ int add_to_targets(void *context, char *group, char *data, char *resp)
 		return -EINVAL;
 	}
 
-	value = json_object_get(new, TAG_ALIAS);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined", TAG_ALIAS);
-		ret = -EINVAL;
-		goto out;
+	if(c_flag == 1) {
+		value = json_object_get(new, TAG_ALIAS);
+		if (value) {
+			strcpy(tgtalias, (char *)json_string_value(value));
+                        ret = add_a_target(ctx, tgtalias, resp);
+                        if (ret != 0)
+                            goto out;
+		}
+		else {
+			sprintf(resp, "invalid json syntax, no %s defined", 
+				TAG_ALIAS);
+			ret = -EINVAL;
+			goto out;
+		}
 	}
+	else 
+		strcpy(tgtalias, target);
 
+//TBD Needs re-work
+
+	value = json_object_get(new, TAG_REFRESH);
+	if (value) {
+		strcpy(tgtalias, (char *)json_string_value(value));
+	}
 	strcpy(newname, (char *) json_string_value(value));
 
 	i = find_array(targets, TAG_ALIAS, newname, &iter);
@@ -1722,177 +1984,213 @@ int add_to_targets(void *context, char *group, char *data, char *resp)
 
 	add_nsdevice(iter, new);
 
-	sprintf(resp, "%s '%s' %s %s '%s'", TAG_TARGET, newname,
-		added ? "added to" : "updated in ", TAG_GROUP, group);
+	sprintf(resp, "%s '%s' %s ", TAG_TARGET, newname,
+		added ? "added" : "updated");
 out:
 	json_decref(new);
 
 	return ret;
 }
 
-int add_a_target(void *context, char *group, char *alias, char *resp)
+int add_a_target(void *context, char *alias, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*iter;
+	json_t			*items;
 	json_t			*tmp;
 	int			 i;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
+		targets = json_array();
+		json_object_set_new(ctx->root, TAG_TARGETS, targets);
 	}
-
-	i = find_array(targets, TAG_ALIAS, alias, &iter);
-	if (i >= 0) {
-		sprintf(resp, "%s '%s' exists in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
-		return -EEXIST;
+	else {
+		i = find_array(targets, TAG_ALIAS, alias, &iter);
+		if (i >= 0) {
+			sprintf(resp, "%s '%s' exists", TAG_TARGET, alias);
+			return -EEXIST;
+		}
 	}
 
 	iter = json_object();
 	json_set_string(iter, TAG_ALIAS, alias);
+	
+	items = json_array();
+	json_object_set_new(iter, TAG_PORTIDS, items);
+	
+	items = json_array();
+	json_object_set_new(iter, TAG_SUBSYSTEMS, items);
+	
 	json_array_append_new(targets, iter);
+		
 
-	sprintf(resp, "%s '%s' added to %s '%s'",
-		TAG_TARGET, alias, TAG_GROUP, group);
+	sprintf(resp, "%s '%s' added", TAG_TARGET, alias);
 
 	return 0;
 }
 
-int update_target(void *context, char *group, char *alias, char *data, char *resp)
+int update_target(void *ctxt, char *target, char *data, char *resp, int c_flag)
 {
-	struct json_context	*ctx = context;
+	struct json_context	*ctx = ctxt;
 	json_t			*targets;
-	json_t			*iter;
+	json_t			*iter1;
+	json_t			*iter2;
+	json_t			*items;
 	json_t			*new;
 	json_t			*value;
 	json_t			*tmp;
 	json_error_t		 error;
-	char			 newname[MAX_STRING + 1];
+	char			 tgtalias[MAX_STRING + 1];
 	int			 i;
 	int			 ret = 0;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
-	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
-		return -ENOENT;
-	}
-
-	i = find_array(targets, TAG_ALIAS, alias, &iter);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
-		return -ENOENT;
-	}
-
-	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
-
+        new = json_loads(data, JSON_DECODE_ANY, &error);
+        if (!new) {
+                sprintf(resp, "invalid json syntax");
+                return -EINVAL;
+        }
+	
 	value = json_object_get(new, TAG_ALIAS);
-	if (value) {
-		strcpy(newname, (char *) json_string_value(value));
-		if (strcmp(alias, newname)) {
-			i = find_array(targets, TAG_ALIAS, newname, NULL);
-			if (i >= 0) {
-				sprintf(resp, "%s '%s' exists in %s '%s'",
-					TAG_TARGET, newname, TAG_GROUP, group);
-				ret = -EEXIST;
-				goto out;
-			}
+        if (value) {
+                strcpy(tgtalias, (char *)json_string_value(value));
+        }
+
+	if(c_flag == MUST_EXIST) {
+		targets = json_object_get(ctx->root, TAG_TARGETS);
+	        if (!targets) {
+		        sprintf(resp, "%s '%s' not found", TAG_TARGETS, target);
+			return -ENOENT;
 		}
-		json_set_string(iter, TAG_ALIAS, newname);
-		alias = newname;
+		i = find_array(targets, TAG_ALIAS, target, &iter1);
+                if (i == -ENOENT) {
+                        sprintf(resp, "%s '%s' does not exists",
+                                TAG_TARGET, target);
+                        return -ENOENT;
+                }
+                if(value && (strcmp(target, tgtalias) != 0)) {
+                        i = find_array(targets, TAG_ALIAS, tgtalias, &iter2);
+                        if (i != -ENOENT) {
+                                sprintf(resp, "%s '%s' exists",
+                                        TAG_TARGET, tgtalias);
+                                ret = -EEXIST;
+                                goto out;
+                        }
+                        json_update_string(iter1, new, TAG_ALIAS, value);
+                }
+		
 	}
-
-	json_update_int(iter, new, TAG_REFRESH, value);
-
-	add_portid(iter, new);
-
-	add_subsys(iter, new);
-
-	add_nsdevice(iter, new);
-
-	sprintf(resp, "%s '%s' updated in %s '%s'",
-		TAG_TARGET, alias, TAG_GROUP, group);
+	else {
+		if (!value) {
+                        sprintf(resp, "invalid json syntax, no %s defined",
+                                TAG_ALIAS);
+                        ret = -EINVAL;
+                        goto out;
+                }
+		i = -ENOENT;
+		targets = json_object_get(ctx->root, TAG_TARGETS);
+	        if (!targets) {
+			targets = json_array();
+			json_object_set_new(ctx->root, TAG_TARGETS, targets);
+		}	
+		else
+			i = find_array(targets, TAG_ALIAS, tgtalias, &iter1);
+		if(i == -ENOENT) {
+			iter1 = json_object();
+			json_set_string(iter1, TAG_ALIAS, tgtalias);
+			
+			items = json_array();
+			json_object_set_new(iter1, TAG_PORTIDS, items);
+	
+			items = json_array();
+			json_object_set_new(iter1, TAG_SUBSYSTEMS, items);
+		
+			json_array_append_new(targets, iter1);
+		}
+	}
+	
+	json_update_int(iter1, new, TAG_REFRESH, value);
+	
+	value = json_object_get(new, TAG_INTERFACE);
+	json_object_set(iter1, TAG_INTERFACE, value);
+	
+	sprintf(resp, "%s '%s' updated ", TAG_TARGET, tgtalias);
 out:
 	json_decref(new);
 
 	return ret;
 }
 
-int show_target(void *context, char *group, char *alias, char *resp)
+int show_target(void *context, char *alias, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*obj;
 	int			 i;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
-	return sprintf(resp, "%s", json_dumps(obj, 0));
+	sprintf(resp, "%s", json_dumps(obj, 0));
+	return 0;
 }
 
-int set_acl(void *context, char *group, char *alias, char *ss, char *nqn,
-	    char *resp)
+int set_acl(void *context, char *alias, char *ss, char *nqn,
+	    char *data, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*hosts;
+	json_t			*new;
 	json_t			*subgroup;
 	json_t			*obj;
 	json_t			*iter;
+	json_t			*value;
 	json_t			*array;
+	json_error_t		 error;
 	json_t			*tmp;
+	char			 host_nqn[MAX_STRING + 1];
 	int			 i;
 
-	hosts = get_group_array(ctx, group, TAG_HOSTS);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_HOSTS);
 		return -ENOENT;
 	}
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &subgroup);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	json_get_array(subgroup, TAG_SUBSYSTEMS, array);
 	if (!array) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	i = find_array(array, TAG_SUBNQN, ss, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-			TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
@@ -1902,35 +2200,47 @@ int set_acl(void *context, char *group, char *alias, char *ss, char *nqn,
 		json_object_set_new(obj, TAG_HOSTS, array);
 	}
 
-	i = find_array(hosts, TAG_HOSTNQN, nqn, NULL);
+
+	if(!nqn) {
+		new = json_loads(data, JSON_DECODE_ANY, &error);
+		if (!new) {
+			sprintf(resp, "invalid json syntax");
+	                return -EINVAL;
+		}
+		value = json_object_get(new, TAG_ALIAS);
+		if (value) 
+			strcpy(host_nqn, (char *)json_string_value(value));
+	}		
+	else 
+		strcpy(host_nqn, nqn);
+
+		
+	i = find_array(hosts, TAG_HOSTNQN, host_nqn, NULL);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_HOSTNQN, nqn, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found", TAG_HOSTNQN, nqn);
 		return -ENOENT;
 	}
 
-	i = find_array(array, TAG_HOSTNQN, nqn, &iter);
+	i = find_array(array, TAG_HOSTNQN, host_nqn, &iter);
 	if (i >= 0) {
 		sprintf(resp,
-		"%s '%s' exists for %s '%s' in %s '%s' in %s '%s'",
-		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-		TAG_GROUP, group);
+		"%s '%s' exists for %s '%s' in %s '%s'",
+		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 		return -EEXIST;
 	}
 
 	iter = json_object();
-	json_set_string(iter, TAG_HOSTNQN, nqn);
+	json_set_string(iter, TAG_HOSTNQN, host_nqn);
 	json_array_append_new(array, iter);
 
 	sprintf(resp,
-		"%s '%s' added for %s '%s' in %s '%s' in %s '%s'",
-		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_TARGET, alias,
-		TAG_GROUP, group);
+		"%s '%s' added for %s '%s' in %s '%s'",
+		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_TARGET, alias);
 
 	return 0;
 }
 
-int del_acl(void *context, char *group, char *alias, char *ss, char *nqn,
+int del_acl(void *context, char *alias, char *ss, char *nqn,
 	    char *resp)
 {
 	struct json_context	*ctx = context;
@@ -1940,39 +2250,36 @@ int del_acl(void *context, char *group, char *alias, char *ss, char *nqn,
 	int			 ret;
 	int			 i;
 
-	targets = get_group_array(ctx, group, TAG_TARGETS);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &subgroup);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_TARGET, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found'", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
 	json_get_array(subgroup, TAG_SUBSYSTEMS, array);
 	if (!array) {
-		sprintf(resp, "%s '%s' not found in %s '%s' in %s '%s'",
-			TAG_SUBSYSTEM, ss, TAG_ALIAS, alias, TAG_GROUP, group);
+		sprintf(resp, "%s '%s' not found in %s '%s'",
+			TAG_SUBSYSTEM, ss, TAG_ALIAS, alias);
 		return -ENOENT;
 	}
 
 	ret = del_from_array(array, TAG_SUBSYSTEM, ss, TAG_HOSTS, nqn);
 	if (ret) {
 		sprintf(resp,
-			"%s '%s' not found in %s '%s' for %s '%s' in %s '%s'",
-			TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_ALIAS, alias,
-			TAG_GROUP, group);
+			"%s '%s' not found in %s '%s' for %s '%s'",
+			TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_ALIAS, alias);
 		return ret;
 	}
 
 	sprintf(resp,
-		"%s '%s' deleted from %s '%s' for %s '%s' in %s '%s'",
-		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_ALIAS, alias,
-		TAG_GROUP, group);
+		"%s '%s' deleted from %s '%s' for %s '%s'",
+		TAG_HOST, nqn, TAG_SUBSYSTEM, ss, TAG_ALIAS, alias);
 
 	return 0;
 }

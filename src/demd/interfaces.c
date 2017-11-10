@@ -119,7 +119,7 @@ static void check_subsystems(struct target *target, json_t *array,
 		INIT_LIST_HEAD(&subsys->host_list);
 		list_add_tail(&subsys->node, &target->subsys_list);
 
-		obj = json_object_get(iter, TAG_ALLOW_ALL);
+		obj = json_object_get(iter, TAG_ALLOW_ANY);
 		if (obj && json_is_integer(obj))
 			subsys->access = json_integer_value(obj);
 

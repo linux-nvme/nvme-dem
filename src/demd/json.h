@@ -16,49 +16,55 @@
 
 void store_config_file(void *ctx);
 
+int find_array(json_t *array, const char *tag, char *val, json_t **result);
+
 int list_group(void *ctx, char *resp);
 int show_group(void *ctx, char *grp, char *resp);
 int add_to_groups(void *ctx, char *data, char *resp);
 int add_a_group(void *ctx, char *grp, char *resp);
-int update_group(void *ctx, char *grp, char *data, char *resp);
+int update_group(void *ctx, char *grp, char *data, char *resp, int c_flag);
+int set_group_target(void *ctx, char *host, char *data, char *resp);
+int set_group_host(void *ctx, char *host, char *data, char *resp);
 int del_group(void *ctx, char *grp, char *resp);
 
-int add_to_targets(void *ctx, char *grp, char *data, char *resp);
-int add_a_target(void *ctx, char *grp, char *alias, char *resp);
-int update_target(void *ctx, char *grp, char *alias, char *data, char *resp);
-int list_target(void *ctx, char *grp, char *resp);
-int show_target(void *ctx, char *grp, char *alias, char *resp);
-int del_target(void *ctx, char *grp, char *alias, char *resp);
+int add_to_targets(void *ctx, char *grp, char *data, char *resp, int c_flag);
+int add_a_target(void *ctx, char *alias, char *resp);
+int update_target(void *ctx, char *target, char *data, char *resp, int c_flag);
+int list_target(void *ctx, char *resp);
+int show_target(void *ctx, char *alias, char *resp);
+int del_target(void *ctx, char *alias, char *resp);
 
 int add_to_hosts(void *ctx, char *grp, char *data, char *resp);
-int add_a_host(void *ctx, char *grp, char *nqn, char *resp);
-int update_host(void *ctx, char *grp, char *nqn, char *data, char *resp);
-int list_host(void *ctx, char *grp, char *resp);
-int show_host(void *ctx, char *grp, char *nqn, char *resp);
-int del_host(void *ctx, char *grp, char *nqn, char *resp);
-int set_interface(void *ctx, char *group, char *host, char *data, char *resp);
-int del_interface(void *ctx, char *group, char *host, char *data, char *resp);
+int add_a_host(void *ctx, char *host, char *resp);
+int update_host(void *context, char *host, char *data, char *resp, int c_flag);
+int list_host(void *ctx, char *resp);
+int show_host(void *ctx, char *alias, char *resp);
+int del_host(void *ctx, char *host, char *resp);
+int set_transport(void *ctx, char *host, char *data, char *resp);
+int del_transport(void *ctx, char *host, char *data, char *resp);
 
-int set_subsys(void *ctx, char *grp, char *alias, char *ss, char *data,
+int set_subsys(void *ctx, char *alias, char *ss, char *data,
 	       int create, char *resp);
-int del_subsys(void *ctx, char *grp, char *alias, char *ss, char *resp);
+int del_subsys(void *ctx, char *alias, char *ss, char *resp);
 
-int set_drive(void *ctx, char *grp, char *alias, char *data, char *resp);
-int del_drive(void *ctx, char *grp, char *alias,  char *data, char *resp);
+int set_drive(void *ctx, char *alias, char *data, char *resp);
+int del_drive(void *ctx, char *alias,  char *data, char *resp);
 
-int set_portid(void *ctx, char *grp, char *alias, int portid, char *data,
+int set_interface(void *ctx, char *target, char *data, char *resp);
+int set_portid(void *ctx, char *target, int portid, char *data,
 	       char *resp);
-int del_portid(void *ctx, char *grp, char *alias, int portid, char *resp);
+int del_portid(void *ctx, char *alias, int portid, char *resp);
 
-int set_ns(void *ctx, char *grp, char *alias, char *ss, char *data,
+int set_ns(void *ctx, char *alias, char *ss, char *data,
 	   char *resp);
-int del_ns(void *ctx, char *grp, char *alias,  char *ss, int ns,
+int del_ns(void *ctx, char *alias,  char *ss, int ns,
 	   char *resp);
 
-int set_acl(void *ctx, char *grp, char *alias, char *ss, char *hostnqn,
+int set_acl(void *ctx, char *alias, char *ss, char *hostnqn,
+	    char *data, char *resp);
+int del_acl(void *ctx, char *alias,  char *ss, char *hostnqn,
 	    char *resp);
-int del_acl(void *ctx, char *grp, char *alias,  char *ss, char *hostnqn,
-	    char *resp);
+
 
 /* JSON Schema implemented:
  * {

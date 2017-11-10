@@ -32,16 +32,22 @@
 #define TAG_SUBSYSTEM		"Subsystem"
 #define TAG_SUBNQN		"SUBNQN"
 #define TAG_HOSTNQN		"HOSTNQN"
-#define TAG_ALLOW_ALL		"AllowAllHosts"
+#define TAG_ALLOW_ANY		"AllowAnyHost"
 #define TAG_ACL			"ACL"
-#define TAG_INTERFACES		"Inferfaces"
-#define TAG_INTERFACE		"Inferface"
+#define TAG_INTERFACES		"Interfaces"
+#define TAG_INTERFACE		"Interface"
 #define TAG_NAME		"Name"
-#define TAG_NSDEVS		"NSDevs"
-#define TAG_NSDEV		"NSDEV"
+#define TAG_DEVID		"DeviceID"
+#define TAG_DEVNSID		"DeviceNSID"
 #define TAG_NSID		"NSID"
 #define TAG_NSIDS		"NSIDs"
 #define TAG_NAMESPACE		"Namespace"
+#define TAG_IFFAMILY		"FAMILY"
+#define TAG_IFADDRESS		"ADDRESS"
+#define TAG_IFPORT		"PORT"
+#define TAG_SHARED		"Shared"
+#define TAG_RESTRICTED		"Restricted"
+
 
 /* DEM config specific */
 #define TAG_ID			"ID"
@@ -52,10 +58,11 @@
 #define URI_HOST		"host"
 #define URI_DEM			"dem"
 #define URI_NSDEV		"nsdev"
-#define URI_SUBSYSTEM		"subsys"
+#define URI_SUBSYSTEM		"subsystem"
 #define URI_PORTID		"portid"
-#define URI_NAMESPACE		"namespace"
+#define URI_NAMESPACE		"nsid"
 #define URI_INTERFACE		"interface"
+#define URI_TRANSPORT		"transport"
 
 #define GROUP_LEN		(sizeof(URI_GROUP) - 1)
 #define TARGET_LEN		(sizeof(URI_TARGET) - 1)
@@ -78,3 +85,4 @@
 #define ADRFAM_STR_IPV4		"ipv4"
 #define ADRFAM_STR_IPV6		"ipv6"
 #define ADRFAM_STR_FC		"fc"
+

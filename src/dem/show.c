@@ -161,10 +161,10 @@ static void show_nsids(json_t *parent, int formatted)
 			printf("%snsid %lld:", i ? ", " : tab,
 			       json_integer_value(obj));
 
-		obj = json_object_get(iter, TAG_NSDEV);
+		obj = json_object_get(iter, TAG_DEVID);
 		if (obj) {
 			if (formatted)
-				printf(", " FMT_STR " ", TAG_NSDEV,
+				printf(", " FMT_STR " ", TAG_DEVID,
 				       json_string_value(obj));
 			else
 				printf("'%s'", json_string_value(obj));
@@ -245,11 +245,11 @@ static void show_subsystems(json_t *parent, int formatted)
 		else
 			printf("    %s ", json_string_value(obj));
 
-		obj = json_object_get(iter, TAG_ALLOW_ALL);
+		obj = json_object_get(iter, TAG_ALLOW_ANY);
 		if (obj) {
 			if (formatted)
 				printf(", " FMT_INT ",\n",
-				       TAG_ALLOW_ALL,
+				       TAG_ALLOW_ANY,
 				       json_integer_value(obj));
 			else if (json_integer_value(obj))
 				printf("(allow_all_hosts)\n");
@@ -381,18 +381,18 @@ static void show_devices(json_t *parent, int formatted)
 	json_t			*obj;
 	int			 i, cnt = 0;
 
-	array = json_object_get(parent, TAG_NSDEVS);
+	array = json_object_get(parent, TAG_NSIDS);
 	if (array)
 		cnt = json_array_size(array);
 
 	if (formatted)
-		printf("  " FMT_TAG "[", TAG_NSDEVS);
+		printf("  " FMT_TAG "[", TAG_NSIDS);
 	else
-		printf("  %s\n    ", TAG_NSDEVS);
+		printf("  %s\n    ", TAG_NSIDS);
 
 	for (i = 0; i < cnt; i++) {
 		iter = json_array_get(array, i);
-		obj = json_object_get(iter, TAG_NSDEV);
+		obj = json_object_get(iter, TAG_DEVID);
 		if (!obj)
 			continue;
 
