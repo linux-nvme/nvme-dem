@@ -27,7 +27,7 @@ function showContents(page) {
 }
 
 function showList(page) {
-  if (page !== undefined)
+  if (page != undefined)
     $("#listPage").html("");
   $("#detailPage").html("");
   $("#listPage").show();
@@ -37,7 +37,7 @@ function showList(page) {
   $("#objectValue").html("");
   $("#args").html("");
   $("#parentargs").html("");
-  if (page !== undefined) {
+  if (page != undefined) {
     $("#objectType").html(page);
     loadDoc(page);
   }
@@ -49,7 +49,7 @@ function showDetails(page) {
   $("#contactPage").hide();
   $("#contentPage").hide();
   $("#listPage").hide();
-  if (page !== undefined) {
+  if (page != undefined) {
     $("#objectValue").html(page);
     loadDoc(page);
   }
@@ -796,10 +796,10 @@ function parseACL(obj, itemA, itemB) {
   });
 
   str += '<p class="data">';
-  str += "Target '" + alias + "' Subsystem '" + nqn + "'"; 
+  str += "Target '" + alias + "' Subsystem '" + nqn + "'";
 
   if (itemA == "Restricted") {
-    ref = "'" + alias + "','" + nqn + "','" + $("#objectValue").html() + "'"; 
+    ref = "'" + alias + "','" + nqn + "','" + $("#objectValue").html() + "'";
     str += ' &nbsp; <img src="trash.png" alt="del" class="icon"'
     str += ' onclick="loadAltDel(' + ref + ')">&nbsp; ';
   }
@@ -862,7 +862,7 @@ function parseNSDevs(obj, itemA, itemB) {
 
   str += '<p style="margin:0 -40px;">';
 
-  if (nsdev !== undefined)
+  if (nsdev != undefined)
     str += nsdev;
   else
     str += id + devid + devns;
@@ -1114,7 +1114,7 @@ function loadDoc(page) {
   $("#parentUri").html(page);
   $("#renamedUri").html("");
 
-  if (typ === "dem")
+  if (typ == "dem")
       page = url + page;
   else {
     if (obj == "")
@@ -1131,7 +1131,7 @@ function loadDoc(page) {
 }
 
 function checkAddress() {
-    if(typeof(Storage) !== "undefined") {
+    if (typeof(Storage) != "undefined") {
         if (sessionStorage.dem_addr == null ||
             sessionStorage.dem_addr == "undefined")
              $("#addrForm").show();
@@ -1352,9 +1352,9 @@ function buildJSON(url) {
   } else if ($("#allowany").length) {
     str += '"SUBNQN":"' + $("#subnqn").val() + '","AllowAnyHost":';
     if ($("#allowany").is(':checked'))
-	str += "1";
+      str += "1";
     else
-	str += "0";
+      str += "0";
   } else if ($("#devid").length)
     str += '"NSID":' + $("#nsid").val() + ',' +
            '"DeviceID":' + $("#devid").val() + ',' +
