@@ -33,7 +33,6 @@
 #define TAG_SUBNQN		"SUBNQN"
 #define TAG_HOSTNQN		"HOSTNQN"
 #define TAG_ALLOW_ANY		"AllowAnyHost"
-#define TAG_ACL			"ACL"
 #define TAG_INTERFACES		"Interfaces"
 #define TAG_INTERFACE		"Interface"
 #define TAG_NAME		"Name"
@@ -47,6 +46,10 @@
 #define TAG_IFPORT		"PORT"
 #define TAG_SHARED		"Shared"
 #define TAG_RESTRICTED		"Restricted"
+#define TAG_MGMT_MODE		"MgmtMode"
+#define TAG_OUT_OF_BAND_MGMT	"OutOfBandMgmt"
+#define TAG_LOCAL_MGMT		"LocalMgmt"
+#define TAG_IN_BAND_MGMT	"InBandMgmt"
 
 /* DEMT specific */
 #define TAG_NSDEVS		"NSDevices"

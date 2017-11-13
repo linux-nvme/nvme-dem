@@ -187,58 +187,89 @@ static void parse_config_file(struct json_context *ctx)
 		store_config_file(ctx);
 }
 
-/* walk all host acls for ss name change */
-static void rename_host_acl(struct json_context *ctx, char *old, char *new)
+/* walk all subsystem allowed host list for host name changes */
+static void rename_in_allowed_hosts(struct json_context *ctx, char *old,
+				    char *new)
 {
-	json_t			*hosts;
+	json_t			*targets;
 	json_t			*array;
-	json_t			*iter;
+	json_t			*tgt;
+	json_t			*ss;
+	json_t			*list;
 	json_t			*obj;
-	json_t			*tmp;
 	int			 idx;
-	int			 i;
-	int			 cnt;
+	int			 i, j;
+	int			 n, m;
 
-	hosts = json_object_get(ctx->root, TAG_HOSTS);
-	if (!hosts)
+	targets = json_object_get(ctx->root, TAG_TARGET);
+	if (!targets)
 		return;
 
-	cnt = json_array_size(hosts);
+	n = json_array_size(targets);
 
-	for (i = 0; i < cnt; i++) {
-		iter = json_array_get(hosts, i);
+	for (i = 0; i < n; i++) {
+		tgt = json_array_get(targets, i);
 
-		array = json_object_get(iter, TAG_HOSTS);
+		array = json_object_get(tgt, TAG_SUBSYSTEMS);
 		if (!array)
 			continue;
 
-		idx = find_array(array, TAG_HOSTNQN, old, &obj);
-		if (idx >= 0)
-			json_set_string(obj, TAG_HOSTNQN, new);
+		m = json_array_size(array);
+
+		for (j = 0; j < m; j++) {
+			ss = json_array_get(array, i);
+
+			list = json_object_get(ss, TAG_HOSTS);
+			if (!list)
+				continue;
+
+			idx = find_array_string(list, old);
+			if (idx >= 0) {
+				obj = json_array_get(list, i);
+				json_string_set(obj, new);
+			}
+		}
 	}
 }
 
-/* walk all host acls for ss deletion */
-static void del_host_acl(json_t *hosts, char *nqn)
+/* walk all subsystem allowed host list for host deletions */
+static void del_from_allowed_hosts(struct json_context *ctx, char *alias)
 {
+	json_t			*targets;
 	json_t			*array;
-	json_t			*obj;
+	json_t			*tgt;
+	json_t			*ss;
+	json_t			*list;
 	int			 idx;
-	int			 i;
-	int			 cnt;
+	int			 i, j;
+	int			 n, m;
 
-	cnt = json_array_size(hosts);
+	targets = json_object_get(ctx->root, TAG_TARGET);
+	if (!targets)
+		return;
 
-	for (i = 0; i < cnt; i++) {
-		obj = json_array_get(hosts, i);
+	n = json_array_size(targets);
 
-		array = json_object_get(obj, TAG_HOSTS);
+	for (i = 0; i < n; i++) {
+		tgt = json_array_get(targets, i);
+
+		array = json_object_get(tgt, TAG_SUBSYSTEMS);
 		if (!array)
 			continue;
 
-		idx = find_array(array, TAG_HOSTNQN, nqn, NULL);
-		if (idx >= 0)
-			json_array_remove(array, idx);
+		m = json_array_size(array);
+
+		for (j = 0; j < m; j++) {
+			ss = json_array_get(array, i);
+
+			list = json_object_get(ss, TAG_HOSTS);
+			if (!list)
+				continue;
+
+			idx = find_array_string(list, alias);
+			if (idx >= 0)
+				json_array_remove(array, idx);
+		}
 	}
 }
 
@@ -627,226 +658,6 @@ int show_group(void *context, char *group, char *resp)
 	return 0;
 }
 
-/* HOST INTERFACES */
-
-int set_transport(void *context, char *host, char *data, char *resp)
-{
-	struct json_context	*ctx = context;
-	json_t			*hosts;
-	json_t			*iter;
-	json_t			*obj;
-	json_t			*new;
-	json_t			*tmp;
-	json_t			*array;
-	json_t			*value;
-	json_error_t		 error;
-	char			 trtype[16];
-	char			 adrfam[16];
-	char			 traddr[128];
-	int			 ret;
-	int			 i, cnt = 0;
-
-	hosts = json_object_get(ctx->root, TAG_HOSTS);
-	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
-		return -ENOENT;
-	}
-
-	i = find_array(hosts, TAG_ALIAS, host, &iter);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
-		return -ENOENT;
-	}
-
-	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
-
-	value = json_object_get(new, TAG_TYPE);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_TYPE);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(trtype, "%.*s", (int) sizeof(trtype) - 1,
-		(char *) json_string_value(value));
-
-	value = json_object_get(new, TAG_ADDRESS);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_ADDRESS);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(traddr, "%.*s", (int) sizeof(traddr) - 1,
-		(char *) json_string_value(value));
-
-	value = json_object_get(new, TAG_FAMILY);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_FAMILY);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(adrfam, "%.*s", (int) sizeof(adrfam) - 1,
-		(char *) json_string_value(value));
-
-	array = json_object_get(iter, TAG_TRANSPORT);
-	if (!array) {
-		array = json_array();
-		json_object_set_new(iter, TAG_TRANSPORT, array);
-	} else
-		cnt = json_array_size(array);
-
-	for (i = 0; i < cnt; i++) {
-		iter = json_array_get(array, i);
-
-		value = json_object_get(iter, TAG_TYPE);
-		if (strcmp(trtype, (char *) json_string_value(value)) != 0)
-			continue;
-
-		value = json_object_get(iter, TAG_ADDRESS);
-		if (strcmp(traddr, (char *) json_string_value(value)) != 0)
-			continue;
-
-		value = json_object_get(iter, TAG_FAMILY);
-		if (strcmp(adrfam, (char *) json_string_value(value)) != 0)
-			continue;
-
-		sprintf(resp, "%s exists for %s '%s'",
-			TAG_INTERFACE, TAG_HOST, host);
-
-		ret = -EEXIST;
-		goto out;
-	}
-
-	obj = json_object();
-
-	json_set_string(obj, TAG_TYPE, trtype);
-	json_set_string(obj, TAG_FAMILY, adrfam);
-	json_set_string(obj, TAG_ADDRESS, traddr);
-
-	json_array_append_new(array, obj);
-
-	sprintf(resp, "%s added to %s '%s'", TAG_TRANSPORT, TAG_HOST, host);
-	ret = 0;
-out:
-	json_decref(new);
-
-	return ret;
-}
-
-int del_transport(void *context, char *host, char *data, char *resp)
-{
-	struct json_context	*ctx = context;
-	json_t			*hosts;
-	json_t			*iter;
-	json_t			*new;
-	json_t			*array;
-	json_t			*value;
-	json_error_t		 error;
-	char			 trtype[16];
-	char			 adrfam[16];
-	char			 traddr[128];
-	int			 ret;
-	int			 i, cnt = 0;
-
-	hosts = json_object_get(ctx->root, TAG_HOSTS);
-	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
-		return -ENOENT;
-	}
-
-	i = find_array(hosts, TAG_ALIAS, host, &iter);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
-		return -ENOENT;
-	}
-
-	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
-
-	value = json_object_get(new, TAG_TYPE);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_TYPE);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(trtype, "%.*s", (int) sizeof(trtype) - 1,
-		(char *) json_string_value(value));
-
-	value = json_object_get(new, TAG_ADDRESS);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_ADDRESS);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(traddr, "%.*s", (int) sizeof(traddr) - 1,
-		(char *) json_string_value(value));
-
-	value = json_object_get(new, TAG_FAMILY);
-	if (!value) {
-		sprintf(resp, "invalid json syntax, no %s defined",
-			TAG_FAMILY);
-		ret = -EINVAL;
-		goto out;
-	}
-
-	sprintf(adrfam, "%.*s", (int) sizeof(adrfam) - 1,
-		(char *) json_string_value(value));
-
-	array = json_object_get(iter, TAG_TRANSPORT);
-	if (!array)
-		goto notfound;
-
-	cnt = json_array_size(array);
-
-	for (i = 0; i < cnt; i++) {
-		iter = json_array_get(array, i);
-
-		value = json_object_get(iter, TAG_TYPE);
-		if (strcmp(trtype, (char *) json_string_value(value)) != 0)
-			continue;
-
-		value = json_object_get(iter, TAG_ADDRESS);
-		if (strcmp(traddr, (char *) json_string_value(value)) != 0)
-			continue;
-
-		value = json_object_get(iter, TAG_FAMILY);
-		if (strcmp(adrfam, (char *) json_string_value(value)) != 0)
-			continue;
-
-		json_array_remove(array, i);
-
-		sprintf(resp, "%s deleted from %s '%s",
-			TAG_TRANSPORT, TAG_HOST, host);
-		ret = 0;
-		goto out;
-	}
-notfound:
-	sprintf(resp, "%s does not exist for %s '%s' ",
-		TAG_TRANSPORT, TAG_HOST, host);
-	ret = -ENOENT;
-
-out:
-	json_decref(new);
-
-	return ret;
-}
-
 /* HOSTS */
 
 int add_host(void *context, char *host, char *resp)
@@ -927,9 +738,10 @@ int update_host(void *context, char *host, char *data, char *resp)
 				ret = -EEXIST;
 				goto out;
 			}
-			if (host)
+			if (host) {
 				json_update_string(iter, new, TAG_ALIAS, value);
-			else {
+				rename_in_allowed_hosts(ctx, host, alias);
+			} else {
 				iter = json_object();
 				json_set_string(iter, TAG_ALIAS, alias);
 
@@ -969,6 +781,8 @@ int del_host(void *context, char *host, char *resp)
 	}
 
 	json_array_remove(hosts, i);
+
+	del_from_allowed_hosts(ctx, host);
 
 	sprintf(resp, "%s '%s' deleted", TAG_HOST, host);
 
@@ -1198,12 +1012,7 @@ int del_subsys(void *context, char *alias, char *ss, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
-	json_t			*hosts;
 	int			 ret;
-
-	hosts = json_object_get(ctx->root, TAG_HOSTS);
-	if (hosts)
-		del_host_acl(hosts, ss);
 
 	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
@@ -1908,9 +1717,11 @@ int update_target(void *ctxt, char *target, char *data, char *resp)
 		strcpy(alias, target);
 
 	json_update_int(iter, new, TAG_REFRESH, value);
+	json_update_string(iter, new, TAG_MGMT_MODE, value);
 
 	value = json_object_get(new, TAG_INTERFACE);
-	json_object_set(iter, TAG_INTERFACE, value);
+	if (value)
+		json_object_set(iter, TAG_INTERFACE, value);
 
 	sprintf(resp, "%s '%s' %s ", TAG_TARGET, alias,
 		(!target) ? "added" : "updated");

@@ -30,7 +30,6 @@ static char *groups[] = { URI_DEM, URI_TARGET, URI_HOST, URI_GROUP };
 
 static char *dem_server = DEFAULT_ADDR;
 static char *dem_port = DEFAULT_PORT;
-//static char *group = DEFAULT_GROUP;
 static int prompt_deletes = 1;
 int formatted;
 int debug_curl;
@@ -60,6 +59,8 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _LINK		"link"
 #define _UNLINK		"unlink"
 #define _USAGE		"usage"
+#define _INTERFACE	"interface"
+#define _MODE		"mode"
 
 #define DELETE_PROMPT	"Are you sure you want to delete "
 
@@ -354,23 +355,17 @@ static int get_target(void *ctx, char *base, int n, char **p)
 static int set_target(void *ctx, char *base, int n, char **p)
 {
 	char			 data[256];
-	char			*alias = *p++;
-	char			*family = *p++;
-	char			*address = *p++;
-	int			 port = atoi(*p);
+	char			*alias = *p;
 	int			 len;
 
 	UNUSED(n);
 
-	len = snprintf(data, sizeof(data),
-		     "{" JSSTR "," JSTAG "{" JSSTR "," JSSTR "," JSINT "}}",
-		     TAG_ALIAS, alias, TAG_INTERFACE, TAG_IFFAMILY, family,
-		     TAG_IFADDRESS, address, TAG_IFPORT, port);
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, alias);
 
 	return exec_put(ctx, base, data, len);
 }
 
-static int edit_target(void *ctx, char *base, int n, char **p)
+static int set_interface(void *ctx, char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -389,7 +384,34 @@ static int edit_target(void *ctx, char *base, int n, char **p)
 		     TAG_INTERFACE, TAG_IFFAMILY, family,
 		     TAG_IFADDRESS, address, TAG_IFPORT, port);
 
-	return exec_put(ctx, url, data, len);
+	return exec_patch(ctx, url, data, len);
+}
+
+static int set_mode(void *ctx, char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			 mode[32];
+	char			*alias = *p++;
+	char			*val = *p;
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
+
+	if (val[0] == 'o')
+		strcpy(mode, TAG_OUT_OF_BAND_MGMT);
+	else if (val[0] == 'i')
+		strcpy(mode, TAG_IN_BAND_MGMT);
+	else if (val[0] == 'l')
+		strcpy(mode, TAG_LOCAL_MGMT);
+	else
+		return -EINVAL;
+
+	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_MGMT_MODE, mode);
+
+	return exec_patch(ctx, url, data, len);
 }
 
 static int set_refresh(void *ctx, char *base, int n, char **p)
@@ -397,17 +419,16 @@ static int set_refresh(void *ctx, char *base, int n, char **p)
 	char			 url[128];
 	char			 data[256];
 	char			*alias = *p++;
-	int			 refreshcount = atoi(*p);
+	int			 refresh = atoi(*p);
 	int			 len;
 
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	len = snprintf(data, sizeof(data),
-		     "{" JSINT "}", TAG_REFRESH, refreshcount);
+	len = snprintf(data, sizeof(data), "{" JSINT "}", TAG_REFRESH, refresh);
 
-	return exec_put(ctx, url, data, len);
+	return exec_patch(ctx, url, data, len);
 }
 
 static int del_target(void *ctx, char *base, int n, char **p)
@@ -1008,10 +1029,10 @@ static struct verbs verb_list[] = {
 	  "list all groups" },
 	{ add_group,	 GROUP,   1, _ADD,  _GROUP, "<name>",
 	  "create a group (using POST)" },
-	{ get_group,	 GROUP,   1, _GET,  _GROUP, "<name>",
-	  "show the targets and hosts associated with a group" },
 	{ set_group,	 GROUP,   1, _SET,  _GROUP, "<name>",
 	  "create a group (using PUT)" },
+	{ get_group,	 GROUP,   1, _GET,  _GROUP, "<name>",
+	  "show the targets and hosts associated with a group" },
 	{ del_group,	 GROUP,   -1, _DEL,  _GROUP, "<name> {<name> ...}",
 	  "delete group(s) and all associated links" },
 	{ rename_group,	 GROUP,   2, _RENA, _GROUP, "<old> <new>",
@@ -1022,24 +1043,25 @@ static struct verbs verb_list[] = {
 	  "list all targets" },
 	{ add_target,	 TARGET,  1, _ADD,  _TARGET, "<alias>",
 	  "create a target (using POST)" },
+	{ set_target,	 TARGET,  1, _SET,  _TARGET, "<alias>",
+	  "create a target (using PUT)" },
 	{ get_target,	 TARGET,  1, _GET,  _TARGET, "<alias>",
 	  "show the specified target e.g. ports, subsys's, and ns's" },
-	{ set_target,	 TARGET,  4, _SET,  _TARGET,
-	  "<alias> <family> <address> <port>",
-	  "create a target (using PUT)" },
-	{ edit_target,	 TARGET,  4, _EDIT,  _TARGET,
-	  "<alias> <family> <address> <port>",
-	  "update a target (using PUT)" },
 	{ del_target,	 TARGET,  -1, _DEL,  _TARGET, "<alias> {<alias> ...}",
 	  "delete target(s) and all associated subsystems and port ids" },
+	{ set_mode,	 TARGET,  2, _SET,  _MODE, "<alias> <mode>",
+	  "update a target's management mode: out-of-band, in-band, or local" },
+	{ set_interface, TARGET,  4, _SET,  _INTERFACE,
+	  "<alias> <family> <address> <port>",
+	  "update a target's out-of-band interface" },
+	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refresh>",
+	  "update a target's refresh rate in minutes" },
 	{ rename_target, TARGET,  2, _RENA, _TARGET, "<old> <new>",
 	  "rename a target in the specified group (using PATCH)" },
 	{ refresh_target, TARGET, 1, "refresh", _TARGET, "<alias>",
 	  "signal the dem to refresh the log pages of a target" },
 	{ usage_target,	 TARGET,  1, "usage", _TARGET, "<alias>",
 	  "get usage for subsystems of a target" },
-	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refresh>",
-	  "update a target's refresh rate in minutes (using PUT)" },
 	{ link_target,	 GROUP,   2, _LINK,  _TARGET, "<alias> <group>",
 	  "link a target to a group (using PUT)" },
 	{ unlink_target, GROUP,   2, _UNLINK,  _TARGET, "<alias> <group>",
@@ -1053,7 +1075,7 @@ static struct verbs verb_list[] = {
 	  "create a subsystem on a target (using PUT)" },
 	{ edit_subsys,	 TARGET,  3, _EDIT,  _SUBSYS,
 	  "<alias> <subnqn> <allow_any>",
-	  "create a subsystem on a target (using PUT)" },
+	  "update an existing subsystem on a target (using PUT)" },
 	{ del_subsys,	 TARGET, -2, _DEL,  _SUBSYS,
 	  "<alias> <subnqn> {<subnqn> ...}",
 	  "delete subsystems from a target (one at a time)" },

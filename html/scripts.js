@@ -136,20 +136,23 @@ function loadAltDel(alias, nqn, host) {
 }
 
 function toggleMode() {
+  $("#res_refresh").hide();
+  $("#log_refresh").hide();
   $("#oob_data").hide();
   $("#oob_note").hide();
   $("#ib_note").hide();
   $("#event_note").hide();
-  $("#poll_data").hide();
   $("#poll_note").hide();
   if ($("#mode").val() == "polled") {
-    $("#poll_data").show();
     $("#poll_note").show();
+    $("#log_refresh").show();
   } else if ($("#mode").val() == "oob") {
     $("#oob_data").show();
     $("#oob_note").show();
+    $("#res_refresh").show();
   } else if ($("#mode").val() == "ib") {
     $("#ib_note").show();
+    $("#res_refresh").show();
   }
 }
 
@@ -158,6 +161,7 @@ function formTargetAlias(obj) {
   var hidden = " style='display:none'";
   var selected = " selected";
   var args = $("#parentargs").html().trim().split(",");
+  var mode = "";
   var fam = "";
   var adr = "";
   var port = "";
@@ -168,55 +172,57 @@ function formTargetAlias(obj) {
     str += "Add a Target</p>";
   else {
     str += "Update Target '" + $("#objectValue").html() + "'</p>";
-    if (args[0] != undefined) fam = args[0];
-    if (args[1] != undefined) adr = args[1];
-    if (args[2] != undefined) port = args[2];
-    if (args[3] != undefined) refresh = args[3];
+    if (args[0] != undefined) refresh = args[0];
+    if (args[1] != undefined) mode = args[1];
+    if (args[2] != undefined) fam = args[2];
+    if (args[3] != undefined) adr = args[3];
+    if (args[4] != undefined) port = args[4];
   }
   str += "<p>Alias: <input id='alias' type='text' value='" + obj +
              "'></input></p>";
 
   str += "<p>Management Mode<select id='mode' onchange='toggleMode()'>";
   str += "<option value='polled'";
-  if (fam == "" && refresh != "") str += selected;
+  if (mode == "LocalMgmt") str += selected;
   str += ">Locally Managed - Polled</option>"
   str += "<option value='oob'";
-  if (fam != "") str += selected;
+  if (mode == "OutOfBandMgmt") str += selected;
   str += ">Managed Out of Band</option>"
   str += "<option value='ib'";
-  if (fam == "" && refresh == "") str += selected;
+  if (mode == "InBandMgmt") str += selected;
   str += ">Managed In Band</option>"
 
   str += "</select><span class='units'>";
 
-  visible = (fam == "" && refresh == "") ? "" : hidden;
+  visible = (mode == "InBandMgmt") ? "" : hidden;
   str += "<div id='ib_note'" + visible +
          ">(use NVMe-of primatives to configure target)</div>";
-  visible = (fam != "") ? "" : hidden;
+  visible = (mode == "OutOfBandMgmt") ? "" : hidden;
   str += "<div id='oob_note'" + visible +
          ">(use restful interface to configure target)</div>";
-  visible = (fam == "" && refresh != "") ? "" : hidden;
+  visible = (mode == "LocalMgmt") ? "" : hidden;
   str += "<div id='poll_note'" + visible +
          ">(poll target logpages periodically for resource changes)</div>" +
-         "</span>";
+         "</span></p>";
 
-  visible = (fam != "") ? "" : hidden;
-  str += "</span></p><div id='oob_data'" + visible + ">";
+  visible = (mode == "OutOfBandMgmt") ? "" : hidden;
+  str += "<p><div id='oob_data'" + visible + ">";
 
   str += formFamily(fam);
   str += "<p>Address: <input id='adr' type='text'" +
          " value='" + adr + "'></input></p>";
   str += "<p>Restful Port: <input id='svc' type='number' min='0'" +
          " value='" + port + "'></input></p>";
-  str += "</div>";
+  str += "</div></p>";
 
-  visible = (fam == "" && refresh != "") ? "" : hidden;
-  str += "</p><div id='poll_data'" + visible + ">";
   str += "<p>Refresh: " +
          "<input id='refresh' type='number' value='" + refresh + "' min='0'>" +
-         "</input><span class='units'>minutes - 0 disables timer " +
-         "Log Page refreshing</span></p>";
-  str += "</div>";
+         "</input><span class='units'>minutes - 0 disables timer ";
+  visible = (mode != "OutOfBandMgmt") ? "" : hidden;
+  str += "<span id='log_refresh'" + visible + ">Log Page</span>"
+  visible = (mode == "OutOfBandMgmt") ? "" : hidden;
+  str += "<span id='res_refresh'" + visible + ">Resource info</span>"
+  str += " refreshing</span></p>";
   return str;
 }
 function formHostAlias(obj) {
@@ -361,9 +367,9 @@ function formType(typ) {
   if (typ == "rdma") str += selected;
   str += ">rdma</option><option value='fc'";
   if (typ == "fc") str += selected;
-  str += ">tcp</option><option value='tcp'";
+  str += ">fc</option><option value='tcp'";
   if (typ == "tcp") str += selected;
-  str += ">fc</option></select></p>";
+  str += ">tcp</option></select></p>";
 
   return str;
 }
@@ -385,7 +391,7 @@ function formFamily(fam) {
 
 function formPortID(sub) {
   var str = "<p class='header'>";
-  var args = $("#args").html().trim().replace(":"," ").split(" ");
+  var args = $("#args").html().trim().split(" ");
   var typ = args[0];
   var fam = args[1];
   var adr = args[2];
@@ -642,13 +648,39 @@ function parseTransports(obj, itemA, itemB) {
   return str;
 }
 
+function parseMgmtMode(obj, itemA) {
+  var str = "";
+  var args = "";
+  var mode = obj[itemA];
+
+  str += '<p class="data">Management Mode: ';
+  if (mode == "OutOfBandMgmt")
+    str += "Out-of-Band";
+  else if (mode == "InBandMgmt")
+    str += "In-Band";
+  else if (mode == "LocalMgmt")
+    str += "Local";
+  else
+    str += mode;
+
+  str += "</p>";
+
+  args = $("#parentargs").html();
+  $("#parentargs").html(args + "," + mode);
+
+  return str;
+}
+
 function parseInterface(obj, itemA) {
   var listB = Object.keys(obj[itemA]);
   var fam = "";
   var adr = "";
   var port = "";
   var str = "";
-  var args = "";
+  var args = $("#parentargs").html();
+
+  if (args.indexOf("OutOfBand") == -1)
+    return str;
 
   listB.forEach(function(itemB) {
     var listC = obj[itemA][itemB];
@@ -667,7 +699,7 @@ function parseInterface(obj, itemA) {
     str += "</p>" ;
   }
 
-  args = fam + "," + adr + "," + port;
+  args += "," + fam + "," + adr + "," + port;
   $("#parentargs").html(args);
 
   return str;
@@ -821,24 +853,27 @@ function parsePortIDs(obj, itemA, itemB) {
     if (itemC == "PORTID")
       id = obj[itemA][itemB][itemC];
     else if (itemC == "TRTYPE")
-      typ = " " + obj[itemA][itemB][itemC]
+      typ = obj[itemA][itemB][itemC]
     else if (itemC == "ADRFAM")
-      fam = " " + obj[itemA][itemB][itemC]
+      fam = obj[itemA][itemB][itemC]
     else if (itemC == "TRADDR")
-      adr = " " + obj[itemA][itemB][itemC]
+      adr = obj[itemA][itemB][itemC]
     else if (itemC == "TRSVCID")
-      svc = ":" + obj[itemA][itemB][itemC]
+      svc = obj[itemA][itemB][itemC]
   });
 
   ref += "'/portid'," + id;
 
-  str += '<p style="margin-left:-40px">';
-  str += id + ": " + typ + fam + adr + svc + "&nbsp; ";
-  str += '<img src="pencil.png" alt="get" class="icon" onclick="saveVal(';
-  str += "'" + typ + fam + adr + svc + "'" + ');loadEdit(' + ref + ')">&nbsp; ';
-  str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
-  str += ref + ')">&nbsp; ';
-  str += '</p>';
+  str += '<p style="margin-left:-40px">' + id + ": " + typ;
+  if (typ == "fc")
+    str += " " + adr + " service id " + svc;
+  else
+    str += " " + fam + " " + adr + ":" + svc;
+  str += '&nbsp; <img src="pencil.png" alt="get" class="icon" ';
+  str += 'onclick="saveVal(' + "'" + typ + " " + fam + " ";
+  str += adr + " " + svc + "'" + ');loadEdit(' + ref + ')">';
+  str += '&nbsp; <img src="trash.png" alt="del" class="icon" ';
+  str += 'onclick="loadDel(' + ref + ')"></p>';
   return str;
 }
 
@@ -1003,27 +1038,42 @@ function parseString(obj, itemA) {
 
 function parseNumber(obj, itemA) {
   var str = "";
-  var args = $("#parentargs").html();
+  var args = "";
   var val = obj[itemA];
 
-  if (val != "")
-    str += '<p class="data">' + itemA + ": " + val + "</p>";
+  if (val == undefined) val = 0;
 
-  args += "," + val;
+  str += '<p class="data">' + itemA + ": ";
+  if (val)
+    str += val + " minute" + ((val == 1) ? "" : "s");
+  else
+    str += "disabled";
+
+  str += "</p>";
+
+  args += val;
   $("#parentargs").html(args);
 
   return str;
 }
 
+function modifySort(a) {
+  if (a == "Alias" || a == "Name" || a == "Refresh")
+    a = "A" + a;
+  else if (a == "MgmtMode")
+    a = "B" + a;
+  else if (a == "Interface")
+    a = "C" + a;
+  else
+    a = "D" + a;
+  return a;
+}
 function customSort(a,b) {
-    if (a == "Name" || a == "Refresh" || a == "Interface")
-      a = "Az" + a;
-    if (b == "Name" || b == "Refresh" || b == "Interface")
-      b = "Az" + b;
-
-    if (a == b) return 0;
-    if (a > b) return 1;
-    return -1;
+  a = modifySort(a);
+  b = modifySort(b);
+  if (a > b) return 1;
+  if (a < b) return -1;
+  return 0;
 }
 function basicSort(list) {
   return function(a,b) {
@@ -1045,6 +1095,8 @@ function parseJSON(json, object) {
       str += parseNumber(obj, itemA);
     else if (itemA == "HOSTNQN")
       str += parseString(obj, itemA);
+    else if (itemA == "MgmtMode")
+      str += parseMgmtMode(obj, itemA);
     else if (itemA == "Interface")
       str += parseInterface(obj, itemA);
     else
@@ -1245,6 +1297,18 @@ function validateForm() {
       str += "<p>Invalid Fabric Type. Please select from rdma, tcp, or fc";
       if (badfield == undefined) badfield = field;
     }
+    if ($("#typ").val() == "fc" && fam != "fc") {
+      field = $("#fam");
+      str += "<p>Invalid Address Family. Please select 'fc' for Family";
+      str += " when Fabric is Fiber Channel.";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#typ").val() != "fc" && fam == "fc") {
+      field = $("#fam");
+      str += "<p>Invalid Address Family. Please select 'ipv4 or ipv6 for";
+      str += " Family when Fabric is not Fiber Channel.";
+      if (badfield == undefined) badfield = field;
+    }
     if ($("#svc").length && $("#svc").val() == "") {
       if ($("#typ").length || $("#adr").val() != "") {
         field = $("#svc");
@@ -1343,12 +1407,18 @@ function buildJSON(url) {
     str += '"Alias":"' + $("#alias").val() + '"';
     if ($("#refresh").val() != "")
       str += ',"Refresh":' + $("#refresh").val();
-    str += ',"Interface":{';
-    if ($("#fam").val() != "")
-      str += '"FAMILY":"' + $("#fam").val() + '",' +
-             '"ADDRESS":"' + $("#adr").val() + '",' +
-             '"PORT":' + $("#svc").val();
-    str += '}';
+    if ($("#mode").val() == "oob") {
+      str += ',"MgmtMode":"OutOfBandMgmt"';
+      str += ',"Interface":{';
+      if ($("#fam").val() != "")
+        str += '"FAMILY":"' + $("#fam").val() + '",' +
+               '"ADDRESS":"' + $("#adr").val() + '",' +
+               '"PORT":' + $("#svc").val();
+      str += '}';
+    } else if ($("#mode").val() == "ib")
+      str += ',"MgmtMode":"InBandMgmt"';
+    else
+      str += ',"MgmtMode":"LocalMgmt"';
   } else if ($("#allowany").length) {
     str += '"SUBNQN":"' + $("#subnqn").val() + '","AllowAnyHost":';
     if ($("#allowany").is(':checked'))
@@ -1412,7 +1482,7 @@ function sendRequest() {
     else
       $("#apply-menu").show();
 
-    if ($("#renamedUri").html() == "")
+    if ($("#objectValue").html() == "" || $("#renamedUri").html() == "")
       page = $("#parentUri").html();
     else {
       page = $("#renamedUri").html();

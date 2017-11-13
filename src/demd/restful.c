@@ -403,24 +403,17 @@ static int get_host_request(void *ctx, char *host, char *resp)
 	return http_error(ret);
 }
 
-static int delete_host_request(void *context, char *host, char **p,
-			       int n, struct mg_str *body, char *resp)
+static int delete_host_request(void *context, char *host, int n, char *resp)
 {
-	char			 data[LARGE_RSP + 1];
-	int			 ret;
 	struct json_context	*ctx = context;
+	int			 ret;
 
 	if (n) {
-		memset(data, 0, sizeof(data));
-		strncpy(data, body->p, min(LARGE_RSP, body->len));
+		bad_request(resp);
+		return http_error(-EINVAL);
+	}
 
-		if (strcmp(*p, URI_TRANSPORT) == 0 || n != 1)
-			ret = del_transport(ctx, host, data, resp);
-		else
-			ret = -EINVAL;
-	} else
-		ret = del_host(ctx, host, resp);
-
+	ret = del_host(ctx, host, resp);
 	if (ret)
 		return http_error(ret);
 
@@ -429,27 +422,22 @@ static int delete_host_request(void *context, char *host, char **p,
 	return 0;
 }
 
-static int put_host_request(void *context, char *host, char **p,
-			    int n, struct mg_str *body, char *resp)
+static int put_host_request(void *context, char *host, int n,
+			    struct mg_str *body, char *resp)
 {
 	struct json_context     *ctx = context;
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
 
+	if (n) {
+		bad_request(resp);
+		return http_error(-EINVAL);
+	}
+
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	ret = update_host(ctx, host, data, resp);
-	if (ret)
-		return http_error(ret);
-
-	if (n >= 1) {
-		if (strcmp(*p, URI_TRANSPORT) == 0)
-			ret = set_transport(ctx, host, data, resp);
-		else
-			ret = -EINVAL;
-	}
-
 	if (ret)
 		return http_error(ret);
 
@@ -470,7 +458,7 @@ static int post_host_request(void *context, char *host, int n,
 
 	if (!body->len)
 		ret = add_host(ctx, host, resp);
-	else { //Verify this portion TBD
+	else {
 		memset(data, 0, sizeof(data));
 		strncpy(data, body->p, min(LARGE_RSP, body->len));
 
@@ -652,10 +640,9 @@ static int handle_host_requests(void *ctx, char *p[], int n,
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_host_request(ctx, host, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_host_request(ctx, host, p, n, &hm->body, resp);
+		ret = put_host_request(ctx, host, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_host_request(ctx, host, p, n, &hm->body,
-					  resp);
+		ret = delete_host_request(ctx, host, n, resp);
 	else if (is_equal(&hm->method, &s_post_method))
 		ret = post_host_request(ctx, host, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_patch_method))

@@ -39,8 +39,6 @@ int update_host(void *context, char *host, char *data, char *resp);
 int list_host(void *ctx, char *resp);
 int show_host(void *ctx, char *alias, char *resp);
 int del_host(void *ctx, char *host, char *resp);
-int set_transport(void *ctx, char *host, char *data, char *resp);
-int del_transport(void *ctx, char *host, char *data, char *resp);
 
 int set_subsys(void *ctx, char *alias, char *ss, char *data, char *resp);
 int del_subsys(void *ctx, char *alias, char *ss, char *resp);

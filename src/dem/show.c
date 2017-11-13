@@ -25,6 +25,7 @@
 #define FMT_TAG		"\"%s\": "
 #define FMT_STR		FMT_TAG "\"%s\""
 #define FMT_INT		FMT_TAG "%lld"
+#define FMT_NUM		FMT_TAG "%d"
 #define FMT_VAL		"\"%s\""
 
 static int list_array(json_t *array, int formatted, int indent)
@@ -247,8 +248,7 @@ static void show_interface(json_t *iter, int formatted, int indent)
 	if (formatted) {
 		memset(tab, ' ', indent - 2);
 		printf(",\n%s" FMT_TAG "{", tab, TAG_INTERFACE);
-	} else
-		printf("- ");
+	}
 
 	memset(tab, ' ', indent);
 
@@ -402,6 +402,8 @@ void show_usage_data(json_t *parent, int formatted)
 void show_target_data(json_t *parent, int formatted)
 {
 	json_t			*attrs;
+	const char		*mode;
+	int			 refresh;
 
 	attrs = json_object_get(parent, TAG_ALIAS);
 	if (!attrs)
@@ -415,16 +417,42 @@ void show_target_data(json_t *parent, int formatted)
 
 	attrs = json_object_get(parent, TAG_REFRESH);
 	if (attrs) {
+		refresh = json_integer_value(attrs);
 		if (formatted)
-			printf(",\n  " FMT_INT, TAG_REFRESH,
-			       json_integer_value(attrs));
+			printf(",\n  " FMT_NUM, TAG_REFRESH, refresh);
+		else if (refresh)
+			printf("%s every %d minutes", TAG_REFRESH, refresh);
 		else
-			printf("%s %lld ", TAG_REFRESH,
-			       json_integer_value(attrs));
+			printf("%s disabled", TAG_REFRESH);
 	}
-	attrs = json_object_get(parent, TAG_INTERFACE);
-	if (attrs)
-		show_interface(attrs, formatted, 4);
+
+	attrs = json_object_get(parent, TAG_MGMT_MODE);
+	if (attrs) {
+		mode = json_string_value(attrs);
+		if (formatted) {
+			printf(",\n  " FMT_STR, TAG_MGMT_MODE, mode);
+			attrs = json_object_get(parent, TAG_INTERFACE);
+			if (attrs)
+				show_interface(attrs, formatted, 4);
+		} else {
+			printf("\n  Management Mode: ");
+			if (strcmp(mode, TAG_LOCAL_MGMT) == 0)
+				printf("Local");
+			else if (strcmp(mode, TAG_IN_BAND_MGMT) == 0)
+				printf("In-Band");
+			else if (strcmp(mode, TAG_OUT_OF_BAND_MGMT) == 0) {
+				printf("Out-of-Band - ");
+				attrs = json_object_get(parent, TAG_INTERFACE);
+				if (attrs)
+					show_interface(attrs, formatted, 4);
+				else
+					printf("Interface undefined");
+			} else
+				printf("\n%s %s", TAG_MGMT_MODE,
+				       json_string_value(attrs));
+		}
+	} else if (!formatted)
+		printf("\n  Management Mode: undefined (default to Local)");
 
 	printf("\n");
 
@@ -465,75 +493,7 @@ void show_host_list(json_t *parent, int formatted, int indent)
 		printf("}\n");
 }
 
-static void show_interfaces(json_t *parent, int formatted)
-{
-	json_t			*array;
-	json_t			*iter;
-	json_t			*obj;
-	char			 tab[] = "      ";
-	int			 i, cnt;
-
-	array = json_object_get(parent, TAG_INTERFACES);
-	if (!array)
-		goto err;
-
-	cnt = json_array_size(array);
-
-	if (cnt == 0)
-		goto err;
-
-	if (formatted)
-		printf("  " FMT_TAG "[", TAG_INTERFACES);
-
-	for (i = 0; i < cnt; i++) {
-		iter = json_array_get(array, i);
-
-		if (formatted)
-			printf("%s {\n", i ? "    }," : "");
-
-		obj = json_object_get(iter, TAG_TYPE);
-		if (obj) {
-			if (formatted)
-				printf("%s" FMT_STR ",\n", tab,
-				       TAG_TYPE,
-				       json_string_value(obj));
-			else
-				printf("%s  %s ", i ? "\n" : "",
-				       json_string_value(obj));
-		}
-
-		obj = json_object_get(iter, TAG_FAMILY);
-		if (obj) {
-			if (formatted)
-				printf("%s" FMT_STR ",\n", tab,
-				       TAG_FAMILY,
-				       json_string_value(obj));
-			else
-				printf("%s ", json_string_value(obj));
-		}
-
-		obj = json_object_get(iter, TAG_ADDRESS);
-		if (obj) {
-			if (formatted)
-				printf("%s" FMT_STR ",\n", tab,
-				       TAG_ADDRESS,
-				       json_string_value(obj));
-			else
-				printf("%s", json_string_value(obj));
-		}
-	}
-
-	if (formatted)
-		printf("    }\n  ]");
-
-	return;
-
-err:
-	if (formatted)
-		printf("  " FMT_TAG " [ ]", TAG_ACL);
-}
-
-static void show_allowed_subsys(json_t *list, int formatted, char *tag)
+static void show_allowed_list(json_t *list, int formatted, char *tag)
 {
 	json_t			*obj;
 	json_t			*alias;
@@ -594,11 +554,11 @@ void show_host_data(json_t *parent, int formatted)
 
 	list = json_object_get(parent, TAG_SHARED);
 	if (list)
-		show_allowed_subsys(list, formatted, TAG_SHARED);
+		show_allowed_list(list, formatted, TAG_SHARED);
 
 	list = json_object_get(parent, TAG_RESTRICTED);
 	if (list)
-		show_allowed_subsys(list, formatted, TAG_RESTRICTED);
+		show_allowed_list(list, formatted, TAG_RESTRICTED);
 
 	printf("\n");
 
