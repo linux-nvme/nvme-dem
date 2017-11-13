@@ -289,6 +289,7 @@ static void show_transport(json_t *iter, int formatted, int indent)
 {
 	json_t			*obj;
 	char			 tab[8];
+	const char		*typ = NULL, *fam;
 
 	memset(tab, 0, 16);
 
@@ -311,11 +312,11 @@ static void show_transport(json_t *iter, int formatted, int indent)
 
 	obj = json_object_get(iter, TAG_TYPE);
 	if (obj) {
+		typ = json_string_value(obj);
 		if (formatted)
-			printf(",\n%s" FMT_STR, tab,
-			       TAG_TYPE, json_string_value(obj));
+			printf(",\n%s" FMT_STR, tab, TAG_TYPE, typ);
 		else
-			printf("%s ", json_string_value(obj));
+			printf("%s ", typ);
 	}
 
 	obj = json_object_get(iter, TAG_TREQ);
@@ -329,11 +330,11 @@ static void show_transport(json_t *iter, int formatted, int indent)
 
 	obj = json_object_get(iter, TAG_FAMILY);
 	if (obj) {
+		fam = json_string_value(obj);
 		if (formatted)
-			printf(",\n%s" FMT_STR, tab,
-			       TAG_FAMILY, json_string_value(obj));
-		else
-			printf("%s ", json_string_value(obj));
+			printf(",\n%s" FMT_STR, tab, TAG_FAMILY, fam);
+		else if (typ && strcmp(typ, fam))
+			printf("%s ", fam);
 	}
 
 	obj = json_object_get(iter, TAG_ADDRESS);
@@ -603,6 +604,7 @@ void show_config(json_t *parent, int formatted)
 	json_t			*array;
 	json_t			*iter;
 	json_t			*obj;
+	const char		*typ = NULL, *fam;
 	int			 i, cnt;
 
 	array = json_object_get(parent, TAG_INTERFACES);
@@ -633,20 +635,20 @@ void show_config(json_t *parent, int formatted)
 
 		obj = json_object_get(iter, TAG_TYPE);
 		if (obj) {
+			typ = json_string_value(obj);
 			if (formatted)
-				printf("    " FMT_STR ",\n", TAG_TYPE,
-				       json_string_value(obj));
+				printf("    " FMT_STR ",\n", TAG_TYPE, typ);
 			else
-				printf("%s ", json_string_value(obj));
+				printf("%s ", typ);
 		}
 
 		obj = json_object_get(iter, TAG_FAMILY);
 		if (obj) {
+			fam = json_string_value(obj);
 			if (formatted)
-				printf("    " FMT_STR ",\n", TAG_FAMILY,
-				       json_string_value(obj));
-			else
-				printf("%s ", json_string_value(obj));
+				printf("    " FMT_STR ",\n", TAG_FAMILY, fam);
+			else if (typ && strcmp(typ, fam))
+				printf("%s ", fam);
 		}
 
 		obj = json_object_get(iter, TAG_ADDRESS);

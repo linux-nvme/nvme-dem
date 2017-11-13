@@ -201,7 +201,7 @@ static void rename_in_allowed_hosts(struct json_context *ctx, char *old,
 	int			 i, j;
 	int			 n, m;
 
-	targets = json_object_get(ctx->root, TAG_TARGET);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets)
 		return;
 
@@ -244,7 +244,7 @@ static void del_from_allowed_hosts(struct json_context *ctx, char *alias)
 	int			 i, j;
 	int			 n, m;
 
-	targets = json_object_get(ctx->root, TAG_TARGET);
+	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets)
 		return;
 
@@ -744,7 +744,6 @@ int update_host(void *context, char *host, char *data, char *resp)
 			} else {
 				iter = json_object();
 				json_set_string(iter, TAG_ALIAS, alias);
-
 				json_array_append_new(hosts, iter);
 			}
 		}
