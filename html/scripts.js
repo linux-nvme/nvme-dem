@@ -1246,8 +1246,8 @@ function validateForm() {
       str += " plus the following special characters # < > _ : . -";
       if (badfield == undefined) badfield = field;
     }
-    fam = $("#objectType").html() + "/" + $("#objectType").html();
-    if (name != $("#parentUri").html() && fam == $("#edittUri").html())
+    fam = $("#objectType").html() + "/" + $("#objectValue").html();
+    if (name != $("#parentUri").html() && fam == $("#editUri").html())
       $("#renamedUri").html(name);
     fam = undefined;
   }
