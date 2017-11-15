@@ -110,7 +110,86 @@ static int list_array(json_t *array, char *tag, char *resp)
 
 		obj = json_object_get(iter, tag);
 		if (obj && json_is_string(obj))
-			array_json_string(obj, p, n);
+			array_json_string(obj, p, i, n);
+	}
+
+	return p - resp;
+}
+
+static int filter_fabric(json_t *array, char *query, char *resp)
+{
+	json_t			*iter;
+	json_t			*list;
+	json_t			*obj;
+	char			*p = resp;
+	int			 i, j, n = 0, tmp, num_targets, num_ports;
+
+	query += PARM_FABRIC_LEN;
+
+	num_targets = json_array_size(array);
+
+	for (i = 0; i < num_targets; i++) {
+		iter = json_array_get(array, i);
+		if (!json_is_object(iter))
+			continue;
+
+		list = json_object_get(iter, TAG_PORTIDS);
+		if (!list || !json_is_array(list))
+			continue;
+
+		num_ports = json_array_size(list);
+
+		for (j = 0; j < num_ports; j++) {
+			obj = json_array_get(list, j);
+			if (!json_is_object(obj))
+				continue;
+
+			obj = json_object_get(obj, TAG_TYPE);
+			if (!obj || !json_is_string(obj))
+				continue;
+			if (strcmp(query, json_string_value(obj)))
+				continue;
+
+			obj = json_object_get(iter, TAG_ALIAS);
+			if (!obj || !json_is_string(obj))
+				continue;
+		
+			array_json_string(obj, p, n, tmp);
+			n++;
+		}
+	}
+
+	return p - resp;
+}
+
+static int filter_mode(json_t *array, char *query, char *resp)
+{
+	json_t			*iter;
+	json_t			*obj;
+	char			*p = resp;
+	int			 i, n = 0, tmp, num_targets;
+
+	query += PARM_MODE_LEN;
+
+	num_targets = json_array_size(array);
+
+	for (i = 0; i < num_targets; i++) {
+		iter = json_array_get(array, i);
+		if (!json_is_object(iter))
+			continue;
+
+		obj = json_object_get(iter, TAG_MGMT_MODE);
+		if (!obj || !json_is_string(obj))
+			continue;
+		if (strcmp(query, json_string_value(obj)))
+			continue;
+
+		obj = json_object_get(iter, TAG_ALIAS);
+		if (!obj || !json_is_string(obj))
+			continue;
+
+		array_json_string(obj, p, n, tmp);
+		n++;
 	}
 
 	return p - resp;
@@ -315,7 +394,7 @@ void cleanup_json(void *context)
 	free(ctx);
 }
 
-static int _list_target(void *context, char *resp)
+static int _list_target(void *context, char *query, char *resp)
 {
 	struct json_context	*ctx = context;
 	json_t			*targets;
@@ -327,7 +406,12 @@ static int _list_target(void *context, char *resp)
 	start_json_array(TAG_TARGETS, p, n);
 
 	if (targets) {
-		n = list_array(targets, TAG_ALIAS, p);
+		if (query == NULL)
+			n = list_array(targets, TAG_ALIAS, p);
+		else if (strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0) 
+			n = filter_mode(targets, query, p);
+		else if (strncmp(query, URI_PARM_FABRIC, PARM_FABRIC_LEN) == 0)
+			n = filter_fabric(targets, query, p);
 		p += n;
 	}
 
@@ -1457,7 +1541,7 @@ int del_target(void *context, char *alias, char *resp)
 	return 0;
 }
 
-int list_target(void *context, char *resp)
+int list_target(void *context, char *query, char *resp)
 {
 	char			*p = resp;
 	int			 n;
@@ -1465,7 +1549,7 @@ int list_target(void *context, char *resp)
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_target(context, p);
+	n = _list_target(context, query, p);
 	p += n;
 
 	sprintf(p, "}");

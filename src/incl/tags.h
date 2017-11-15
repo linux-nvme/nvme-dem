@@ -68,11 +68,15 @@
 #define URI_NAMESPACE		"nsid"
 #define URI_INTERFACE		"interface"
 #define URI_TRANSPORT		"transport"
+#define URI_PARM_MODE		"mode="
+#define URI_PARM_FABRIC		"fabric="
 
 #define GROUP_LEN		(sizeof(URI_GROUP) - 1)
 #define TARGET_LEN		(sizeof(URI_TARGET) - 1)
 #define HOST_LEN		(sizeof(URI_HOST) - 1)
 #define DEM_LEN			(sizeof(URI_DEM) - 1)
+#define PARM_MODE_LEN		(sizeof(URI_PARM_MODE) - 1)
+#define PARM_FABRIC_LEN		(sizeof(URI_PARM_FABRIC) - 1)
 
 #define METHOD_SHUTDOWN		"shutdown"
 #define METHOD_APPLY		"apply"

@@ -167,14 +167,21 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 	return ret;
 }
 
-static int get_target_request(void *ctx, char *target, char **p,
-			      int n, char *resp)
+static int get_target_request(void *ctx, char *target, char **p, int n,
+			      char *query, char *resp)
 {
 	int			 ret;
 
-	if (!target || !*target)
-		ret = list_target(ctx, resp);
-	else if (n == 0)
+	if (!target || !*target) {
+		if ((strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0)
+		    && (query[PARM_MODE_LEN]))
+			ret = list_target(ctx, query, resp);
+		else if ((strncmp(query, URI_PARM_FABRIC, PARM_FABRIC_LEN) == 0)
+			 && (query[PARM_FABRIC_LEN]))
+			ret = list_target(ctx, query, resp);
+		else
+			ret = list_target(ctx, NULL, resp);
+	} else if (n == 0)
 		ret = show_target(ctx, target, resp);
 	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
 		ret = usage_target(target, resp);
@@ -366,14 +373,19 @@ static int handle_target_requests(void *ctx, char *p[], int n,
 				  struct http_message *hm, char *resp)
 {
 	char			*target;
+	char			 query[32] = { 0 };
 	int			 ret;
 
 	target = p[1];
 	p += 2;
 	n = (n > 2) ? n - 2 : 0;
 
+	if (hm->query_string.len)
+		strncpy(query, hm->query_string.p,
+			min(hm->query_string.len, sizeof(query) - 1));
+
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_target_request(ctx, target, p, n, resp);
+		ret = get_target_request(ctx, target, p, n, query, resp);
 	else if (is_equal(&hm->method, &s_put_method))
 		ret = put_target_request(ctx, target, p, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))

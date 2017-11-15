@@ -30,7 +30,7 @@ int del_group_member(void *context, char *group, char *member, char *tag,
 
 int add_target(void *ctx, char *alias, char *resp);
 int update_target(void *ctx, char *target, char *data, char *resp);
-int list_target(void *ctx, char *resp);
+int list_target(void *ctx, char *query, char *resp);
 int show_target(void *ctx, char *alias, char *resp);
 int del_target(void *ctx, char *alias, char *resp);
 
@@ -149,7 +149,7 @@ struct json_context {
 #define JSSTR		"\"%s\":\"%s\""
 #define JSINT		"\"%s\":%lld"
 
-#define array_json_string(obj, p, n)				\
+#define array_json_string(obj, p, i, n)				\
 	do {							\
 		n = sprintf(p, "%s\"%s\"", i ? "," : "",	\
 			    json_string_value(obj));		\
