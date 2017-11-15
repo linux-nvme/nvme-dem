@@ -184,13 +184,13 @@ function formTargetAlias(obj) {
   str += "<p>Management Mode<select id='mode' onchange='toggleMode()'>";
   str += "<option value='polled'";
   if (mode == "LocalMgmt") str += selected;
-  str += ">Locally Managed - Polled</option>"
+  str += ">Locally</option>"
   str += "<option value='oob'";
   if (mode == "OutOfBandMgmt") str += selected;
-  str += ">Managed Out of Band</option>"
+  str += ">Out of Band</option>"
   str += "<option value='ib'";
   if (mode == "InBandMgmt") str += selected;
-  str += ">Managed In Band</option>"
+  str += ">In Band</option>"
 
   str += "</select><span class='units'>";
 
@@ -472,6 +472,80 @@ function formNSID(sub,val) {
   return str;
 }
 
+function buildFilterMenu() {
+  var str = "";
+  var checked = ' checked="checked"';
+  var filter = 0;
+  var cur = $("#filter").html();
+  if (cur.indexOf("=rdma") != -1) filter = 1;
+  else if (cur.indexOf("=tcp") != -1) filter = 2;
+  else if (cur.indexOf("=fc") != -1) filter = 3;
+  else if (cur.indexOf("=Out") != -1) filter = 4;
+  else if (cur.indexOf("=In") != -1) filter = 5;
+  else if (cur.indexOf("=Loc") != -1) filter = 6;
+
+  str += "<span style='float:right'>";
+  str += '<img src="filtered.png" alt="filter" class="dropbtn"';
+  if (filter == 0) str += ' style="display:none"';
+  str += ' id="filteredmenu" onclick="showDropdown(' + "'Filter'" + ');">';
+  str += '<img src="unfiltered.png" alt="filter" class="dropbtn"';
+  if (filter != 0) str += ' style="display:none"';
+  str += ' id="unfilteredmenu" onclick="showDropdown(' + "'Filter'" + ');">';
+  str += '<div id="Filter" class="dropdown-content">';
+  str += '<label class="filter">No Filter' +
+         '<input type="radio" name="radio" onchange="filter(0)"';
+  if (filter == 0) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only RDMA Fabric' +
+         '<input type="radio" name="radio" onchange="filter(1)"';
+  if (filter == 1) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only TCP Fabric' +
+         '<input type="radio" name="radio" onchange="filter(2)"';
+  if (filter == 2) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only FC Fabric' +
+         '<input type="radio" name="radio" onchange="filter(3)"';
+  if (filter == 3) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only Out-of-Band Managed' +
+         '<input type="radio" name="radio" onchange="filter(4)"';
+  if (filter == 4) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only In-Band Managed' +
+         '<input type="radio" name="radio" onchange="filter(5)"';
+  if (filter == 5) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += '<label class="filter">Only Locally Managed' +
+         '<input type="radio" name="radio" onchange="filter(6)"';
+  if (filter == 6) str += checked;
+  str += '><span class="checkmark"></span></label>';
+  str += "</div></span>";
+
+  return str;
+}
+
+function filter(id) {
+  var old = $("#filter").html();
+  switch (id) {
+    case 1: $("#filter").html("?fabric=rdma"); break;
+    case 2: $("#filter").html("?fabric=tcp"); break;
+    case 3: $("#filter").html("?fabric=fc"); break;
+    case 4: $("#filter").html("?mode=OutOfBandMgmt"); break;
+    case 5: $("#filter").html("?mode=InBandMgmt"); break;
+    case 6: $("#filter").html("?mode=LocalMgmt"); break;
+    default: $("#filter").html(""); break;
+  }
+  if (id == 0) {
+    $("#unfilteredmenu").show();
+    $("#filteredmenu").hide();
+  } else {
+    $("#filteredmenu").show();
+    $("#unfilteredmenu").hide();
+  }
+  if (old != $("#filter").html())
+    loadDoc($("#objectType").html());
+}
 function loadEdit(obj, sub, val) {
   var typ = $("#objectType").html();
   var item = $("#objectValue").html();
@@ -945,7 +1019,10 @@ function parseObject(obj, itemA) {
     if (itemA == "Targets" || itemA == "Hosts" || itemA == "Groups" ) {
       if (typ == "group" && tmp != "group")
         str += "'" + tmp + "'";
-      str += ')"></h1>';
+      str += ')">';
+      if (itemA == "Targets")
+        str += buildFilterMenu();
+      str += '</h1>';
       if (listB.length > 22)
         str += '<div class="three-columns">';
       else if (listB.length > 11)
@@ -1119,6 +1196,7 @@ function loadDoc(page) {
   var url = "http://";
   var typ = $("#objectType").html();
   var obj = $("#objectValue").html();
+  var filter = $("#filter").html();
 
   xhttp.onreadystatechange = function() {
     var cur_page;
@@ -1170,7 +1248,7 @@ function loadDoc(page) {
       page = url + page;
   else {
     if (obj == "")
-      page = url + typ;
+      page = url + typ + filter;
     else
       page = url + typ + "/" + page;
   }

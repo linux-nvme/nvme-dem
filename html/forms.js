@@ -13,7 +13,7 @@ $("form").submit(function(event) {
 
 /* When the user clicks on the button,
 toggle between hiding and showing the dropdown content */
-function myFunction(id) {
+function showDropdown(id) {
   var dropdowns = document.getElementsByClassName("dropdown-content");
   var i;
   for (i = 0; i < dropdowns.length; i++) {

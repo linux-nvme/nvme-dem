@@ -1,83 +1,83 @@
 body {
-    margin: 0;
-    font-family: 'Lato', 'Arial', sans-serif;
+  margin: 0;
+  font-family: 'Lato', 'Arial', sans-serif;
 }
 
 .container {
-    overflow: hidden;
+  overflow: hidden;
 }
 
 .container a {
-    float: right;
-    font-size: 18px;
-    color: white;
-    text-align: center;
-    padding: 0;
-    text-decoration: none;
+  float: right;
+  font-size: 18px;
+  color: white;
+  text-align: center;
+  padding: 0;
+  text-decoration: none;
 }
 
 .dropbtn {
-    overflow: hidden;
-    font-size: 14px;
-    font-weight: bold;
-    background-color: #0071c5;
-    border-color:#444;
-    color: white;
-    padding: 0;
-    border-width: 1px;
-    min-width:74px;
-    min-height:26px;
-    cursor: pointer;
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: bold;
+  background-color: #0071c5;
+  border-color:#444;
+  color: white;
+  padding: 0;
+  border-width: 1px;
+  min-width:74px;
+  min-height:26px;
+  cursor: pointer;
 }
 
 .dropbtn:hover, .dropbtn:focus {
-    background-color: #66b5ff;
-    color: #004280;
+  background-color: #66b5ff;
+  color: #004280;
 }
 
 #apply {
-    background-color: red;
+  background-color: red;
 }
 
 .dropdown-menu {
-    position: relative;
-    float: right;
-    display: inline-block;
+  position: relative;
+  float: right;
+  display: inline-block;
 }
 
 .static-menu {
-    position: relative;
-    float: left;
-    width: 100%;
-    display: inline-block;
-    background-color: #0071c5;
-    height: 26px;
+  position: relative;
+  float: left;
+  width: 100%;
+  display: inline-block;
+  background-color: #0071c5;
+  height: 26px;
 }
 
 .dropdown-content {
-    display: none;
-    position: absolute;
-    font-size: 16px;
-    font-weight: bold;
-    background-color: #66b5ff;
-    min-width: 80px;
-    overflow: auto;
-    box-shadow: 0 8px 16px 0 #004280;
-    z-index: 1;
+  display: none;
+  position: absolute;
+  font-size: 16px;
+  font-weight: bold;
+  background-color: #66b5ff;
+  min-width: 80px;
+  overflow: auto;
+  box-shadow: 0 8px 16px 0 #004280;
+  z-index: 1;
 }
 
 .dropdown-content a {
-    color: #004280;
-    padding: 5px 14px;
-    font-size: 14px;
-    cursor: pointer;
-    text-decoration: none;
-    display: block;
+  color: #004280;
+  padding: 5px 14px;
+  font-size: 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: block;
 }
 
 .dropdown-menu a:hover {
-    background-color: #004280;
-    color:white;
+  background-color: #004280;
+  color:white;
 }
 
 .show {
@@ -85,259 +85,259 @@ body {
 }
 
 h1 {
-    font-size: 1.2em;
-    padding-left: .5em;
+  font-size: 1.2em;
+  padding-left: .5em;
 }
 
 h2 {
-    background-color: #0071c5;
-    color: white;
-    min-height: 38px;
-    padding: 14px 0 0 14px;
-    margin-top: 20px;
+  background-color: #0071c5;
+  color: white;
+  min-height: 38px;
+  padding: 14px 0 0 14px;
+  margin-top: 20px;
 }
 
 h3 {
-    font-size: 1.2em;
-    margin: 0 0 .7em 2em;
+  font-size: 1.2em;
+  margin: 0 0 .7em 2em;
 }
 
 h4 {
-    padding: 6px 32px;
-    font-size: 12px;
-    margin: 0;
-    background-color: #66b5ff;
-    color: #004280;
+  padding: 6px 32px;
+  font-size: 12px;
+  margin: 0;
+  background-color: #66b5ff;
+  color: #004280;
 }
 
 h5 {
-    margin: 0;
-    font-size: 1.1em;
-    position: relative;
-    left: 2em;
+  margin: 0;
+  font-size: 1.1em;
+  position: relative;
+  left: 2em;
 }
 
 .header {
-    font-weight: bold;
+  font-weight: bold;
 }
 
 #workspace {
-    display: none;
+  display: none;
 }
 
 .addrForm {
-    margin-bottom:-18px;
+  margin-bottom:-18px;
 }
 
 .data {
-    margin: .2em 0 0 2em;
+  margin: .2em 0 0 2em;
 }
 
 .innerform {
-    font-family: Arial;
-    border: solid;
-    margin-top: 0;
-    margin-bottom: 20px;
-    padding: 12px 20px 14px 24px;
-    width: 320px;
-    border-width: 4px;
-    border-color: #004280;
-    line-height: 45px;
+  font-family: Arial;
+  border: solid;
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding: 12px 20px 14px 24px;
+  width: 320px;
+  border-width: 4px;
+  border-color: #004280;
+  line-height: 45px;
 }
 
 .bg {
-    margin: -8px -7px -15px -7px;
-    padding: 1px 20px;
-    background-color: #004280;
-    min-width:800px;
+  margin: -8px -7px -15px -7px;
+  padding: 1px 20px;
+  background-color: #004280;
+  min-width:800px;
 }
 
 .footer {
-    font-family: Arial;
-    margin: 0;
-    padding: 0 9px 6px 0;
-    color: white;
-    font-size: 10px;
-    text-align: right;
+  font-family: Arial;
+  margin: 0;
+  padding: 0 9px 6px 0;
+  color: white;
+  font-size: 10px;
+  text-align: right;
 }
 
 .hilite1 {
-    color: orange;
-    font-weight: bold;
+  color: orange;
+  font-weight: bold;
 }
 
 .hilite2 {
-    color: yellow;
-    font-weight: bold;
+  color: yellow;
+  font-weight: bold;
 }
 
 .error {
-    color: red;
-    font-weight: bold;
+  color: red;
+  font-weight: bold;
 }
 
 #err {
-    color: red;
-    font-size: smaller;
-    font-weight: bold;
+  color: red;
+  font-size: smaller;
+  font-weight: bold;
 }
 
 .page {
-    margin-bottom: -14px;
+  margin-bottom: -14px;
 }
 
 .content {
-    margin: 0 0 20px 0;
-    padding: 30px 12px;
-    color: #004280;
-    background-color: #fafafa;
-    min-height: 445px;
+  margin: 0 0 20px 0;
+  padding: 30px 12px;
+  color: #004280;
+  background-color: #fafafa;
+  min-height: 445px;
 }
 
 .details h5 {
-    left: 0;
+  left: 0;
 }
 
 .details p {
-    margin: 15px 0;
+  margin: 15px 0;
 }
 
 .details {
-    position: relative;
-    left: 5em;
+  position: relative;
+  left: 5em;
 }
 
 .subtext {
-    position: relative;
-    font-size: .9em;
-    font-weight: normal;
+  position: relative;
+  font-size: .9em;
+  font-weight: normal;
 }
 
 .subdetails {
-    padding-left: 1.3em;
+  padding-left: 1.3em;
 }
 
 .icon {
-    height: 16px;
-    width: 16px;
-    cursor:pointer;
+  height: 16px;
+  width: 16px;
+  cursor:pointer;
 }
 
 .email {
-    font-size: 20px;
+  font-size: 20px;
 }
 
 .email img {
-    height:24px;
-    position: relative;
-    padding-right: 2px;
-    top: 4px;
+  height:24px;
+  position: relative;
+  padding-right: 2px;
+  top: 4px;
 }
 
 .one-column {
-    position: relative;
-    top: .7em; /* same as bottom in h3 */
-    left:-6px;
-    margin-bottom: 2em;
+  position: relative;
+  top: .7em; /* same as bottom in h3 */
+  left:-6px;
+  margin-bottom: 2em;
 }
 
 .two-columns {
-    column-count: 2;
-    -moz-column-count: 2;
-    -webkil-column-count: 2;
-    position: relative;
-    top: .7em; /* same as bottom in h3 */
-    left:-6px;
-    margin-bottom: 2em;
+  column-count: 2;
+  -moz-column-count: 2;
+  -webkil-column-count: 2;
+  position: relative;
+  top: .7em; /* same as bottom in h3 */
+  left:-6px;
+  margin-bottom: 2em;
 }
 
 .three-columns {
-    column-count: 3;
-    -moz-column-count: 3;
-    -webkil-column-count: 3;
-    position: relative;
-    top: .7em; /* same as bottom in h3 */
-    left:-6px;
-    margin-bottom: 2em;
+  column-count: 3;
+  -moz-column-count: 3;
+  -webkil-column-count: 3;
+  position: relative;
+  top: .7em; /* same as bottom in h3 */
+  left:-6px;
+  margin-bottom: 2em;
 }
 
 .overlay {
-    height: 100%;
-    width: 0;
-    position: fixed;
-    z-index: 1;
-    top: 0;
-    left: 0;
-    background-color: rgb(0,0,0);
-    background-color: rgba(60,60,60, 0.9);
-    overflow-x: hidden;
-    transition: 0.5s;
+  height: 100%;
+  width: 0;
+  position: fixed;
+  z-index: 1;
+  top: 0;
+  left: 0;
+  background-color: rgb(0,0,0);
+  background-color: rgba(60,60,60, 0.9);
+  overflow-x: hidden;
+  transition: 0.5s;
 }
 
 .overlay-content {
-    position: relative;
-    min-width:760px;
-    min-height: 422px;
-    top: 4em;
-    left: 3em;
-    width: 80%;
-    color: #ccc;
-    background-color: rgb(20,20,20);
-    background-color: rgba(40,40,40, 0.9);
-    font-size: 18px;
-    margin-top: 30px;
-    height:60%;
-    padding: 1em 2em;
+  position: relative;
+  min-width:760px;
+  min-height: 422px;
+  top: 4em;
+  left: 3em;
+  width: 80%;
+  color: #ccc;
+  background-color: rgb(20,20,20);
+  background-color: rgba(40,40,40, 0.9);
+  font-size: 18px;
+  margin-top: 30px;
+  height:60%;
+  padding: 1em 2em;
 }
 
 .units {
-    position: absolute;
-    left: 20em;
+  position: absolute;
+  left: 20em;
 }
 
 a.closebtn, a.savebtn {
-    transition: 0.3s;
+  transition: 0.3s;
 }
 
 a.closebtn:hover, a.closebtn:focus {
-    color: #f00;
+  color: #f00;
 }
 
 a.savebtn:hover, a.savebtn:focus {
-    color: #0f0;
+  color: #0f0;
 }
 
 .closebtn {
-    position: absolute;
-    top: 20px;
-    right: 35px;
-    padding: 8px;
-    text-decoration: none;
-    font-size: 38px;
-    color: #c00;
-    display: block;
+  position: absolute;
+  top: 20px;
+  right: 35px;
+  padding: 8px;
+  text-decoration: none;
+  font-size: 38px;
+  color: #c00;
+  display: block;
 }
 .savebtn {
-    position: absolute;
-    top: 20px;
-    right: 80px;
-    padding: 8px;
-    text-decoration: none;
-    font-size: 38px;
-    color: #0b0;
-    display: block;
+  position: absolute;
+  top: 20px;
+  right: 80px;
+  padding: 8px;
+  text-decoration: none;
+  font-size: 38px;
+  color: #0b0;
+  display: block;
 }
 
 @media screen and (max-height: 450px) {
   .overlay .closebtn {
-    font-size: 32px;
-    top: 15px;
-    right: 30px;
+  font-size: 32px;
+  top: 15px;
+  right: 30px;
   }
   .overlay .savebtn {
-    font-size: 32px;
-    top: 15px;
-    right: 70px;
+  font-size: 32px;
+  top: 15px;
+  right: 70px;
   }
 }
 
@@ -366,7 +366,7 @@ input[type=text], input[type=number], input[type=password] {
 .overlay select {
   position: absolute;
   left: 12em;
-  width: 14em;
+  width: 8em;
   font-size: 18px;
   padding: .1em 0 .1em .3em;
 }
@@ -378,4 +378,75 @@ input[type=text], input[type=number], input[type=password] {
   font-size: 18px;
   padding-left: .3em;
   margin-top: -1px;
+}
+
+.filter {
+  display: block;
+  position: relative;
+  padding-left: 25px;
+  margin-bottom: 12px;
+  cursor: pointer;
+  font-size: 12px;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+}
+
+#filteredmenu, #unfilteredmenu {
+  min-width: 16px;
+  min-height: 16px;
+  height: 16px;
+  margin-right: 1em;
+  margin-left: .7em;
+}
+
+#Filter.dropdown-content {
+  float: left;
+  width: 12.5em;
+  position: sticky;
+  padding: 8px 0px 3px 8px;
+  overflow: initial;
+}
+
+.filter input {
+  position: absolute;
+  opacity: 0;
+}
+/* Create a custom radio button */
+.checkmark {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 16px;
+  width: 16px;
+  background-color: #eee;
+  border-radius: 50%;
+}
+/* On mouse-over, add a grey background color */
+.filter:hover input ~ .checkmark {
+  background-color: #0071c5;
+}
+/* When the radio button is checked, add a blue background */
+.filter input:checked ~ .checkmark {
+  background-color: #004280;
+}
+/* Create the indicator (the dot/circle - hidden when not checked) */
+.checkmark:after {
+  content: "";
+  position: absolute;
+  display: none;
+}
+/* Show the indicator (dot/circle) when checked */
+.filter input:checked ~ .checkmark:after {
+  display: block;
+}
+/* Style the indicator (dot/circle) */
+.filter .checkmark:after {
+	top: 5px;
+	left: 5px;
+	width: 6px;
+	height: 6px;
+	border-radius: 50%;
+	background: #ccc;
 }
