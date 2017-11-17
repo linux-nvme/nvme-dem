@@ -50,17 +50,18 @@ int usage_target(char *alias, char *results)
 	return -EINVAL;
 }
 
+/*TODO: What is best method to identify valid ACLs - check Hosts against
+ *	the ACL or check the ACL against the Host list ??
+ */
 static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 {
 	json_t			*obj;
-	json_t			*iter;
 	struct host		*host;
 	int			 i, n;
 
 	n = json_array_size(acl);
 	for (i = 0; i < n; i++) {
-		iter = json_array_get(acl, i);
-		obj = json_object_get(iter, TAG_HOSTNQN);
+		obj = json_array_get(acl, i);
 		if (obj && strcmp(nqn, json_string_value(obj)) == 0) {
 			host = malloc(sizeof(*host));
 			if (!host)
@@ -125,7 +126,7 @@ static void check_subsystems(struct target *target, json_t *array,
 
 		acl = json_object_get(iter, TAG_HOSTS);
 
-		if (hosts)
+		if (!subsys->access && acl && hosts)
 			check_hosts(subsys, acl, hosts);
 	}
 }

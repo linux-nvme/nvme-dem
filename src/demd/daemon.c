@@ -114,7 +114,7 @@ static inline void refresh_log_pages(void)
 			continue;
 		}
 		list_for_each_entry(portid, &target->portid_list, node) {
-			ret = connect_target(&target->dq, portid->type,
+			ret = connect_target(&target->dq, portid->family,
 					     portid->address, portid->port);
 			if (ret) {
 				print_err("Could not connect to target %s",

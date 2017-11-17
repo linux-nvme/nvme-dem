@@ -17,20 +17,15 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-#include <rdma/fabric.h>
-#include <rdma/fi_errno.h>
-#include <rdma/fi_eq.h>
-#include <rdma/fi_rma.h>
-#include <rdma/fi_cm.h>
-
 #include "mongoose.h"
 #include "common.h"
+#include "ops.h"
 
-#define RETRY_COUNT  200
+#define RETRY_COUNT  100 // 10 sec since rdma does 100 ms timeout for msgs
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-#define DEBUG_COMMANDS
+// #define DEBUG_COMMANDS
 
 static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
@@ -69,16 +64,15 @@ static int handle_property_get(struct nvme_command *cmd,
 	return 0;
 }
 
-static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
-			  void *desc)
+static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 {
-	struct nvmf_connect_data *data = (void *) ep->data;
+	struct nvmf_connect_data *data = ep->data;
 	int			  ret;
 
-	ret = rma_read(ep->ep, ep->scq, data, length, desc, addr, key);
+	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
 		print_err("rma_read returned %d", ret);
-		return ret;
+		goto out;
 	}
 
 	print_info("host '%s' connected", data->hostnqn);
@@ -97,13 +91,14 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 		ret = -EINVAL;
 	}
 
+out:
 	return ret;
 }
 
 static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
-			   u64 length, u64 addr, u64 key, void *desc)
+			   u64 addr, u64 key, u64 len)
 {
-	struct nvme_id_ctrl	*id = (void *) ep->data;
+	struct nvme_id_ctrl	*id = ep->data;
 	int			 ret;
 
 	if (htole32(cmd->identify.cns) != NVME_ID_CNS_CTRL) {
@@ -123,12 +118,12 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	id->maxcmd = htole16(NVMF_DQ_DEPTH);
 	id->sgls = htole32(1 << 0) | htole32(1 << 2) | htole32(1 << 20);
 
-	strcpy(id->subnqn, NVME_DOMAIN_SUBSYS_NAME);
+	strcpy(id->subnqn, NVME_DISC_SUBSYS_NAME);
 
-	if (length > sizeof(*id))
-		length = sizeof(*id);
+	if (len > sizeof(*id))
+		len = sizeof(*id);
 
-	ret = rma_write(ep->ep, ep->scq, id, length, desc, addr, key);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret)
 		print_err("rma_write returned %d", ret);
 
@@ -149,10 +144,10 @@ static int host_access(struct subsystem *subsys, char *nqn)
 	return 0;
 }
 
-static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
-				     u64 key, void *desc)
+static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
+				     u64 len)
 {
-	struct nvmf_disc_rsp_page_hdr	*log = (void *) ep->data;
+	struct nvmf_disc_rsp_page_hdr	*log = ep->data;
 	struct target			*target;
 	struct subsystem		*subsys;
 	int				 numrec = 0;
@@ -173,27 +168,32 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 length, u64 addr,
 	print_debug("log_page count %d", numrec);
 #endif
 
-	ret = rma_write(ep->ep, ep->scq, log, length, desc, addr, key);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret)
 		print_err("rma_write returned %d", ret);
 
 	return ret;
 }
 
-static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
-				u64 key)
+static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
 	struct nvmf_disc_rsp_page_entry *plogpage;
+	struct xp_mr			*mr;
 	struct target			*target;
 	struct subsystem		*subsys;
-	struct fid_mr			*mr;
 	int				 numrec = 0;
 	int				 ret;
 
-	log = alloc_buffer(ep, len, &mr);
+	log = malloc(len);
 	if (!log)
 		return -ENOMEM;
+
+	ret = ep->ops->alloc_key(ep->ep, log, len, &mr);
+	if (ret) {
+		print_err("alloc_key returned %d", ret);
+		return ret;
+	}
 
 	plogpage = (void *) (&log[1]);
 
@@ -212,26 +212,30 @@ static int handle_get_log_pages(struct endpoint *ep, u64 len, u64 addr,
 	log->numrec = numrec;
 	log->genctr = 1;
 
-	ret = rma_write(ep->ep, ep->scq, log, len, fi_mr_desc(mr), addr, key);
+	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr);
 	if (ret)
 		print_err("rma_write returned %d", ret);
 
-	fi_close(&mr->fid);
+	ep->ops->dealloc_key(mr);
 	free(log);
 
 	return ret;
 }
 
-static void handle_request(struct endpoint *ep, struct qe *qe, int length)
+static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
+			   int length)
 {
-	struct nvme_command	*cmd = (struct nvme_command *) qe->buf;
-	struct nvme_completion	*resp = (void *) ep->cmd;
-	struct nvmf_connect_command *c = &cmd->connect;
-	u64			 len  = get_unaligned_le24(c->dptr.ksgl.length);
-	void			*desc = fi_mr_desc(ep->data_mr);
-	u64			 addr = c->dptr.ksgl.addr;
-	u64			 key  = get_unaligned_le32(c->dptr.ksgl.key);
-	int			 ret;
+	struct nvme_command		*cmd = (struct nvme_command *) buf;
+	struct nvme_completion		*resp = (void *) ep->cmd;
+	struct nvmf_connect_command	*c = &cmd->connect;
+	u64				 addr;
+	u32				 len;
+	u32				 key;
+	int				 ret;
+
+	addr = c->dptr.ksgl.addr;
+	len  = get_unaligned_le24(c->dptr.ksgl.length);
+	key  = get_unaligned_le32(c->dptr.ksgl.key);
 
 	memset(resp, 0, sizeof(*resp));
 
@@ -252,31 +256,31 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 			ret = handle_property_get(cmd, resp, ep->csts);
 			break;
 		case nvme_fabrics_type_connect:
-			ret = handle_connect(ep, len, addr, key, desc);
+			ret = handle_connect(ep, addr, key, len);
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
 		}
 	} else if (cmd->common.opcode == nvme_admin_identify)
-		ret = handle_identify(ep, cmd, len, addr, key, desc);
+		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
 		ret = 0;
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
-			ret = handle_get_log_page_count(ep, len, addr, key,
-							desc);
+			ret = handle_get_log_page_count(ep, addr, key, len);
 		else
-			ret = handle_get_log_pages(ep, len, addr, key);
+			ret = handle_get_log_pages(ep, addr, key, len);
 	} else {
-		print_err("unknown nvme opcode %d\n", cmd->common.opcode);
+		print_err("unknown nvme opcode %d", cmd->common.opcode);
 		ret = -EINVAL;
 	}
 
 	if (ret)
 		resp->status = NVME_SC_DNR;
 
-	send_msg_and_repost(ep, qe, resp, sizeof(*resp));
+	ep->ops->send_msg(ep->ep, resp, sizeof(*resp), ep->mr);
+	ep->ops->repost_recv(ep->ep, qe->qe);
 }
 
 #define HOST_QUEUE_MAX 3 /* min of 3 otherwise cannot tell if full */
@@ -337,12 +341,13 @@ static void *host_thread(void *arg)
 {
 	struct host_queue	*q = arg;
 	struct endpoint		*ep = NULL;
-	struct fi_cq_err_entry	 comp;
-	struct fi_eq_cm_entry	 entry;
-	uint32_t		 event = 0;
-	int			 retry_count = RETRY_COUNT;
+	struct qe		 qe;
+	int			 retry_count;
 	int			 ret;
+	void			*buf;
+	int			 len;
 wait:
+	retry_count = RETRY_COUNT;
 	do {
 		usleep(100);
 		ret = take_one(q, &ep);
@@ -350,26 +355,23 @@ wait:
 
 	/* Service Host requests */
 	while (!stopped) {
-		ret = fi_eq_read(ep->eq, &event, &entry, sizeof(entry), 0);
-		if (ret == sizeof(entry))
-			if (event == FI_SHUTDOWN)
-				goto out;
-
-		ret = fi_cq_sread(ep->rcq, &comp, 1, NULL, IDLE_TIMEOUT);
-		if (ret > 0)
-			handle_request(ep, comp.op_context, comp.len);
+		ret = ep->ops->wait_for_msg(ep->ep, &qe.qe, &buf, &len);
+		if (!ret)
+			handle_request(ep, &qe, buf, len);
 		else if (ret == -EAGAIN) {
 			retry_count--;
 			if (retry_count <= 0)
 				goto out;
-		} else if (ret != -EINTR) {
-			print_cq_error(ep->rcq, ret);
+		} else if (ret == -ECONNRESET)
+			break;
+		else if (ret != -EINTR && ret != -ESHUTDOWN) {
+			print_err("wait_for_msg failed: %d", ret);
 			break;
 		}
 	}
 out:
 	if (ep) {
-		disconnect_target(ep, event != FI_SHUTDOWN);
+		disconnect_target(ep, !stopped);
 		free(ep);
 		ep = NULL;
 	}
@@ -388,7 +390,7 @@ out:
 	return NULL;
 }
 
-static int add_host_to_queue(struct fi_info *prov, struct host_queue *q)
+static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 {
 	struct endpoint		*ep;
 	int			 ret;
@@ -401,13 +403,12 @@ static int add_host_to_queue(struct fi_info *prov, struct host_queue *q)
 
 	memset(ep, 0, sizeof(*ep));
 
-	ep->prov = prov;
+	ep->ops = ops;
 
-	ret = run_pseudo_target(ep);
+	ret = run_pseudo_target(ep, id);
 	if (ret) {
-		print_err("unable to accept host connect");
 		print_err("run_pseudo_target returned %d", ret);
-		goto err1;
+		goto out;
 	}
 
 	while (is_full(q) && !stopped)
@@ -418,7 +419,7 @@ static int add_host_to_queue(struct fi_info *prov, struct host_queue *q)
 	usleep(100);
 
 	return 0;
-err1:
+out:
 	free(ep);
 	return ret;
 }
@@ -435,19 +436,20 @@ int check_modified(struct target *target)
 void *interface_thread(void *arg)
 {
 	struct interface	*iface = arg;
-	struct listener		*listener = &iface->listener;
-	struct fi_info		*info;
+	struct xp_pep		*listener;
+	void			*id;
 	struct host_queue	 q;
 	pthread_attr_t		 pthread_attr;
 	pthread_t		 pthread;
 	int			 ret;
 
-	ret = start_pseudo_target(listener, iface->type, iface->address,
-				  iface->pseudo_target_port);
+	ret = start_pseudo_target(iface);
 	if (ret) {
 		print_err("Failed to start pseudo target");
 		goto out1;
 	}
+
+	listener = iface->listener;
 
 	signal(SIGTERM, SIG_IGN);
 
@@ -462,17 +464,21 @@ void *interface_thread(void *arg)
 	}
 
 	while (!stopped) {
-		ret = wait_for_connection(listener, &info);
+		ret = iface->ops->wait_for_connection(listener, &id);
 		if (ret == 0)
-			ret = add_host_to_queue(info, &q);
-		else if (ret != -EAGAIN && ret != -EINTR)
-			print_err("Host connection failed %d\n", ret);
+			add_host_to_queue(id, iface->ops, &q);
+		else if (ret == -ESHUTDOWN || ret != -EAGAIN)
+			continue;
+		else if (ret == -ECONNRESET)
+			continue;
+		else
+			print_err("Host connection failed %d", ret);
 	}
 
 	pthread_join(pthread, NULL);
 
 out2:
-	cleanup_listener(listener);
+	iface->ops->destroy_listener(listener);
 out1:
 	num_interfaces--;
 

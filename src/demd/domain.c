@@ -18,6 +18,7 @@
 
 #include "common.h"
 #include "tags.h"
+#include "ops.h"
 
 static inline u8 to_trtype(char *str)
 {
@@ -150,12 +151,18 @@ void init_targets(int dem_restart)
 		portid = list_first_entry(&target->portid_list,
 					  struct port_id, node);
 
-		ret = connect_target(&target->dq, portid->type,
+		target->log_page_failed = 1;
+
+		if (strcmp(portid->type, "rdma") == 0)
+			target->dq.ops = rdma_register_ops();
+		else
+			continue;
+
+		ret = connect_target(&target->dq, portid->family,
 				     portid->address, portid->port);
 		if (ret) {
 			print_err("Could not connect to target %s",
 				  target->alias);
-			target->log_page_failed = 1;
 			continue;
 		}
 
@@ -191,6 +198,7 @@ void init_targets(int dem_restart)
 		fetch_log_pages(target);
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
+		target->log_page_failed = 0;
 
 		if (target->mgmt_mode != IN_BAND_MGMT) {
 			disconnect_target(&target->dq, 0);

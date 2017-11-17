@@ -47,6 +47,11 @@
 			fflush(stdout); \
 		} \
 	} while (0)
+#define print_trace()\
+	do { \
+		printf("%s(%d)\n", __func__, __LINE__); \
+		fflush(stdout); \
+	} while (0)
 #define print_info(f, x...)\
 	do { \
 		printf(f "\n", ##x); \
@@ -148,22 +153,14 @@ static inline u32 get_unaligned_le32(const u8 *p)
 
 enum {RESTRICTED = 0, ALOW_ALL = 1};
 
-struct listener {
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_pep		*pep;
-	struct fid_eq		*peq;
-};
-
 struct interface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	int			 addr[ADDR_LEN];
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
-	struct listener		 listener;
+	struct xp_pep		*listener;
+	struct xp_ops		*ops;
 };
 
 struct host {
@@ -174,35 +171,30 @@ struct host {
 };
 
 struct subsystem {
-	struct list_head		 node;
-	struct list_head		 host_list;
-	struct target			*target;
-	char				 nqn[MAX_NQN_SIZE + 1];
-	struct nvmf_disc_rsp_page_entry	 log_page;
-	int				 access;
-	int				 log_page_valid;
+	struct list_head	 node;
+	struct list_head	 host_list;
+	struct target		*target;
+	char			 nqn[MAX_NQN_SIZE + 1];
+	int			 access;
+	int			 log_page_valid;
+	struct nvmf_disc_rsp_page_entry
+				 log_page;
 };
 
 struct qe {
-	struct fid_mr		*recv_mr;
+	struct xp_qe		*qe;
 	u8			*buf;
 };
 
 struct endpoint {
 	char			 nqn[MAX_NQN_SIZE + 1];
-	struct fi_info		*prov;
-	struct fi_info		*info;
-	struct fid_fabric	*fab;
-	struct fid_domain	*dom;
-	struct fid_ep		*ep;
-	struct fid_eq		*eq;
-	struct fid_cq		*rcq;
-	struct fid_cq		*scq;
-	struct fid_mr		*send_mr;
-	struct fid_mr		*data_mr;
+	struct xp_ep		*ep;
+	struct xp_mr		*mr;
+	struct xp_mr		*data_mr;
+	struct xp_ops		*ops;
 	struct nvme_command	*cmd;
-	void			*data;
 	struct qe		*qe;
+	void			*data;
 	int			 depth;
 	int			 state;
 	int			 csts;
@@ -267,23 +259,11 @@ void init_targets(int dem_restart);
 void cleanup_targets(int dem_restart);
 int check_modified(struct target *target);
 void get_host_nqn(void *context, void *haddr, char *nqn);
-int start_pseudo_target(struct listener *pep, char *addr_family, char *addr,
-			char *port);
-int run_pseudo_target(struct endpoint *ep);
-int wait_for_connection(struct listener *pep, struct fi_info **info);
-int connect_target(struct endpoint *ep, char *addr_family, char *addr,
-		   char *port);
+int start_pseudo_target(struct interface *iface);
+int run_pseudo_target(struct endpoint *ep, void *id);
+int connect_target(struct endpoint *ep, char *family, char *addr, char *port);
 void disconnect_target(struct endpoint *ep, int shutdown);
-void cleanup_listener(struct listener *pep);
-void print_eq_error(struct fid_eq *eq, int n);
-int init_fabric(struct endpoint *ep);
-int init_endpoint(struct endpoint *ep, char *provider, char *node, char *srvc);
-int init_listener(struct listener *pep, char *provider, char *node, char *srvc);
-int server_listen(struct listener *pep);
-int accept_connection(struct endpoint *ep);
-int create_endpoint(struct endpoint *ep, struct fi_info *info);
 int client_connect(struct endpoint *ep, void *data, int bytes);
-void cleanup_endpoint(struct endpoint *ep, int shutdown);
 
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
@@ -296,15 +276,8 @@ int send_set_subsys_config(struct endpoint *ep, int len,
 int send_get_subsys_usage(struct endpoint *ep, int len,
 			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
 void fetch_log_pages(struct target *target);
-int rma_read(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
-	     void *desc, u64 addr, u64 key);
-int rma_write(struct fid_ep *ep, struct fid_cq *scq, void *buf, int len,
-	      void *desc, u64 addr, u64 key);
-void *alloc_buffer(struct endpoint *ep, int size, struct fid_mr **mr);
-int send_msg_and_repost(struct endpoint *ep, struct qe *qe, void *m, int len);
 int refresh_target(char *alias);
 int usage_target(char *alias, char *results);
-void print_cq_error(struct fid_cq *cq, int n);
 void dump(u8 *buf, int len);
 
 #endif
