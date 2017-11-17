@@ -281,99 +281,35 @@ static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
 	}
 }
 
-void get_host_nqn(void *context, void *haddr, char *nqn)
-{
-	struct json_context	*ctx = context;
-	json_t			*groups;
-	json_t			*group;
-	json_t			*hosts;
-	json_t			*iter;
-	json_t			*obj;
-	json_t			*address;
-	json_t			*ifaces;
-	json_t			*tmp;
-	char			 str[INET_ADDRSTRLEN];
-	int			 i, j, k, n, m, cnt;
-
-	get_address_str(haddr, str, INET_ADDRSTRLEN);
-
-	groups = json_object_get(ctx->root, TAG_GROUPS);
-	if (!groups)
-		return;
-
-	cnt = json_array_size(groups);
-	for (j = 0; j < cnt; j++) {
-		group = json_array_get(groups, j);
-
-		hosts = json_object_get(group, TAG_HOSTS);
-		if (!hosts)
-			continue;
-
-		n = json_array_size(hosts);
-		for (i = 0; i < n; i++) {
-			iter = json_array_get(hosts, i);
-			ifaces = json_object_get(iter, TAG_INTERFACES);
-			if (!ifaces)
-				continue;
-			m = json_array_size(ifaces);
-
-			for (k = 0; k < m; k++) {
-				tmp = json_array_get(ifaces, k);
-				address = json_object_get(tmp, TAG_ADDRESS);
-				if (!address)
-					continue;
-
-				if (!strcmp(str, json_string_value(address))) {
-					obj = json_object_get(iter,
-							      TAG_HOSTNQN);
-					strcpy(nqn, json_string_value(obj));
-					return;
-				}
-			}
-		}
-	}
-}
-
 void build_target_list(void *context)
 {
 	struct json_context	*ctx = context;
 	struct target		*target;
-	json_t			*groups;
-	json_t			*group;
 	json_t			*array;
 	json_t			*hosts;
 	json_t			*ports;
 	json_t			*iter;
 	json_t			*obj;
-	int			 i, j, k, n, cnt;
+	int			 i, j, num_targets, num_ports;
 
-	groups = json_object_get(ctx->root, TAG_GROUPS);
-	if (!groups)
+	array = json_object_get(ctx->root, TAG_TARGETS);
+	if (!array)
+		return;
+	num_targets = json_array_size(array);
+	if (!num_targets)
 		return;
 
-	cnt = json_array_size(groups);
-	for (j = 0; j < cnt; j++) {
-		group = json_array_get(groups, i);
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
+	for (i = 0; i < num_targets; i++) {
+		iter = json_array_get(array, i);
+		target = add_to_target_list(iter, hosts);
 
-		array = json_object_get(group, TAG_TARGETS);
-		if (!array)
-			continue;
-		n = json_array_size(array);
-		if (!n)
-			continue;
-
-		hosts = json_object_get(group, TAG_HOSTS);
-		for (i = 0; i < n; i++) {
-			iter = json_array_get(array, i);
-			target = add_to_target_list(iter, hosts);
-
-			ports = json_object_get(iter, TAG_PORTIDS);
-			if (ports) {
-				n = json_array_size(ports);
-				for (k = 0; k < n; k++) {
-					obj = json_array_get(ports, k);
-					add_port_to_target(target, obj);
-				}
+		ports = json_object_get(iter, TAG_PORTIDS);
+		if (ports) {
+			num_ports = json_array_size(ports);
+			for (j = 0; j < num_ports; j++) {
+				obj = json_array_get(ports, j);
+				add_port_to_target(target, obj);
 			}
 		}
 	}

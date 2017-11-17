@@ -81,33 +81,60 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 static inline void refresh_log_pages(void)
 {
 	struct target		*target;
+	struct port_id		*portid;
 	int			 ret;
 
 	list_for_each_entry(target, target_list, node) {
-		if (!target->dq_connected)
-			continue;
-
-		if (target->kato_countdown == 0) {
-			ret = send_keep_alive(&target->dq);
-			if (ret) {
-				print_err("keep alive failed. disconnected %s",
-					  target->alias);
-				disconnect_target(&target->dq, 0);
-				target->dq_connected = 0;
-				continue;
-			}
-			target->kato_countdown = MINUTES / IDLE_TIMEOUT;
-		} else
-			target->kato_countdown--;
-
-		if (!target->refresh)
+		if (target->log_page_failed) // TODO Reset at some point
 			continue;
 
 		target->refresh_countdown--;
-		if (!target->refresh_countdown) {
-			fetch_log_pages(target);
+		if (target->refresh_countdown)
+			continue;
+
+		if (target->mgmt_mode == IN_BAND_MGMT) {
+			if (!target->dq_connected)
+				continue;
+
+			if (target->kato_countdown == 0) {
+				ret = send_keep_alive(&target->dq);
+				if (ret) {
+					print_err("keep alive failed %s",
+						  target->alias);
+					disconnect_target(&target->dq, 0);
+					target->dq_connected = 0;
+					target->log_page_failed = 1;
+					continue;
+				}
+				target->kato_countdown = MINUTES / IDLE_TIMEOUT;
+			} else
+				target->kato_countdown--;
+
+			fetch_log_pages(target); // TODO fetch dev/xport pages
+			continue;
+		}
+		list_for_each_entry(portid, &target->portid_list, node) {
+			ret = connect_target(&target->dq, portid->type,
+					     portid->address, portid->port);
+			if (ret) {
+				print_err("Could not connect to target %s",
+					  target->alias);
+				target->log_page_failed = 1;
+				continue;
+			}
+
+
+			if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+				// TODO get request for dev/xport data
+				fetch_log_pages(target);
+			else
+				fetch_log_pages(target);
+
 			target->refresh_countdown =
 				target->refresh * MINUTES / IDLE_TIMEOUT;
+
+			disconnect_target(&target->dq, 0);
+			target->dq_connected = 0;
 		}
 	}
 }

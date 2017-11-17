@@ -30,7 +30,7 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-// #define DEBUG_COMMANDS
+#define DEBUG_COMMANDS
 
 static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
@@ -96,25 +96,6 @@ static int handle_connect(struct endpoint *ep, u64 length, u64 addr, u64 key,
 			  data->cntlid, 0xffff);
 		ret = -EINVAL;
 	}
-
-	return ret;
-}
-static int handle_get_domain_nqn(struct endpoint *ep, u64 length, u64 addr,
-				 u64 key, void *desc)
-{
-	char			*hostnqn = (void *) ep->data;
-	int			 ret;
-
-	if (length > MAX_NQN_SIZE)
-		length = MAX_NQN_SIZE;
-
-	memset(hostnqn, 0, length);
-
-	get_host_nqn(json_ctx, ep->prov->src_addr, hostnqn);
-
-	ret = rma_write(ep->ep, ep->scq, hostnqn, length, desc, addr, key);
-	if (ret)
-		print_err("rma_write returned %d", ret);
 
 	return ret;
 }
@@ -272,9 +253,6 @@ static void handle_request(struct endpoint *ep, struct qe *qe, int length)
 			break;
 		case nvme_fabrics_type_connect:
 			ret = handle_connect(ep, len, addr, key, desc);
-			break;
-		case nvme_fabrics_type_get_domain_nqn:
-			ret = handle_get_domain_nqn(ep, len, addr, key, desc);
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);

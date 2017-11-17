@@ -155,34 +155,47 @@ void init_targets(int dem_restart)
 		if (ret) {
 			print_err("Could not connect to target %s",
 				  target->alias);
+			target->log_page_failed = 1;
 			continue;
 		}
 
 		target->dq_connected = 1;
 
-		len = build_port_config_data(target, &port_hdr);
-		if (!len)
-			print_err("Cannot init port config data for target %s",
-				  target->alias);
+		if (target->mgmt_mode == IN_BAND_MGMT) {
+			// TODO build/send device/transport cmd
+			len = build_port_config_data(target, &port_hdr);
+			if (!len)
+				print_err("build port config failed for %s",
+					  target->alias);
 
-		ret = send_set_port_config(&target->dq, len, port_hdr);
-		if (ret)
-			print_err("Cannot set port config for target %s",
-				  target->alias);
+			ret = send_set_port_config(&target->dq, len, port_hdr);
+			if (ret)
+				print_err("send port config failed for %s",
+					  target->alias);
 
-		len = build_subsys_config_data(target, &subsys_hdr);
-		if (!len)
-			print_err("Cannot init port config data for target %s",
-				  target->alias);
+			len = build_subsys_config_data(target, &subsys_hdr);
+			if (!len)
+				print_err("build subsys config failed for %s",
+					  target->alias);
 
-		ret = send_set_subsys_config(&target->dq, len, subsys_hdr);
-		if (ret)
-			print_err("Cannot set subsys config for target %s",
-				  target->alias);
+			ret = send_set_subsys_config(&target->dq, len,
+						     subsys_hdr);
+			if (ret)
+				print_err("send subsys config failed for %s",
+					  target->alias);
+		} else if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
+			// TODO get request to demt for dev/xport data
+			// TODO put request to demt to configure
+		}
 
 		fetch_log_pages(target);
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
+
+		if (target->mgmt_mode != IN_BAND_MGMT) {
+			disconnect_target(&target->dq, 0);
+			target->dq_connected = 0;
+		}
 	}
 }
 

@@ -306,7 +306,7 @@ int send_get_property(struct endpoint *ep, u32 reg)
 	sg = &cmd->common.dptr.ksgl;
 
 	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
+	// CAYTON HACK put_unaligned_le24(4, sg->length);
 	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
@@ -332,7 +332,7 @@ static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
 	sg = &cmd->common.dptr.ksgl;
 
 	sg->addr = (u64) data;
-	put_unaligned_le24(BUF_SIZE, sg->length);
+	// CAYTON HACK put_unaligned_le24(BUF_SIZE, sg->length);
 	put_unaligned_le32(fi_mr_key(ep->send_mr), sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 }

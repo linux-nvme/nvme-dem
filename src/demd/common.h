@@ -54,8 +54,7 @@
 	} while (0)
 #define print_err(f, x...)\
 	do { \
-		fprintf(stderr, "%s(%d) Error: " f "\n", \
-			__func__, __LINE__, ##x); \
+		fprintf(stderr, "Error: " f "\n", ##x); \
 		fflush(stderr); \
 	} while (0)
 
@@ -234,11 +233,15 @@ struct target {
 	struct endpoint		 dq;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 dq_connected;
+	int			 mgmt_mode;
 	int			 refresh;
+	int			 log_page_failed;
 	int			 refresh_countdown;
 	int			 kato_countdown;
 	int			 num_subsystems;
 };
+
+enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
 
 struct mg_connection;
 

@@ -153,7 +153,7 @@ static int filter_fabric(json_t *array, char *query, char *resp)
 			obj = json_object_get(iter, TAG_ALIAS);
 			if (!obj || !json_is_string(obj))
 				continue;
-		
+
 			array_json_string(obj, p, n, tmp);
 			n++;
 		}
@@ -408,7 +408,7 @@ static int _list_target(void *context, char *query, char *resp)
 	if (targets) {
 		if (query == NULL)
 			n = list_array(targets, TAG_ALIAS, p);
-		else if (strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0) 
+		else if (strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0)
 			n = filter_mode(targets, query, p);
 		else if (strncmp(query, URI_PARM_FABRIC, PARM_FABRIC_LEN) == 0)
 			n = filter_fabric(targets, query, p);

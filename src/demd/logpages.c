@@ -223,8 +223,8 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 				break;
 			}
 		if (!found)
-			print_err("subsystem for log page (%s) not found",
-				  e->subnqn);
+			print_err("unknown subsystem %s on target %s",
+				  e->subnqn, target->alias);
 	}
 }
 
