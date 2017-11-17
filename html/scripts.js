@@ -1299,13 +1299,25 @@ function email(name) {
 }
 
 function openDialog(str, verb, uri) {
-    $("#editVerb").html(verb);
-    $("#editUri").html(uri);
+  $("#editVerb").html(verb);
+  $("#editUri").html(uri);
 
-    str += "<p id='err'></p>";
+  str += "<p id='err'></p>";
 
-    document.getElementById("editPage").style.width = "100%";
-    window.setTimeout(function() { $("#editForm").html(str); }, 400);
+  document.getElementById("editPage").style.width = "100%";
+  window.setTimeout(function() {
+    $("#editForm").html(str);
+    if ($("#alias").length) 
+      $("#alias").focus().select();
+    else if ($("#nsid").length)
+      $("#nsid").focus().select();
+    else if ($("#portid").length)
+      $("#portid").focus().select();
+    else if ($("#subnqn").length)
+      $("#subnqn").focus().select();
+    else if ($("#group").length)
+      $("#group").focus().select();
+    }, 400);
 }
 
 function validateForm() {
