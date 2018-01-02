@@ -70,10 +70,6 @@
 #define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-#endif
-
 #define JSARRAY		"\"%s\":["
 #define JSEMPTYARRAY	"\"%s\":[]"
 #define JSSTR		"\"%s\":\"%s\""

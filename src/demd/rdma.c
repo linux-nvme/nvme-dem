@@ -732,7 +732,7 @@ static int rdma_wait_for_msg(struct xp_ep *_ep, struct xp_qe **_qe, void **msg,
 		if (stopped)
 			return -ESHUTDOWN;
 		if (!ret)
-		        if (msec_delta(t0) > MSG_TIMEOUT)
+			if (msec_delta(t0) > MSG_TIMEOUT)
 				return -EAGAIN;
 	} while (!ret);
 
