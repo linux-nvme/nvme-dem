@@ -29,8 +29,10 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
+/* NOTE: Using linux kernel include here */
 #include "linux/list.h"
-#include "linux/nvme.h"	/* NOTE: Using linux kernel include here */
+#include "linux/nvme.h"
+#include "linux/kernel.h"
 
 #include "ofi.h"
 

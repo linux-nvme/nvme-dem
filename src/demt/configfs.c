@@ -56,10 +56,6 @@
 
 #define MAXPATHLEN		512
 
-#define for_each_dir(entry, subdir)			\
-	while ((entry = readdir(subdir)) != NULL)	\
-		if (strcmp(entry->d_name, ".") &&	\
-		    strcmp(entry->d_name, ".."))
 #define write_chr(fn, ch)				\
 	do {						\
 		fd = fopen(fn, "w");			\

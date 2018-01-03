@@ -18,10 +18,6 @@
 #include <linux/types.h>
 #include <linux/uuid.h>
 
-#ifndef ARRAY_SIZE
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
-#endif
-
 /* NQN names in commands fields specified one size */
 #define NVMF_NQN_FIELD_LEN	256
 

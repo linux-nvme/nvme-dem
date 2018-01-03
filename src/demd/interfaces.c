@@ -324,19 +324,13 @@ static int count_dem_config_files(void)
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	if (dir != NULL) {
-		while ((entry = readdir(dir))) {
-			if (!strcmp(entry->d_name, "."))
-				continue;
-			if (!strcmp(entry->d_name, ".."))
-				continue;
+		for_each_dir(entry, dir)
 			filecount++;
-		}
+		closedir(dir);
 	} else {
 		print_err("%s does not exist", PATH_NVMF_DEM_DISC);
 		filecount = -ENOENT;
 	}
-
-	closedir(dir);
 
 	return filecount;
 }
@@ -396,13 +390,7 @@ static int read_dem_config_files(struct interface *iface)
 	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
-	while ((entry = readdir(dir))) {
-		if (!strcmp(entry->d_name, "."))
-			continue;
-
-		if (!strcmp(entry->d_name, ".."))
-			continue;
-
+	for_each_dir(entry, dir) {
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
