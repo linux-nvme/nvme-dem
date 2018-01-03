@@ -4,8 +4,7 @@
  *
  * This program is free software; you can redistribute it and/or modify it
  * under the terms and conditions of the GNU General Public License,
- * version 2, as published by the Free Software Foundation.
- *
+ * version 2, as published by the Free Software Foundation.  *
  * This program is distributed in the hope it will be useful, but WITHOUT
  * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
  * FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
@@ -21,11 +20,19 @@
 #include "common.h"
 #include "ops.h"
 
-#define RETRY_COUNT  100 // 10 sec since rdma does 100 ms timeout for msgs
+#define RETRY_COUNT	100  // 20 sec since the delay timeout is 200 ms
+#define DELAY_TIMEOUT	200 // ms
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 // #define DEBUG_COMMANDS
+
+struct host_conn {
+	struct list_head	 node;
+	struct endpoint		*ep;
+	struct timeval		 t0;
+	int			 retry;
+};
 
 static int handle_property_set(struct nvme_command *cmd, int *csts)
 {
@@ -307,7 +314,7 @@ static inline void dump_queue(struct host_queue *q)
 }
 #endif
 
-static inline int add_one(struct host_queue *q, struct endpoint *ep)
+static inline int add_new_host_conn(struct host_queue *q, struct endpoint *ep)
 {
 	if (is_full(q))
 		return -1;
@@ -320,7 +327,7 @@ static inline int add_one(struct host_queue *q, struct endpoint *ep)
 	return 0;
 }
 
-static inline int take_one(struct host_queue *q, struct endpoint **ep)
+static inline int get_new_host_conn(struct host_queue *q, struct endpoint **ep)
 {
 	if (is_empty(q))
 		return -1;
@@ -342,45 +349,76 @@ static void *host_thread(void *arg)
 	struct host_queue	*q = arg;
 	struct endpoint		*ep = NULL;
 	struct qe		 qe;
-	int			 retry_count;
-	int			 ret;
+	struct timeval		 t0;
+	struct list_head	 host_list;
+	struct host_conn	*next;
+	struct host_conn	*host;
 	void			*buf;
 	int			 len;
-wait:
-	retry_count = RETRY_COUNT;
-	do {
-		usleep(100);
-		ret = take_one(q, &ep);
-	} while (!!ret && !stopped);
+	int			 delta;
+	int			 ret;
 
-	/* Service Host requests */
+	INIT_LIST_HEAD(&host_list);
+
 	while (!stopped) {
-		ret = ep->ops->wait_for_msg(ep->ep, &qe.qe, &buf, &len);
-		if (!ret)
-			handle_request(ep, &qe, buf, len);
-		else if (ret == -EAGAIN) {
-			retry_count--;
-			if (retry_count <= 0)
-				goto out;
-		} else if (ret == -ECONNRESET)
-			break;
-		else if (ret != -EINTR && ret != -ESHUTDOWN) {
-			print_err("wait_for_msg failed: %d", ret);
-			break;
+		gettimeofday(&t0, 0);
+
+		do {
+			ret = get_new_host_conn(q, &ep);
+
+			if (!ret) {
+				host = malloc(sizeof(*host));
+				if (!host)
+					goto out;
+
+				host->ep	= ep;
+				host->retry	= RETRY_COUNT;
+				host->t0	= t0;
+
+				list_add_tail(&host->node, &host_list);
+			}
+
+		} while (!ret && !stopped);
+
+		/* Service Host requests */
+		list_for_each_entry_safe(host, next, &host_list, node) {
+			ep = host->ep;
+			ret = ep->ops->poll_for_msg(ep->ep, &qe.qe, &buf, &len);
+			if (!ret) {
+				handle_request(ep, &qe, buf, len);
+
+				host->retry	= RETRY_COUNT;
+				host->t0	= t0;
+
+				continue;
+			}
+
+			if (ret == -EAGAIN)
+				if (--host->retry > 0)
+					continue;
+
+			disconnect_target(ep, !stopped);
+
+			print_info("host '%s' disconnected", ep->nqn);
+
+			free(ep);
+			list_del(&host->node);
+			free(host);
 		}
+
+		delta = msec_delta(t0);
+		if (delta < DELAY_TIMEOUT)
+			usleep((DELAY_TIMEOUT - delta) * 1000);
 	}
 out:
-	if (ep) {
-		disconnect_target(ep, !stopped);
-		free(ep);
-		ep = NULL;
+	list_for_each_entry_safe(host, next, &host_list, node) {
+		disconnect_target(host->ep, 1);
+		free(host->ep);
+		free(host);
 	}
 
-	if (stopped != 1)
-		goto wait;
-
 	while (!is_empty(q))
-		if (!take_one(q, &ep)) {
+		if (!get_new_host_conn(q, &ep)) {
 			disconnect_target(ep, 1);
 			free(ep);
 		}
@@ -414,7 +452,7 @@ static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 	while (is_full(q) && !stopped)
 		usleep(100);
 
-	add_one(q, ep);
+	add_new_host_conn(q, ep);
 
 	usleep(100);
 

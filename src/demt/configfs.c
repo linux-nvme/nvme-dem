@@ -77,10 +77,12 @@
 		}					\
 	} while (0)
 
-// cd /sys/kernel/config/nvmet/subsystems/
-// echo creating ${SUBSYSTEM} NSID ${NSID} for device ${DEV}
-// [ -e ${SUBSYSTEM} ] || mkdir ${SUBSYSTEM}
-// echo -n 1 > ${SUBSYSTEM}/attr_allow_any_host
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # echo creating ${SUBSYSTEM} NSID ${NSID} for device ${DEV}
+ * # [ -e ${SUBSYSTEM} ] || mkdir ${SUBSYSTEM}
+ * # echo -n 1 > ${SUBSYSTEM}/attr_allow_any_host
+ */
 int create_subsys(char *subsys, int allowany)
 {
 	char			dir[MAXPATHLEN];
@@ -175,12 +177,14 @@ static void unlink_all_ports(char *subsys)
 	}
 }
 
-// cd /sys/kernel/config/nvmet/subsystems/
-// rm ${SUBSYSTEM}/hosts/*
-// echo 0 > ${SUBSYSTEM}/namespaces/*/enable
-// rmdir ${SUBSYSTEM}/namespaces/*
-// rm ../ports/*/subsystems/${SUBSYSTEM}
-// rmdir ${SUBSYSTEM}
+/* replace ~ with * in bash
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # rm ${SUBSYSTEM}/hosts/~
+ * # echo 0 > ${SUBSYSTEM}/namespaces/~/enable
+ * # rmdir ${SUBSYSTEM}/namespaces/~
+ * # rm ../ports/~/subsystems/${SUBSYSTEM}
+ * # rmdir ${SUBSYSTEM}
+ */
 int delete_subsys(char *subsys)
 {
 	char			 dir[MAXPATHLEN];
@@ -205,10 +209,12 @@ int delete_subsys(char *subsys)
 	return 0;
 }
 
-// cd /sys/kernel/config/nvmet/subsystems/
-// mkdir ${SUBSYSTEM}/namespaces/${NSID}
-// echo -n ${DEV} > ${SUBSYSTEM}/namespaces/${NSID}/device_path
-// echo -n 1 > ${SUBSYSTEM}/namespaces/${NSID}/enable
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # mkdir ${SUBSYSTEM}/namespaces/${NSID}
+ * # echo -n ${DEV} > ${SUBSYSTEM}/namespaces/${NSID}/device_path
+ * # echo -n 1 > ${SUBSYSTEM}/namespaces/${NSID}/enable
+ */
 int create_ns(char *subsys, int nsid, int devid, int devnsid)
 {
 	char			 dir[MAXPATHLEN];
@@ -247,9 +253,11 @@ out:
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/subsystems/
-// echo -n 0 > ${SUBSYSTEM}/namespaces/${NSID}/enable
-// rmdir ${SUBSYSTEM}/namespaces/${NSID}
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # echo -n 0 > ${SUBSYSTEM}/namespaces/${NSID}/enable
+ * # rmdir ${SUBSYSTEM}/namespaces/${NSID}
+ */
 int delete_ns(char *subsys, int nsid)
 {
 	char			 dir[MAXPATHLEN];
@@ -280,8 +288,10 @@ out:
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/hosts
-// mkdir ${HOSTNQN}
+/*
+ * # cd /sys/kernel/config/nvmet/hosts
+ * # mkdir ${HOSTNQN}
+ */
 int create_host(char *host)
 {
 	char			 dir[MAXPATHLEN];
@@ -301,8 +311,10 @@ int create_host(char *host)
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/hosts
-// rmdir ${HOSTNQN}
+/*
+ * # cd /sys/kernel/config/nvmet/hosts
+ * # rmdir ${HOSTNQN}
+ */
 int delete_host(char *host)
 {
 	char			 dir[MAXPATHLEN];
@@ -322,13 +334,15 @@ int delete_host(char *host)
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/ports
-// mkdir ${NVME_PORT}
-// echo -n ipv4 > ${NVME_PORT}/addr_adrfam
-// echo -n rdma > ${NVME_PORT}/addr_trtype
-// echo -n not required > ${NVME_PORT}/addr_treq
-// echo -n ${TARGET} > ${NVME_PORT}/addr_traddr
-// echo -n ${PORT} > ${NVME_PORT}/addr_trsvcid
+/*
+ * # cd /sys/kernel/config/nvmet/ports
+ * # mkdir ${NVME_PORT}
+ * # echo -n ipv4 > ${NVME_PORT}/addr_adrfam
+ * # echo -n rdma > ${NVME_PORT}/addr_trtype
+ * # echo -n not required > ${NVME_PORT}/addr_treq
+ * # echo -n ${TARGET} > ${NVME_PORT}/addr_traddr
+ * # echo -n ${PORT} > ${NVME_PORT}/addr_trsvcid
+ */
 int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 		  int svcid)
 {
@@ -373,9 +387,11 @@ out:
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/ports
-// rm -f ${NVME_PORT}/subsystems/*
-// rmdir ${NVME_PORT}
+/* replace ~ with * in bash
+ * # cd /sys/kernel/config/nvmet/ports
+ * # rm -f ${NVME_PORT}/subsystems/~
+ * # rmdir ${NVME_PORT}
+ */
 int delete_portid(int portid)
 {
 	char			 dir[MAXPATHLEN];
@@ -408,8 +424,10 @@ out:
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/subsystems/
-// ln -s ../../hosts/${HOSTNQN} ${SUBSYSTEM}/hosts/${HOSTNQN}
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # ln -s ../../hosts/${HOSTNQN} ${SUBSYSTEM}/hosts/${HOSTNQN}
+ */
 int link_host_to_subsys(char *subsys, char *host)
 {
 	char			 dir[MAXPATHLEN];
@@ -434,8 +452,10 @@ int link_host_to_subsys(char *subsys, char *host)
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/subsystems
-// rm ${SUBSYSTEM}/hosts/{HOSTNQN}
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems
+ * # rm ${SUBSYSTEM}/hosts/{HOSTNQN}
+ */
 int unlink_host_from_subsys(char *subsys, char *host)
 {
 	char			 dir[MAXPATHLEN];
@@ -457,8 +477,10 @@ int unlink_host_from_subsys(char *subsys, char *host)
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/ports
-// ln -s ../subsystems/${SUBSYSTEM} ${NVME_PORT}/subsystems/${SUBSYSTEM}
+/*
+ * # cd /sys/kernel/config/nvmet/ports
+ * # ln -s ../subsystems/${SUBSYSTEM} ${NVME_PORT}/subsystems/${SUBSYSTEM}
+ */
 int link_port_to_subsys(char *subsys, int portid)
 {
 	char			 dir[MAXPATHLEN];
@@ -483,8 +505,10 @@ int link_port_to_subsys(char *subsys, int portid)
 	return ret;
 }
 
-// cd /sys/kernel/config/nvmet/ports
-// rm ${NVME_PORT}/subsystems/${SUBSYSTEM}
+/*
+ * # cd /sys/kernel/config/nvmet/ports
+ * # rm ${NVME_PORT}/subsystems/${SUBSYSTEM}
+ */
 int unlink_port_from_subsys(char *subsys, int portid)
 {
 	char			 dir[MAXPATHLEN];

@@ -101,6 +101,16 @@ static inline u32 get_unaligned_le32(const u8 *p)
 		(u32) p[2] << 16 | (u32) p[3] << 24;
 }
 
+static inline int msec_delta(struct timeval t0)
+{
+	struct timeval		t1;
+
+	gettimeofday(&t1, 0);
+
+	return (t1.tv_sec - t0.tv_sec) * 1000 +
+		(t1.tv_usec - t0.tv_usec) / 1000;
+}
+
 /*
  *  trtypes
  *	[NVMF_TRTYPE_RDMA]	= "rdma",

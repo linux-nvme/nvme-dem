@@ -29,6 +29,8 @@
 #define NVME_CTRL_ENABLE 0x460001
 #define NVME_CTRL_DISABLE 0x464001
 
+#define MSG_TIMEOUT     100
+
 void dump(u8 *buf, int len)
 {
 	int			i, j, n = 0;
@@ -110,12 +112,27 @@ static int process_nvme_rsp(struct endpoint *ep)
 {
 	struct xp_qe		*qe;
 	struct nvme_completion	*rsp;
+	struct timeval		 t0;
 	int			 bytes;
 	int			 ret;
 
-	ret = ep->ops->wait_for_msg(ep->ep, &qe, (void **) &rsp, &bytes);
-	if (ret)
-		return ret;
+	gettimeofday(&t0, 0);
+
+	while (1) {
+		ret = ep->ops->poll_for_msg(ep->ep, &qe, (void **) &rsp,
+					    &bytes);
+		if (!ret)
+			break;
+
+		if (ret != -EAGAIN)
+			return ret;
+
+		if (stopped)
+			return -ESHUTDOWN;
+
+		if (msec_delta(t0) > MSG_TIMEOUT)
+			return -EAGAIN;
+	}
 
 	if (bytes != sizeof(*rsp))
 		return -EINVAL;

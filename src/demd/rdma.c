@@ -29,7 +29,6 @@
 #define BACKLOG			16
 #define RESOLVE_TIMEOUT		5000
 #define EVENT_TIMEOUT		200
-#define MSG_TIMEOUT		100
 
 struct rdma_qe {
 	struct ibv_mr		*recv_mr;
@@ -704,37 +703,19 @@ static int rdma_send_msg(struct xp_ep *_ep, void *msg, int len,
 	return 0;
 }
 
-static inline int msec_delta(struct timeval t0)
-{
-	struct timeval		 t1;
-
-	gettimeofday(&t1, 0);
-
-	return (t1.tv_sec - t0.tv_sec) * 1000 +
-	       (t1.tv_usec - t0.tv_usec) / 1000;
-}
-
-static int rdma_wait_for_msg(struct xp_ep *_ep, struct xp_qe **_qe, void **msg,
+static int rdma_poll_for_msg(struct xp_ep *_ep, struct xp_qe **_qe, void **msg,
 			     int *bytes)
 {
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 	struct rdma_qe		*qe;
 	struct ibv_wc		 wc;
-	struct timeval		 t0;
 	int			 ret;
 
-	gettimeofday(&t0, 0);
-
-	do {
-		ret = ibv_poll_cq(ep->rcq, 1, &wc);
-		if (ret < 0)
-			return -ECONNRESET;
-		if (stopped)
-			return -ESHUTDOWN;
-		if (!ret)
-			if (msec_delta(t0) > MSG_TIMEOUT)
-				return -EAGAIN;
-	} while (!ret);
+	ret = ibv_poll_cq(ep->rcq, 1, &wc);
+	if (ret < 0)
+		return ret;
+	if (!ret)
+		return -EAGAIN;
 
 	if (wc.status != IBV_WC_SUCCESS) {
 		print_err("recv wc.status %d", wc.status);
@@ -815,7 +796,7 @@ struct xp_ops rdma_ops = {
 	.repost_recv		= rdma_repost_recv,
 	.post_msg		= rdma_post_msg,
 	.send_msg		= rdma_send_msg,
-	.wait_for_msg		= rdma_wait_for_msg,
+	.poll_for_msg		= rdma_poll_for_msg,
 	.alloc_key		= rdma_alloc_key,
 	.remote_key		= rdma_remote_key,
 	.dealloc_key		= rdma_dealloc_key,
