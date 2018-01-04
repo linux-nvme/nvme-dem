@@ -53,6 +53,7 @@
 
 /* DEMT specific */
 #define TAG_NSDEVS		"NSDevices"
+#define URI_NSDEV		"nsdev"
 
 /* DEM config specific */
 #define TAG_ID			"ID"
@@ -62,7 +63,6 @@
 #define URI_TARGET		"target"
 #define URI_HOST		"host"
 #define URI_DEM			"dem"
-#define URI_NSDEV		"nsdev"
 #define URI_SUBSYSTEM		"subsystem"
 #define URI_PORTID		"portid"
 #define URI_NAMESPACE		"nsid"
@@ -79,7 +79,6 @@
 #define PARM_FABRIC_LEN		(sizeof(URI_PARM_FABRIC) - 1)
 
 #define METHOD_SHUTDOWN		"shutdown"
-#define METHOD_APPLY		"apply"
 #define METHOD_REFRESH		"refresh"
 #define METHOD_USAGE		"usage"
 

@@ -14,51 +14,97 @@
 
 #include <jansson.h>
 
-void store_config_file(void *ctx);
+struct json_context *get_json_context(void);
+void store_json_config_file(void);
 
-int list_group(void *ctx, char *resp);
-int show_group(void *ctx, char *grp, char *resp);
-int add_group(void *ctx, char *grp, char *resp);
-int update_group(void *ctx, char *grp, char *data, char *resp);
-int set_group_target(void *ctx, char *host, char *data, char *resp);
-int set_group_host(void *ctx, char *host, char *data, char *resp);
-int del_group(void *ctx, char *grp, char *resp);
-int set_group_member(void *context, char *group, char *data, char *tag,
+int list_json_group(char *resp);
+int show_json_group(char *grp, char *resp);
+int add_json_group(char *grp, char *resp);
+int update_json_group(char *grp, char *data, char *resp);
+int set_json_group_target(char *host, char *data, char *resp);
+int set_json_group_host(char *host, char *data, char *resp);
+int del_json_group(char *grp, char *resp);
+int set_json_group_member(char *group, char *data, char *tag,
 		     char *parent_tag, char *resp);
-int del_group_member(void *context, char *group, char *member, char *tag,
+int del_json_group_member(char *group, char *member, char *tag,
 		     char *parent_tag, char *resp);
 
-int add_target(void *ctx, char *alias, char *resp);
-int update_target(void *ctx, char *target, char *data, char *resp);
-int list_target(void *ctx, char *query, char *resp);
-int show_target(void *ctx, char *alias, char *resp);
-int del_target(void *ctx, char *alias, char *resp);
+int add_json_target(char *alias, char *resp);
+int update_json_target(char *target, char *data, char *resp);
+int list_json_target(char *query, char *resp);
+int show_json_target(char *alias, char *resp);
+int del_json_target(char *alias, char *resp);
 
-int add_host(void *ctx, char *host, char *resp);
-int update_host(void *context, char *host, char *data, char *resp);
-int list_host(void *ctx, char *resp);
-int show_host(void *ctx, char *alias, char *resp);
-int del_host(void *ctx, char *host, char *resp);
+int add_json_host(char *host, char *resp);
+int update_json_host(char *host, char *data, char *resp);
+int list_json_host(char *resp);
+int show_json_host(char *alias, char *resp);
+int del_json_host(char *host, char *resp);
 
-int set_subsys(void *ctx, char *alias, char *ss, char *data, char *resp);
-int del_subsys(void *ctx, char *alias, char *ss, char *resp);
+int set_json_subsys(char *alias, char *ss, char *data, char *resp);
+int del_json_subsys(char *alias, char *ss, char *resp);
 
-int set_drive(void *ctx, char *alias, char *data, char *resp);
-int del_drive(void *ctx, char *alias,  char *data, char *resp);
+int set_json_drive(char *alias, char *data, char *resp);
+int del_json_drive(char *alias,  char *data, char *resp);
 
-int set_interface(void *ctx, char *target, char *data, char *resp);
-int set_portid(void *ctx, char *target, int portid, char *data,
+int set_json_interface(char *target, char *data, char *resp);
+int set_json_portid(char *target, int portid, char *data,
 	       char *resp);
-int del_portid(void *ctx, char *alias, int portid, char *resp);
+int del_json_portid(char *alias, int portid, char *resp);
 
-int set_ns(void *ctx, char *alias, char *ss, char *data,
+int set_json_ns(char *alias, char *ss, char *data,
 	   char *resp);
-int del_ns(void *ctx, char *alias,  char *ss, int ns,
+int del_json_ns(char *alias,  char *ss, int ns,
 	   char *resp);
 
-int set_acl(void *ctx, char *alias, char *ss, char *hostnqn,
+int set_json_acl(char *alias, char *ss, char *hostnqn,
 	    char *data, char *resp);
-int del_acl(void *ctx, char *alias,  char *ss, char *hostnqn,
+int del_json_acl(char *alias,  char *ss, char *hostnqn,
+	    char *resp);
+
+int list_group(char *resp);
+int show_group(char *grp, char *resp);
+int add_group(char *grp, char *resp);
+int update_group(char *grp, char *data, char *resp);
+int set_group_target(char *host, char *data, char *resp);
+int set_group_host(char *host, char *data, char *resp);
+int del_group(char *grp, char *resp);
+int set_group_member(char *group, char *data, char *tag,
+		     char *parent_tag, char *resp);
+int del_group_member(char *group, char *member, char *tag,
+		     char *parent_tag, char *resp);
+
+int add_target(char *alias, char *resp);
+int update_target(char *target, char *data, char *resp);
+int list_target(char *query, char *resp);
+int show_target(char *alias, char *resp);
+int del_target(char *alias, char *resp);
+
+int add_host(char *host, char *resp);
+int update_host(char *host, char *data, char *resp);
+int list_host(char *resp);
+int show_host(char *alias, char *resp);
+int del_host(char *host, char *resp);
+
+int set_subsys(char *alias, char *ss, char *data, char *resp);
+int del_subsys(char *alias, char *ss, char *resp);
+
+int set_drive(char *alias, char *data, char *resp);
+int del_drive(char *alias,  char *data, char *resp);
+
+int set_interface(char *target, char *data, char *resp);
+int set_portid(char *target, int portid, char *data,
+	       char *resp);
+int del_portid(char *alias, int portid, char *resp);
+
+int set_ns(char *alias, char *ss, char *data,
+	   char *resp);
+int del_ns(char *alias,  char *ss, int ns,
+	   char *resp);
+
+int set_acl(char *alias, char *ss, char *hostnqn,
+	    char *data, char *resp);
+int del_acl(char *alias,  char *ss, char *hostnqn,
 	    char *resp);
 
 #define MAX_STRING		128

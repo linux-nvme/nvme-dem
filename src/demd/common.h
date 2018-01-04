@@ -83,7 +83,6 @@ extern int			 stopped;
 extern int			 num_interfaces;
 extern struct interface		*interfaces;
 extern struct list_head		*target_list;
-extern void			*json_ctx;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -239,6 +238,7 @@ struct target {
 	int			 refresh_countdown;
 	int			 kato_countdown;
 	int			 num_subsystems;
+	int			 dirty;
 };
 
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
@@ -246,12 +246,12 @@ enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
 struct mg_connection;
 
 void shutdown_dem(void);
-int restart_dem(void);
-void handle_http_request(void *json_ctx, struct mg_connection *c,
-			 void *ev_data);
+void handle_http_request(struct mg_connection *c, void *ev_data);
 
-void *init_json(char *filename);
-void cleanup_json(void *context);
+int init_json(char *filename);
+void cleanup_json(void);
+void json_spinlock(void);
+void json_spinunlock(void);
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
@@ -262,10 +262,9 @@ int fc_to_addr(char *p, int *addr);
 int init_interfaces(void);
 void *interface_thread(void *arg);
 
-void build_target_list(void *context);
-void init_targets(int dem_restart);
-void cleanup_targets(int dem_restart);
-int check_modified(struct target *target);
+void build_target_list(void);
+void init_targets(void);
+void cleanup_targets(void);
 void get_host_nqn(void *context, void *haddr, char *nqn);
 int start_pseudo_target(struct interface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);

@@ -21,6 +21,8 @@
 #include "tags.h"
 #include "common.h"
 
+static struct json_context *ctx;
+
 /* helper functions */
 
 static int find_array(json_t *array, const char *tag, char *val,
@@ -248,7 +250,7 @@ err:
 	return -ENOENT;
 }
 
-static void parse_config_file(struct json_context *ctx)
+static void parse_config_file(void)
 {
 	json_t			*root;
 	json_error_t		 error;
@@ -263,12 +265,11 @@ static void parse_config_file(struct json_context *ctx)
 	ctx->root = root;
 
 	if (dirty)
-		store_config_file(ctx);
+		store_json_config_file();
 }
 
 /* walk all subsystem allowed host list for host name changes */
-static void rename_in_allowed_hosts(struct json_context *ctx, char *old,
-				    char *new)
+static void rename_in_allowed_hosts(char *old, char *new)
 {
 	json_t			*targets;
 	json_t			*array;
@@ -312,7 +313,7 @@ static void rename_in_allowed_hosts(struct json_context *ctx, char *old,
 }
 
 /* walk all subsystem allowed host list for host deletions */
-static void del_from_allowed_hosts(struct json_context *ctx, char *alias)
+static void del_from_allowed_hosts(char *alias)
 {
 	json_t			*targets;
 	json_t			*array;
@@ -354,9 +355,8 @@ static void del_from_allowed_hosts(struct json_context *ctx, char *alias)
 
 /* command functions */
 
-void store_config_file(void *context)
+void store_json_config_file(void)
 {
-	struct json_context	*ctx = context;
 	json_t			*root = ctx->root;
 	char			*filename = ctx->filename;
 	int			 ret;
@@ -366,27 +366,38 @@ void store_config_file(void *context)
 		fprintf(stderr, "json_dump_file failed %d\n", ret);
 }
 
-void *init_json(char *filename)
+struct json_context *get_json_context(void)
 {
-	struct json_context	*ctx;
+	return ctx;
+}
 
+void json_spinlock(void)
+{
+	pthread_spin_lock(&ctx->lock);
+}
+
+void json_spinunlock(void)
+{
+	pthread_spin_unlock(&ctx->lock);
+}
+
+int init_json(char *filename)
+{
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx)
-		return NULL;
+		return -ENOMEM;
 
 	strncpy(ctx->filename, filename, sizeof(ctx->filename));
 
 	pthread_spin_init(&ctx->lock, PTHREAD_PROCESS_SHARED);
 
-	parse_config_file(ctx);
+	parse_config_file();
 
-	return ctx;
+	return 0;
 }
 
-void cleanup_json(void *context)
+void cleanup_json(void)
 {
-	struct json_context	*ctx = context;
-
 	json_decref(ctx->root);
 
 	pthread_spin_destroy(&ctx->lock);
@@ -394,9 +405,8 @@ void cleanup_json(void *context)
 	free(ctx);
 }
 
-static int _list_target(void *context, char *query, char *resp)
+static int _list_target(char *query, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	char			*p = resp;
 	int			 n;
@@ -420,9 +430,8 @@ static int _list_target(void *context, char *query, char *resp)
 	return p - resp;
 }
 
-static int _list_host(void *context, char *resp)
+static int _list_host(char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*hosts;
 	char			*p = resp;
 	int			 n;
@@ -443,9 +452,8 @@ static int _list_host(void *context, char *resp)
 
 /* GROUPS */
 
-int add_group(void *context, char *group, char *resp)
+int add_json_group(char *group, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*iter = NULL;
 	json_t			*tmp;
@@ -478,9 +486,8 @@ int add_group(void *context, char *group, char *resp)
 	return 0;
 }
 
-int update_group(void *context, char *group, char *data, char *resp)
+int update_json_group(char *group, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*iter;
 	json_t			*tmp;
@@ -553,10 +560,9 @@ out:
 	return ret;
 }
 
-int set_group_member(void *context, char *group, char *data, char *tag,
-		     char *parent_tag, char *resp)
+int set_json_group_member(char *group, char *data, char *tag,
+			  char *parent_tag, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*parent;
 	json_t			*iter;
@@ -628,10 +634,9 @@ out:
 	return ret;
 }
 
-int del_group_member(void *context, char *group, char *member, char *tag,
-		     char *parent_tag, char *resp)
+int del_json_group_member(char *group, char *member, char *tag,
+			  char *parent_tag, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*parent;
 	json_t			*iter;
@@ -671,9 +676,8 @@ int del_group_member(void *context, char *group, char *member, char *tag,
 	return ret;
 }
 
-int del_group(void *context, char *group, char *resp)
+int del_json_group(char *group, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	int			 i;
 
@@ -696,9 +700,8 @@ int del_group(void *context, char *group, char *resp)
 	return 0;
 }
 
-int list_group(void *context, char *resp)
+int list_json_group(char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	char			*p = resp;
 	int			 n;
@@ -718,9 +721,8 @@ int list_group(void *context, char *resp)
 	return 0;
 }
 
-int show_group(void *context, char *group, char *resp)
+int show_json_group(char *group, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*groups;
 	json_t			*obj;
 	int			 i;
@@ -744,9 +746,8 @@ int show_group(void *context, char *group, char *resp)
 
 /* HOSTS */
 
-int add_host(void *context, char *host, char *resp)
+int add_json_host(char *host, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*iter;
 	json_t			*tmp;
@@ -774,9 +775,8 @@ int add_host(void *context, char *host, char *resp)
 	return 0;
 }
 
-int update_host(void *context, char *host, char *data, char *resp)
+int update_json_host(char *host, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*iter;
 	json_t			*tmp;
@@ -824,7 +824,7 @@ int update_host(void *context, char *host, char *data, char *resp)
 			}
 			if (host) {
 				json_update_string(iter, new, TAG_ALIAS, value);
-				rename_in_allowed_hosts(ctx, host, alias);
+				rename_in_allowed_hosts(host, alias);
 			} else {
 				iter = json_object();
 				json_set_string(iter, TAG_ALIAS, alias);
@@ -844,9 +844,8 @@ out:
 	return ret;
 }
 
-int del_host(void *context, char *host, char *resp)
+int del_json_host(char *host, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*iter;
 	int			 i;
@@ -865,14 +864,14 @@ int del_host(void *context, char *host, char *resp)
 
 	json_array_remove(hosts, i);
 
-	del_from_allowed_hosts(ctx, host);
+	del_from_allowed_hosts(host);
 
 	sprintf(resp, "%s '%s' deleted", TAG_HOST, host);
 
 	return 0;
 }
 
-int list_host(void *context, char *resp)
+int list_json_host(char *resp)
 {
 	char			*p = resp;
 	int			 n;
@@ -880,7 +879,7 @@ int list_host(void *context, char *resp)
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_host(context, p);
+	n = _list_host(p);
 	p += n;
 
 	sprintf(p, "}");
@@ -905,8 +904,7 @@ static inline void add_host_subsys(json_t *alias, json_t *nqn, json_t *list)
 	json_array_append_new(list, obj);
 }
 
-static void get_host_subsystems(struct json_context *ctx, char *host,
-				json_t *parent)
+static void get_host_subsystems(char *host, json_t *parent)
 {
 	json_t			*targets;
 	json_t			*alias;
@@ -963,9 +961,8 @@ static void get_host_subsystems(struct json_context *ctx, char *host,
 	}
 }
 
-int show_host(void *context, char *alias, char *resp)
+int show_json_host(char *alias, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*hosts;
 	json_t			*obj;
 	json_t			*host;
@@ -985,7 +982,7 @@ int show_host(void *context, char *alias, char *resp)
 
 	host = json_copy(obj);
 
-	get_host_subsystems(ctx, alias, host);
+	get_host_subsystems(alias, host);
 
 	sprintf(resp, "%s", json_dumps(host, 0));
 
@@ -997,9 +994,9 @@ int show_host(void *context, char *alias, char *resp)
 /* TARGET */
 /* SUBSYSTEMS */
 
-int set_subsys(void *context, char *alias, char *ss, char *data, char *resp)
+int set_json_subsys(char *alias, char *ss, char *data,
+		    char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*obj;
 	json_t			*iter;
@@ -1091,9 +1088,8 @@ out:
 	return ret;
 }
 
-int del_subsys(void *context, char *alias, char *ss, char *resp)
+int del_json_subsys(char *alias, char *ss, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	int			 ret;
 
@@ -1119,9 +1115,8 @@ int del_subsys(void *context, char *alias, char *ss, char *resp)
 
 /* DRIVE */
 
-int set_drive(void *context, char *alias, char *data, char *resp)
+int set_json_drive(char *alias, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*obj;
 	json_t			*iter;
@@ -1194,9 +1189,8 @@ int set_drive(void *context, char *alias, char *data, char *resp)
 	return 0;
 }
 
-int del_drive(void *context, char *alias, char *data, char *resp)
+int del_json_drive(char *alias, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*array;
 	json_t			*new;
@@ -1270,10 +1264,8 @@ int del_drive(void *context, char *alias, char *data, char *resp)
 
 /* PORTID */
 
-int set_portid(void *context, char *target, int portid,
-	       char *data, char *resp)
+int set_json_portid(char *target, int portid, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*obj;
 	json_t			*iter;
@@ -1345,10 +1337,8 @@ out:
 	return ret;
 }
 
-int del_portid(void *context, char *alias, int portid,
-	       char *resp)
+int del_json_portid(char *alias, int portid, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	int			 ret;
 
@@ -1375,10 +1365,8 @@ int del_portid(void *context, char *alias, int portid,
 
 /* NAMESPACE */
 
-int set_ns(void *context, char *alias, char *ss, char *data,
-	   char *resp)
+int set_json_ns(char *alias, char *ss, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*subgroup;
 	json_t			*obj;
@@ -1454,10 +1442,8 @@ int set_ns(void *context, char *alias, char *ss, char *data,
 	return 0;
 }
 
-int del_ns(void *context, char *alias, char *ss, int ns,
-	   char *resp)
+int del_json_ns(char *alias, char *ss, int ns, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*subgroup;
 	json_t			*array;
@@ -1500,9 +1486,8 @@ int del_ns(void *context, char *alias, char *ss, int ns,
 
 /* TARGET */
 
-int del_target(void *context, char *alias, char *resp)
+int del_json_target(char *alias, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*array;
 	json_t			*iter;
@@ -1529,8 +1514,8 @@ int del_target(void *context, char *alias, char *resp)
 		for (i = 0; i < n; i++) {
 			obj = json_array_get(array, 0);
 			ss = json_object_get(obj, TAG_SUBNQN);
-			del_subsys(ctx, alias,
-				   (char *) json_string_value(ss), resp);
+			del_json_subsys(alias, (char *) json_string_value(ss),
+					resp);
 		}
 	}
 
@@ -1541,7 +1526,7 @@ int del_target(void *context, char *alias, char *resp)
 	return 0;
 }
 
-int list_target(void *context, char *query, char *resp)
+int list_json_target(char *query, char *resp)
 {
 	char			*p = resp;
 	int			 n;
@@ -1549,7 +1534,7 @@ int list_target(void *context, char *query, char *resp)
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_target(context, query, p);
+	n = _list_target(query, p);
 	p += n;
 
 	sprintf(p, "}");
@@ -1557,9 +1542,8 @@ int list_target(void *context, char *query, char *resp)
 	return 0;
 }
 
-int set_interface(void *context, char *target, char *data, char *resp)
+int set_json_interface(char *target, char *data, char *resp)
 {
-	struct json_context     *ctx = context;
 	json_t			*targets;
 	json_t			*new;
 	json_t			*obj;
@@ -1692,9 +1676,8 @@ static void add_subsys(json_t *parent, json_t *newparent)
 	}
 }
 
-int add_target(void *context, char *alias, char *resp)
+int add_json_target(char *alias, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*iter;
 	json_t			*tmp;
@@ -1728,9 +1711,8 @@ int add_target(void *context, char *alias, char *resp)
 	return 0;
 }
 
-int update_target(void *ctxt, char *target, char *data, char *resp)
+int update_json_target(char *target, char *data, char *resp)
 {
-	struct json_context	*ctx = ctxt;
 	json_t			*targets;
 	json_t			*iter;
 	json_t			*new;
@@ -1814,9 +1796,8 @@ out:
 	return ret;
 }
 
-int show_target(void *context, char *alias, char *resp)
+int show_json_target(char *alias, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*obj;
 	int			 i;
@@ -1837,10 +1818,8 @@ int show_target(void *context, char *alias, char *resp)
 	return 0;
 }
 
-int set_acl(void *context, char *alias, char *ss, char *host_uri,
-	    char *data, char *resp)
+int set_json_acl(char *alias, char *ss, char *host_uri, char *data, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*hosts;
 	json_t			*new;
@@ -1929,9 +1908,8 @@ int set_acl(void *context, char *alias, char *ss, char *host_uri,
 	return 0;
 }
 
-int del_acl(void *context, char *alias, char *ss, char *host, char *resp)
+int del_json_acl(char *alias, char *ss, char *host, char *resp)
 {
-	struct json_context	*ctx = context;
 	json_t			*targets;
 	json_t			*subgroup;
 	json_t			*array;

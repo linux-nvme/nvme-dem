@@ -43,15 +43,15 @@ int usage_target(char *alias, char *results)
 
 	list_for_each_entry(target, target_list, node)
 		if (!strcmp(target->alias, alias)) {
-			sprintf(results, "TODO: fill in provisioning info");
+			sprintf(results, "TODO return Target Usage info");
 			return 0;
 		}
 
 	return -EINVAL;
 }
 
-/*TODO: What is best method to identify valid ACLs - check Hosts against
- *	the ACL or check the ACL against the Host list ??
+/* TODO Possible performance improvement, best method to identify valid ACLs
+ *	check Hosts againsti the ACL or check the ACL against the Host list
  */
 static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 {
@@ -282,9 +282,9 @@ static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
 	}
 }
 
-void build_target_list(void *context)
+void build_target_list(void)
 {
-	struct json_context	*ctx = context;
+	struct json_context	*ctx = get_json_context();
 	struct target		*target;
 	json_t			*array;
 	json_t			*hosts;

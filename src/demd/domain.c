@@ -131,21 +131,18 @@ static int build_subsys_config_data(struct target *target,
 	return len;
 }
 
-void init_targets(int dem_restart)
+void init_targets(void)
 {
-	struct nvmf_port_config_page_hdr *port_hdr;
-	struct nvmf_subsys_config_page_hdr *subsys_hdr;
+//	struct nvmf_port_config_page_hdr *port_hdr;
+//	struct nvmf_subsys_config_page_hdr *subsys_hdr;
 	struct target		*target;
 	struct port_id		*portid;
-	int			 len;
+//	int			 len;
 	int			 ret;
 
-	build_target_list(json_ctx);
+	build_target_list();
 
 	list_for_each_entry(target, target_list, node) {
-		if (dem_restart && !check_modified(target))
-			continue;
-
 		// TODO walk interface list to find portid we can use
 
 		portid = list_first_entry(&target->portid_list,
@@ -168,6 +165,8 @@ void init_targets(int dem_restart)
 
 		target->dq_connected = 1;
 
+#if 0
+// TODO Do before (or?) after fetch_log_pages. Should this be worker thread?
 		if (target->mgmt_mode == IN_BAND_MGMT) {
 			// TODO build/send device/transport cmd
 			len = build_port_config_data(target, &port_hdr);
@@ -194,8 +193,9 @@ void init_targets(int dem_restart)
 			// TODO get request to demt for dev/xport data
 			// TODO put request to demt to configure
 		}
-
+#endif
 		fetch_log_pages(target);
+
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
 		target->log_page_failed = 0;
@@ -207,7 +207,7 @@ void init_targets(int dem_restart)
 	}
 }
 
-void cleanup_targets(int dem_restart)
+void cleanup_targets(void)
 {
 	struct target		*target;
 	struct target		*next_target;
@@ -217,8 +217,6 @@ void cleanup_targets(int dem_restart)
 	struct host		*next_host;
 
 	list_for_each_entry_safe(target, next_target, target_list, node) {
-		if (dem_restart && !check_modified(target))
-			continue;
 		list_for_each_entry_safe(subsys, next_subsys,
 					 &target->subsys_list, node) {
 			list_for_each_entry_safe(host, next_host,

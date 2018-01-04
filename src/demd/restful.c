@@ -136,15 +136,6 @@ static int post_dem_request(char *verb, struct http_message *hm, char *resp)
 	else if (strcmp(verb, METHOD_SHUTDOWN) == 0) {
 		shutdown_dem();
 		strcpy(resp, "DEM shutting down");
-	} else if (strcmp(verb, METHOD_APPLY) == 0) {
-		ret = restart_dem();
-		if (ret < 0) {
-			sprintf(resp, "DEM config apply failed %d", ret);
-			ret = HTTP_ERR_INTERNAL;
-		} else {
-			strcpy(resp, "DEM config applied");
-			ret = 0;
-		}
 	} else {
 		ret = HTTP_ERR_NOT_IMPLEMENTED;
 		strcpy(resp, "Method Not Implemented");
@@ -167,22 +158,22 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 	return ret;
 }
 
-static int get_target_request(void *ctx, char *target, char **p, int n,
-			      char *query, char *resp)
+static int get_target_request(char *target, char **p, int n, char *query,
+			      char *resp)
 {
 	int			 ret;
 
 	if (!target || !*target) {
 		if ((strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0)
 		    && (query[PARM_MODE_LEN]))
-			ret = list_target(ctx, query, resp);
+			ret = list_json_target(query, resp);
 		else if ((strncmp(query, URI_PARM_FABRIC, PARM_FABRIC_LEN) == 0)
 			 && (query[PARM_FABRIC_LEN]))
-			ret = list_target(ctx, query, resp);
+			ret = list_json_target(query, resp);
 		else
-			ret = list_target(ctx, NULL, resp);
+			ret = list_json_target(NULL, resp);
 	} else if (n == 0)
-		ret = show_target(ctx, target, resp);
+		ret = show_json_target(target, resp);
 	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
 		ret = usage_target(target, resp);
 		if (ret)
@@ -193,8 +184,8 @@ static int get_target_request(void *ctx, char *target, char **p, int n,
 	return http_error(ret);
 }
 
-static int delete_target_request(void *ctx, char *target, char **p,
-				 int n, struct mg_str *body, char *resp)
+static int delete_target_request(char *target, char **p, int n,
+				 struct mg_str *body, char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 portid;
@@ -204,27 +195,24 @@ static int delete_target_request(void *ctx, char *target, char **p,
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	if (!n)
-		ret = del_target(ctx, target, resp);
+		ret = del_target(target, resp);
 	else if (strcmp(*p, URI_SUBSYSTEM) == 0) {
 		if (n == 2)
-			ret = del_subsys(ctx, target, p[1], resp);
+			ret = del_subsys(target, p[1], resp);
 		else if (n != 4)
 			goto bad_req;
 		else if (strcmp(p[2], URI_NAMESPACE) == 0)
-			ret = del_ns(ctx, target, p[1],
-				     atoi(p[3]), resp);
+			ret = del_ns(target, p[1], atoi(p[3]), resp);
 		else if (strcmp(p[2], URI_HOST) == 0)
-			ret = del_acl(ctx, target, p[1], p[3], resp);
+			ret = del_acl(target, p[1], p[3], resp);
 		else
 			goto bad_req;
 	} else if (strcmp(*p, URI_PORTID) == 0 && n == 2) {
 		portid = atoi(p[1]);
 		if (!portid)
 			goto bad_req;
-		ret = del_portid(ctx, target, portid, resp);
-	} else if (strcmp(*p, URI_NSDEV) == 0 && n == 1)
-		ret = del_drive(ctx, target, data, resp);
-	else {
+		ret = del_portid(target, portid, resp);
+	} else {
 bad_req:
 		bad_request(resp);
 		ret = -EINVAL;
@@ -233,15 +221,14 @@ bad_req:
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int put_target_request(void *context, char *target, char **p,
-			      int n, struct mg_str *body, char *resp)
+static int put_target_request(char *target, char **p, int n,
+			      struct mg_str *body, char *resp)
 {
-	struct json_context	*ctx = context;
 	char			 data[LARGE_RSP + 1];
 	int			 portid;
 	int			 ret;
@@ -250,17 +237,17 @@ static int put_target_request(void *context, char *target, char **p,
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	if (n == 0)
-		ret = update_target(ctx, target, data, resp);
+		ret = update_target(target, data, resp);
 	else if (strcmp(*p, URI_INTERFACE) == 0)
-		ret = set_interface(ctx, target, data, resp);
+		ret = set_interface(target, data, resp);
 	else if (strcmp(*p, URI_SUBSYSTEM) == 0) {
 		if (n <= 2)
-			ret = set_subsys(ctx, target, p[1], data, resp);
+			ret = set_subsys(target, p[1], data, resp);
 		else if (n <= 4) {
 			if (strcmp(p[2], URI_NAMESPACE) == 0)
-				ret = set_ns(ctx, target, p[1], data, resp);
+				ret = set_ns(target, p[1], data, resp);
 			else if (strcmp(p[2], URI_HOST) == 0)
-				ret = set_acl(ctx, target, p[1], p[3], data,
+				ret = set_acl(target, p[1], p[3], data,
 					      resp);
 			else
 				goto bad_req;
@@ -274,10 +261,8 @@ static int put_target_request(void *context, char *target, char **p,
 			if (!portid)
 				goto bad_req;
 		}
-		ret = set_portid(ctx, target, portid, data, resp);
-	} else if (strcmp(*p, URI_NSDEV) == 0 && n == 1)
-		ret = set_drive(ctx, target, data, resp);
-	else {
+		ret = set_portid(target, portid, data, resp);
+	} else {
 bad_req:
 		bad_request(resp);
 		ret = -EINVAL;
@@ -286,13 +271,13 @@ bad_req:
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int post_target_request(void *ctx, char *target, char **p,
-			       int n, struct mg_str *body, char *resp)
+static int post_target_request(char *target, char **p, int n,
+			       struct mg_str *body, char *resp)
 {
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
@@ -303,15 +288,15 @@ static int post_target_request(void *ctx, char *target, char **p,
 
 		if (n) {
 			if (strcmp(*p, URI_SUBSYSTEM) == 0)
-				ret = set_subsys(ctx, target,
+				ret = set_subsys(target,
 						 p[1], data, resp);
 			else
 				ret = -EINVAL;
 
 		} else
-			ret = update_target(ctx, target, target, resp);
+			ret = update_target(target, target, resp);
 	} else if (!n)
-		ret = add_target(ctx, target, resp);
+		ret = add_target(target, resp);
 
 	else if (!strcmp(*p, METHOD_REFRESH)) {
 		ret = refresh_target(target);
@@ -324,7 +309,7 @@ static int post_target_request(void *ctx, char *target, char **p,
 		if (strcmp(*p, URI_SUBSYSTEM) == 0) {
 			sprintf(data, "{" JSSTR "," JSINDX "}",
 				TAG_SUBNQN, p[1], TAG_ALLOW_ANY, 1);
-			ret = set_subsys(ctx, target, NULL, data, resp);
+			ret = set_subsys(target, NULL, data, resp);
 		} else  //check if its portid
 			ret = -EINVAL;
 	}
@@ -332,13 +317,13 @@ static int post_target_request(void *ctx, char *target, char **p,
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int patch_target_request(void *ctx, char *target, char **p,
-				int n, struct mg_str *body, char *resp)
+static int patch_target_request(char *target, char **p, int n,
+				struct mg_str *body, char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
@@ -354,23 +339,23 @@ static int patch_target_request(void *ctx, char *target, char **p,
 
 	if (n) {
 		if (strcmp(*p, URI_SUBSYSTEM) == 0)
-			ret = set_subsys(ctx, target, p[1], data, resp);
+			ret = set_subsys(target, p[1], data, resp);
 		else
 			ret = -EINVAL;
 	} else
-		ret = update_target(ctx, target, data, resp);
+		ret = update_target(target, data, resp);
 
 out:
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int handle_target_requests(void *ctx, char *p[], int n,
-				  struct http_message *hm, char *resp)
+static int handle_target_requests(char *p[], int n, struct http_message *hm,
+				  char *resp)
 {
 	char			*target;
 	char			 query[32] = { 0 };
@@ -385,17 +370,17 @@ static int handle_target_requests(void *ctx, char *p[], int n,
 			min(hm->query_string.len, sizeof(query) - 1));
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_target_request(ctx, target, p, n, query, resp);
+		ret = get_target_request(target, p, n, query, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_target_request(ctx, target, p, n, &hm->body, resp);
+		ret = put_target_request(target, p, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_target_request(ctx, target, p, n,
+		ret = delete_target_request(target, p, n,
 					    &hm->body, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_target_request(ctx, target, p, n, &hm->body,
+		ret = post_target_request(target, p, n, &hm->body,
 					  resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_target_request(ctx, target, p, n, &hm->body,
+		ret = patch_target_request(target, p, n, &hm->body,
 					   resp);
 	else
 		ret = bad_request(resp);
@@ -403,21 +388,20 @@ static int handle_target_requests(void *ctx, char *p[], int n,
 	return ret;
 }
 
-static int get_host_request(void *ctx, char *host, char *resp)
+static int get_host_request(char *host, char *resp)
 {
 	int			 ret;
 
 	if (!host)
-		ret = list_host(ctx, resp);
+		ret = list_json_host(resp);
 	else
-		ret = show_host(ctx, host, resp);
+		ret = show_json_host(host, resp);
 
 	return http_error(ret);
 }
 
-static int delete_host_request(void *context, char *host, int n, char *resp)
+static int delete_host_request(char *host, int n, char *resp)
 {
-	struct json_context	*ctx = context;
 	int			 ret;
 
 	if (n) {
@@ -425,19 +409,17 @@ static int delete_host_request(void *context, char *host, int n, char *resp)
 		return http_error(-EINVAL);
 	}
 
-	ret = del_host(ctx, host, resp);
+	ret = del_host(host, resp);
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int put_host_request(void *context, char *host, int n,
-			    struct mg_str *body, char *resp)
+static int put_host_request(char *host, int n, struct mg_str *body, char *resp)
 {
-	struct json_context     *ctx = context;
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
 
@@ -449,19 +431,17 @@ static int put_host_request(void *context, char *host, int n,
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	ret = update_host(ctx, host, data, resp);
+	ret = update_host(host, data, resp);
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int post_host_request(void *context, char *host, int n,
-			     struct mg_str *body, char *resp)
+static int post_host_request(char *host, int n, struct mg_str *body, char *resp)
 {
-	struct json_context     *ctx = context;
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
 
@@ -469,24 +449,24 @@ static int post_host_request(void *context, char *host, int n,
 		return http_error(-EINVAL);
 
 	if (!body->len)
-		ret = add_host(ctx, host, resp);
+		ret = add_host(host, resp);
 	else {
 		memset(data, 0, sizeof(data));
 		strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-		ret = update_host(ctx, host, data, resp);
+		ret = update_host(host, data, resp);
 	}
 
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int patch_host_request(void *ctx, char *host, char **p,
-			      int n, struct mg_str *body, char *resp)
+static int patch_host_request(char *host, char **p, int n, struct mg_str *body,
+			      char *resp)
 {
 	char			 data[SMALL_RSP + 1];
 	int			 ret;
@@ -503,7 +483,7 @@ static int patch_host_request(void *ctx, char *host, char **p,
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	if (host && !n)
-		ret = update_host(ctx, host, data, resp);
+		ret = update_host(host, data, resp);
 	else {
 		bad_request(resp);
 		ret = -EINVAL;
@@ -513,24 +493,24 @@ out:
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int get_group_request(void *ctx, char *group, char *resp)
+static int get_group_request(char *group, char *resp)
 {
 	int			 ret;
 
 	if (!group)
-		ret = list_group(ctx, resp);
+		ret = list_json_group(resp);
 	else
-		ret = show_group(ctx, group, resp);
+		ret = show_json_group(group, resp);
 
 	return http_error(ret);
 }
-static int put_group_request(void *ctx, char *group, char **p,
-			     int n, struct mg_str *body, char *resp)
+static int put_group_request(char *group, char **p, int n, struct mg_str *body,
+			     char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
@@ -539,12 +519,12 @@ static int put_group_request(void *ctx, char *group, char **p,
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
 	if (n <= 2)
-		ret = update_group(ctx, group, data, resp);
+		ret = update_group(group, data, resp);
 	else if (strcmp(*p, URI_HOST) == 0)
-		ret = set_group_member(ctx, group, data, TAG_HOST,
+		ret = set_group_member(group, data, TAG_HOST,
 				       TAG_HOSTS, resp);
 	else if (strcmp(*p, URI_TARGET) == 0)
-		ret = set_group_member(ctx, group, data, TAG_TARGET,
+		ret = set_group_member(group, data, TAG_TARGET,
 				       TAG_TARGETS, resp);
 	else
 		ret = bad_request(resp);
@@ -552,50 +532,47 @@ static int put_group_request(void *ctx, char *group, char **p,
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int post_group_request(void *ctx, char *group, char *resp)
+static int post_group_request(char *group, char *resp)
 {
 	int			 ret;
 
-	ret = add_group(ctx, group, resp);
+	ret = add_group(group, resp);
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int delete_group_request(void *ctx, char *group, char **p, int n,
-				char *resp)
+static int delete_group_request(char *group, char **p, int n, char *resp)
 {
 	int			 ret;
 
 	if (n == 2)
-		ret = del_group(ctx, group, resp);
+		ret = del_group(group, resp);
 	else if (strcmp(*p, URI_HOST) == 0)
-		ret = del_group_member(ctx, group, p[1], TAG_HOST,
-				       TAG_HOSTS, resp);
+		ret = del_group_member(group, p[1], TAG_HOST, TAG_HOSTS, resp);
 	else if (strcmp(*p, URI_TARGET) == 0)
-		ret = del_group_member(ctx, group, p[1], TAG_TARGET,
-				       TAG_TARGETS, resp);
+		ret = del_group_member(group, p[1], TAG_TARGET, TAG_TARGETS,
+				       resp);
 	else
 		ret = bad_request(resp);
 
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int patch_group_request(void *ctx, char *group, struct mg_str *body,
-			       char *resp)
+static int patch_group_request(char *group, struct mg_str *body, char *resp)
 {
 	char			 data[LARGE_RSP + 1];
 	int			 ret;
@@ -603,17 +580,17 @@ static int patch_group_request(void *ctx, char *group, struct mg_str *body,
 	memset(data, 0, sizeof(data));
 	strncpy(data, body->p, min(LARGE_RSP, body->len));
 
-	ret = update_group(ctx, group, data, resp);
+	ret = update_group(group, data, resp);
 	if (ret)
 		return http_error(ret);
 
-	store_config_file(ctx);
+	store_json_config_file();
 
 	return 0;
 }
 
-static int handle_group_requests(void *ctx, char *p[], int n,
-				 struct http_message *hm, char *resp)
+static int handle_group_requests(char *p[], int n, struct http_message *hm,
+				 char *resp)
 {
 	char			*group;
 	int			 ret;
@@ -624,23 +601,23 @@ static int handle_group_requests(void *ctx, char *p[], int n,
 	p += 2;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_group_request(ctx, group, resp);
+		ret = get_group_request(group, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_group_request(ctx, group, p, n, &hm->body, resp);
+		ret = put_group_request(group, p, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_group_request(ctx, group, p, n, resp);
+		ret = delete_group_request(group, p, n, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_group_request(ctx, group, resp);
+		ret = post_group_request(group, resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_group_request(ctx, group, &hm->body, resp);
+		ret = patch_group_request(group, &hm->body, resp);
 	else
 		ret = bad_request(resp);
 
 	return ret;
 }
 
-static int handle_host_requests(void *ctx, char *p[], int n,
-				struct http_message *hm, char *resp)
+static int handle_host_requests(char *p[], int n, struct http_message *hm,
+				char *resp)
 {
 	char			*host = NULL;
 	int			 ret;
@@ -650,16 +627,15 @@ static int handle_host_requests(void *ctx, char *p[], int n,
 	n = (n > 2) ? n - 2 : 0;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_host_request(ctx, host, resp);
+		ret = get_host_request(host, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_host_request(ctx, host, n, &hm->body, resp);
+		ret = put_host_request(host, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_host_request(ctx, host, n, resp);
+		ret = delete_host_request(host, n, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_host_request(ctx, host, n, &hm->body, resp);
+		ret = post_host_request(host, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_host_request(ctx, host, p, n, &hm->body,
-					 resp);
+		ret = patch_host_request(host, p, n, &hm->body, resp);
 	else
 		ret = bad_request(resp);
 
@@ -668,9 +644,8 @@ static int handle_host_requests(void *ctx, char *p[], int n,
 
 #define MAX_DEPTH 8
 
-void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
+void handle_http_request(struct mg_connection *c, void *ev_data)
 {
-	struct json_context	*context = ctx;
 	struct http_message	*hm = (struct http_message *) ev_data;
 	char			*resp = NULL;
 	char			*uri = NULL;
@@ -679,7 +654,7 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	int			 ret;
 	int			 i, n;
 
-	pthread_spin_lock(&context->lock);
+	json_spinlock();
 
 	if (!hm->uri.len) {
 		strcpy(resp, "Bad page no uri");
@@ -739,11 +714,11 @@ void handle_http_request(void *ctx, struct mg_connection *c, void *ev_data)
 	}
 
 	if (strncmp(parts[0], URI_GROUP, GROUP_LEN) == 0)
-		ret = handle_group_requests(ctx, parts, n, hm, resp);
+		ret = handle_group_requests(parts, n, hm, resp);
 	else if (strncmp(parts[0], URI_HOST, HOST_LEN) == 0)
-		ret = handle_host_requests(ctx, parts, n, hm, resp);
+		ret = handle_host_requests(parts, n, hm, resp);
 	else if (strncmp(parts[0], URI_TARGET, TARGET_LEN) == 0)
-		ret = handle_target_requests(ctx, parts, n, hm, resp);
+		ret = handle_target_requests(parts, n, hm, resp);
 	else
 		goto bad_page;
 
@@ -774,5 +749,5 @@ out:
 
 	c->flags = MG_F_SEND_AND_CLOSE;
 
-	pthread_spin_unlock(&context->lock);
+	json_spinunlock();
 }

@@ -12,15 +12,11 @@
  * more details.
  */
 
-extern int formatted;
-extern int debug_curl;
-
-void *init_curl();
-void cleanup_curl(void *p);
-int exec_get(void *p, char *url, char **result);
-int exec_delete(void *p, char *url);
-int exec_delete_ex(void *p, char *url, char *data, int len);
-int exec_put(void *p, char *url, char *data, int len);
-int exec_post(void *p, char *url, char *data, int len);
-int exec_patch(void *p, char *url, char *data, int len);
-
+int init_curl(int debug);
+void cleanup_curl(void);
+int exec_get(char *url, char **result);
+int exec_delete(char *url);
+int exec_delete_ex(char *url, char *data, int len);
+int exec_put(char *url, char *data, int len);
+int exec_post(char *url, char *data, int len);
+int exec_patch(char *url, char *data, int len);

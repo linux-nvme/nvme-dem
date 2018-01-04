@@ -20,8 +20,8 @@
 #include "common.h"
 #include "ops.h"
 
-#define RETRY_COUNT	100  // 20 sec since the delay timeout is 200 ms
-#define DELAY_TIMEOUT	200 // ms
+#define RETRY_COUNT	200  // 20 sec since multiplier of delay timeout
+#define DELAY_TIMEOUT	100 // ms
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
@@ -454,21 +454,12 @@ static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 
 	add_new_host_conn(q, ep);
 
-	usleep(100);
+	usleep(20);
 
 	return 0;
 out:
 	free(ep);
 	return ret;
-}
-
-int check_modified(struct target *target)
-{
-	UNUSED(target);
-
-	/*TODO - Finish check_modified */
-
-	return 1;
 }
 
 void *interface_thread(void *arg)

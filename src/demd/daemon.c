@@ -27,19 +27,20 @@
 #include "tags.h"
 #include "mongoose.h"
 #include "common.h"
+#include "curl.h"
 
 #define RETRY_COUNT	200
 #define DEFAULT_ROOT	"/"
+#define CURL_DEBUG	0
+
+#define NVME_VER	((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 #define DEV_DEBUG
-
-#define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 static LIST_HEAD(target_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_PORT;
-void					*json_ctx;
 int					 stopped;
 int					 debug;
 struct interface			*interfaces;
@@ -64,7 +65,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 {
 	switch (ev) {
 	case MG_EV_HTTP_REQUEST:
-		handle_http_request(json_ctx, c, ev_data);
+		handle_http_request(c, ev_data);
 		break;
 	case MG_EV_HTTP_CHUNK:
 	case MG_EV_ACCEPT:
@@ -371,23 +372,6 @@ static int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
-int restart_dem(void)
-{
-	int			ret = 1;
-
-	stopped = 2;
-
-// TODO should only cleanup/init targets that were modified.
-
-	cleanup_targets(1);
-
-	stopped = 0;
-
-	init_targets(1);
-
-	return ret;
-}
-
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -398,20 +382,22 @@ int main(int argc, char *argv[])
 	s_http_server_opts.document_root = default_root;
 
 	if (init_dem(argc, argv, &ssl_cert))
-		goto out1;
+		goto out;
 
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
-		goto out1;
+		goto out;
 
-	json_ctx = init_json("config.json");
-	if (!json_ctx)
+	if (init_curl(CURL_DEBUG))
+		goto out;
+
+	if (init_json("config.json"))
 		goto out1;
 
 	num_interfaces = init_interfaces();
 	if (num_interfaces <= 0)
 		goto out2;
 
-	init_targets(0);
+	init_targets();
 
 	signalled = stopped = 0;
 
@@ -431,9 +417,11 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
-	cleanup_targets(0);
+	cleanup_targets();
 out2:
-	cleanup_json(json_ctx);
+	cleanup_json();
 out1:
+	cleanup_curl();
+out:
 	return ret;
 }

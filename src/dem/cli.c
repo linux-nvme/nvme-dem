@@ -52,7 +52,6 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _SUBSYS		"subsystem"
 #define _HOST		"host"
 #define _PORT		"portid"
-#define _NSDEV		"drive"
 #define _ACL		"acl"
 #define _NS		"ns"
 #define _REFRESH	"refresh"
@@ -65,7 +64,7 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define DELETE_PROMPT	"Are you sure you want to delete "
 
 struct verbs {
-	int		(*function)(void *ctx, char *base, int n, char **p);
+	int		(*function)(char *base, int n, char **p);
 	int		 target;
 	int		 num_args;
 	char		*verb;
@@ -96,7 +95,7 @@ static inline int cancel_delete(void)
 
 /* DEM */
 
-static int dem_config(void *ctx, char *base, int n, char **p)
+static int dem_config(char *base, int n, char **p)
 {
 	char			*result;
 	json_t			*parent;
@@ -106,7 +105,7 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 	UNUSED(n);
 	UNUSED(p);
 
-	ret = exec_get(ctx, base, &result);
+	ret = exec_get(base, &result);
 	if (ret)
 		return ret;
 
@@ -125,19 +124,7 @@ static int dem_config(void *ctx, char *base, int n, char **p)
 	return 0;
 }
 
-static int dem_apply(void *ctx, char *base, int n, char **p)
-{
-	char			 url[128];
-
-	UNUSED(n);
-	UNUSED(p);
-
-	snprintf(url, sizeof(url), "%s/%s", base, METHOD_APPLY);
-
-	return exec_post(ctx, url, NULL, 0);
-}
-
-static int dem_shutdown(void *ctx, char *base, int n, char **p)
+static int dem_shutdown(char *base, int n, char **p)
 {
 	char			 url[128];
 
@@ -146,12 +133,12 @@ static int dem_shutdown(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, METHOD_SHUTDOWN);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
 /* GROUPS */
 
-static int list_group(void *ctx, char *url, int n, char **p)
+static int list_group(char *url, int n, char **p)
 {
 	int			 ret;
 	char			*result;
@@ -161,7 +148,7 @@ static int list_group(void *ctx, char *url, int n, char **p)
 	UNUSED(n);
 	UNUSED(p);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -180,7 +167,7 @@ static int list_group(void *ctx, char *url, int n, char **p)
 	return 0;
 }
 
-static int add_group(void *ctx, char *base, int n, char **p)
+static int add_group(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -189,10 +176,10 @@ static int add_group(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
-static int get_group(void *ctx, char *base, int n, char **p)
+static int get_group(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -205,7 +192,7 @@ static int get_group(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -224,7 +211,7 @@ static int get_group(void *ctx, char *base, int n, char **p)
 	return 0;
 }
 
-static int set_group(void *ctx, char *url, int n, char **p)
+static int set_group(char *url, int n, char **p)
 {
 	char			 data[256];
 	char			*group = *p++;
@@ -234,10 +221,10 @@ static int set_group(void *ctx, char *url, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_NAME, group);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_group(void *ctx, char *base, int n, char **p)
+static int del_group(char *base, int n, char **p)
 {
 	char			 url[128];
 	int			 i;
@@ -254,13 +241,13 @@ static int del_group(void *ctx, char *base, int n, char **p)
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
 }
 
-static int rename_group(void *ctx, char *base, int n, char **p)
+static int rename_group(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -274,12 +261,12 @@ static int rename_group(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR" }", TAG_NAME, new);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
 /* TARGETS */
 
-static int list_target(void *ctx, char *url, int n, char **p)
+static int list_target(char *url, int n, char **p)
 {
 	int			 ret;
 	char			*result;
@@ -289,7 +276,7 @@ static int list_target(void *ctx, char *url, int n, char **p)
 	UNUSED(n);
 	UNUSED(p);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -308,7 +295,7 @@ static int list_target(void *ctx, char *url, int n, char **p)
 	return 0;
 }
 
-static int add_target(void *ctx, char *base, int n, char **p)
+static int add_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -317,10 +304,10 @@ static int add_target(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
-static int get_target(void *ctx, char *base, int n, char **p)
+static int get_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -333,7 +320,7 @@ static int get_target(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -352,7 +339,7 @@ static int get_target(void *ctx, char *base, int n, char **p)
 	return 0;
 }
 
-static int set_target(void *ctx, char *base, int n, char **p)
+static int set_target(char *base, int n, char **p)
 {
 	char			 data[256];
 	char			*alias = *p;
@@ -362,10 +349,10 @@ static int set_target(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, alias);
 
-	return exec_put(ctx, base, data, len);
+	return exec_put(base, data, len);
 }
 
-static int set_interface(void *ctx, char *base, int n, char **p)
+static int set_interface(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -384,10 +371,10 @@ static int set_interface(void *ctx, char *base, int n, char **p)
 		     TAG_INTERFACE, TAG_IFFAMILY, family,
 		     TAG_IFADDRESS, address, TAG_IFPORT, port);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
-static int set_mode(void *ctx, char *base, int n, char **p)
+static int set_mode(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -411,10 +398,10 @@ static int set_mode(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_MGMT_MODE, mode);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
-static int set_refresh(void *ctx, char *base, int n, char **p)
+static int set_refresh(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -428,10 +415,10 @@ static int set_refresh(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSINT "}", TAG_REFRESH, refresh);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
-static int del_target(void *ctx, char *base, int n, char **p)
+static int del_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	int			 i;
@@ -448,13 +435,13 @@ static int del_target(void *ctx, char *base, int n, char **p)
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
 }
 
-static int rename_target(void *ctx, char *base, int n, char **p)
+static int rename_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -468,10 +455,10 @@ static int rename_target(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, new);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
-static int refresh_target(void *ctx, char *base, int n, char **p)
+static int refresh_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -480,12 +467,12 @@ static int refresh_target(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_REFRESH);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
 /* GROUP LINK */
 
-static int link_target(void *ctx, char *base, int n, char **p)
+static int link_target(char *base, int n, char **p)
 {
 	char			 data[256];
 	char			 url[128];
@@ -499,10 +486,10 @@ static int link_target(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, target);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int unlink_target(void *ctx, char *base, int n, char **p)
+static int unlink_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*target = *p++;
@@ -519,10 +506,10 @@ static int unlink_target(void *ctx, char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s/%s/%s",
 		 base, group, URI_TARGET, target);
 
-	return exec_delete(ctx, url);
+	return exec_delete(url);
 }
 
-static int usage_target(void *ctx, char *base, int n, char **p)
+static int usage_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*result;
@@ -535,7 +522,7 @@ static int usage_target(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_USAGE);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -556,7 +543,7 @@ static int usage_target(void *ctx, char *base, int n, char **p)
 
 /* SUBSYSTEMS */
 
-static int add_subsys(void *ctx, char *base, int n, char **p)
+static int add_subsys(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -567,10 +554,10 @@ static int add_subsys(void *ctx, char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s/%s/%s",
 		 base, alias, URI_SUBSYSTEM, nqn);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
-static int set_subsys(void *ctx, char *base, int n, char **p)
+static int set_subsys(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -586,10 +573,10 @@ static int set_subsys(void *ctx, char *base, int n, char **p)
 	len = snprintf(data, sizeof(data), "{" JSSTR "," JSINT "}",
 		       TAG_SUBNQN, nqn, TAG_ALLOW_ANY, allow_any);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int edit_subsys(void *ctx, char *base, int n, char **p)
+static int edit_subsys(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -606,10 +593,10 @@ static int edit_subsys(void *ctx, char *base, int n, char **p)
 	len = snprintf(data, sizeof(data), "{" JSINT "}",
 		       TAG_ALLOW_ANY, allow_any);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_subsys(void *ctx, char *base, int n, char **p)
+static int del_subsys(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -625,13 +612,13 @@ static int del_subsys(void *ctx, char *base, int n, char **p)
 	for (i = 0, n--; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s", base, alias,
 			 URI_SUBSYSTEM, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
 }
 
-static int rename_subsys(void *ctx, char *base, int n, char **p)
+static int rename_subsys(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -648,12 +635,12 @@ static int rename_subsys(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_SUBNQN, new);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
 /* PORTID */
 
-static int set_portid(void *ctx, char *base, int n, char **p)
+static int set_portid(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -674,10 +661,10 @@ static int set_portid(void *ctx, char *base, int n, char **p)
 		       TAG_PORTID, portid, TAG_TYPE, type, TAG_FAMILY, family,
 		       TAG_ADDRESS, address, TAG_TRSVCID, trsvcid);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int edit_portid(void *ctx, char *base, int n, char **p)
+static int edit_portid(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -699,10 +686,10 @@ static int edit_portid(void *ctx, char *base, int n, char **p)
 		       TAG_TYPE, type, TAG_FAMILY, family,
 		       TAG_ADDRESS, address, TAG_TRSVCID, trsvcid);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_portid(void *ctx, char *base, int n, char **p)
+static int del_portid(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -718,7 +705,7 @@ static int del_portid(void *ctx, char *base, int n, char **p)
 	for (i = 0, n--; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s", base, alias,
 			 URI_PORTID, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
@@ -726,7 +713,7 @@ static int del_portid(void *ctx, char *base, int n, char **p)
 
 /* ACL */
 
-static int set_acl(void *ctx, char *base, int n, char **p)
+static int set_acl(char *base, int n, char **p)
 {
 	char			 data[384];
 	char			 url[128];
@@ -742,10 +729,10 @@ static int set_acl(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, host);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_acl(void *ctx, char *base, int n, char **p)
+static int del_acl(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -762,7 +749,7 @@ static int del_acl(void *ctx, char *base, int n, char **p)
 	for (i = 0, n -= 2; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s/%s/%s/%s/%s", base, alias,
 			 URI_SUBSYSTEM, ss, URI_HOST, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
@@ -770,7 +757,7 @@ static int del_acl(void *ctx, char *base, int n, char **p)
 
 /* NAMESPACES */
 
-static int set_ns(void *ctx, char *base, int n, char **p)
+static int set_ns(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -789,10 +776,10 @@ static int set_ns(void *ctx, char *base, int n, char **p)
 	len = snprintf(data, sizeof(data), "{" JSINT "," JSINT "," JSINT "}",
 		       TAG_NSID, nsid, TAG_DEVID, devid, TAG_DEVNSID, devnsid);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_ns(void *ctx, char *base, int n, char **p)
+static int del_ns(char *base, int n, char **p)
 {
 	char			 base_url[128];
 	char			 url[128];
@@ -813,7 +800,7 @@ static int del_ns(void *ctx, char *base, int n, char **p)
 
 	for (i = 0, n -= 2; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%d", base_url, atoi(p[i]));
-		exec_delete_ex(ctx, url, NULL, 0);
+		exec_delete_ex(url, NULL, 0);
 	}
 
 	return 0;
@@ -821,7 +808,7 @@ static int del_ns(void *ctx, char *base, int n, char **p)
 
 /* HOSTS */
 
-static int list_host(void *ctx, char *url, int n, char **p)
+static int list_host(char *url, int n, char **p)
 {
 	int			 ret;
 	char			*result;
@@ -831,7 +818,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	UNUSED(n);
 	UNUSED(p);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -850,7 +837,7 @@ static int list_host(void *ctx, char *url, int n, char **p)
 	return 0;
 }
 
-static int add_host(void *ctx, char *base, int n, char **p)
+static int add_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p++;
@@ -859,11 +846,11 @@ static int add_host(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	return exec_post(ctx, url, NULL, 0);
+	return exec_post(url, NULL, 0);
 }
 
 
-static int get_host(void *ctx, char *base, int n, char **p)
+static int get_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
@@ -876,7 +863,7 @@ static int get_host(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	ret = exec_get(ctx, url, &result);
+	ret = exec_get(url, &result);
 	if (ret)
 		return ret;
 
@@ -895,7 +882,7 @@ static int get_host(void *ctx, char *base, int n, char **p)
 	return 0;
 }
 
-static int set_host(void *ctx, char *url, int n, char **p)
+static int set_host(char *url, int n, char **p)
 {
 	char			 data[256];
 	char			*alias = *p++;
@@ -907,10 +894,10 @@ static int set_host(void *ctx, char *url, int n, char **p)
 	len = snprintf(data, sizeof(data), "{" JSSTR "," JSSTR "}",
 		       TAG_ALIAS, alias, TAG_HOSTNQN, nqn);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int edit_host(void *ctx, char *base, int n, char **p)
+static int edit_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -924,10 +911,10 @@ static int edit_host(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_HOSTNQN, nqn);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int del_host(void *ctx, char *base, int n, char **p)
+static int del_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	int			 i;
@@ -944,13 +931,13 @@ static int del_host(void *ctx, char *base, int n, char **p)
 
 	for (i = 0; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%s", base, p[i]);
-		exec_delete(ctx, url);
+		exec_delete(url);
 	}
 
 	return 0;
 }
 
-static int rename_host(void *ctx, char *base, int n, char **p)
+static int rename_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -964,12 +951,12 @@ static int rename_host(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, new);
 
-	return exec_patch(ctx, url, data, len);
+	return exec_patch(url, data, len);
 }
 
 /* GROUP LINK */
 
-static int link_host(void *ctx, char *base, int n, char **p)
+static int link_host(char *base, int n, char **p)
 {
 	char			 data[256];
 	char			 url[128];
@@ -983,10 +970,10 @@ static int link_host(void *ctx, char *base, int n, char **p)
 
 	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, host);
 
-	return exec_put(ctx, url, data, len);
+	return exec_put(url, data, len);
 }
 
-static int unlink_host(void *ctx, char *base, int n, char **p)
+static int unlink_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*host = *p++;
@@ -1003,7 +990,7 @@ static int unlink_host(void *ctx, char *base, int n, char **p)
 
 	snprintf(url, sizeof(url), "%s/%s/%s/%s", base, group, URI_HOST, host);
 
-	return exec_delete(ctx, url);
+	return exec_delete(url);
 }
 
 /*
@@ -1019,8 +1006,6 @@ static struct verbs verb_list[] = {
 	/* DEM */
 	{ dem_config,	 DEM,     0, "config",   NULL, NULL,
 	  "show dem configuration including interfaces" },
-	{ dem_apply,	 DEM,     0, "apply",    NULL, NULL,
-	  "apply changes and rebuild internal data structures" },
 	{ dem_shutdown,	 DEM,     0, "shutdown", NULL, NULL,
 	  "signal the dem to shutdown" },
 
@@ -1161,7 +1146,7 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("\n");
 	printf("  verb : list | get | add | set | rename");
 	printf(" | delete | link | unlink\n");
-	printf("	 | refresh | config | apply | shutdown\n");
+	printf("	 | refresh | config | shutdown\n");
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
 	printf("object : group | target | drive | subsystem | portid | acl\n");
 	printf("	 | ns | host\n");
@@ -1243,7 +1228,7 @@ int main(int argc, char *argv[])
 	int			 opt;
 	int			 ret = -1;
 	char			 url[128];
-	void			*ctx;
+	int			 debug_curl;
 
 	if (argc <= 1 || strcmp(argv[1], "--help") == 0) {
 		show_help(argv[0], NULL, NULL);
@@ -1299,8 +1284,7 @@ int main(int argc, char *argv[])
 	if (valid_arguments(argv[0], argc, p->target, p->num_args))
 		return -1;
 
-	ctx = init_curl();
-	if (!ctx)
+	if (init_curl(debug_curl))
 		return -1;
 
 	if (p->target == DEM)
@@ -1317,14 +1301,14 @@ int main(int argc, char *argv[])
 		opts = &args[2];
 	}
 
-	ret = p->function(ctx, url, argc, opts);
+	ret = p->function(url, argc, opts);
 	if (ret < 0) {
 		n = (strcmp(p->verb, _RENA) == 0 && ret == -EEXIST) ? 4 : 3;
 		printf("Error: %s: %s '%s' %s\n",
 		       argv[0], args[1], args[n], error_str(ret));
 	}
 
-	cleanup_curl(ctx);
+	cleanup_curl();
 
 	return ret;
 }

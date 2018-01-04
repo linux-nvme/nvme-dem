@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 #include <curl/curl.h>
 
 #include "curl.h"
@@ -27,13 +28,15 @@ struct curl_context {
 	int read_sz;
 };
 
+static struct curl_context	*ctx;
+static int			 debug_curl;
+
 static size_t read_cb(char *p, size_t size, size_t n, void *stream)
 {
-	struct curl_context	*ctx = stream;
 	int			 len = size * n;
 	int			 cnt;
 
-	if (!ctx->read_sz)
+	if (ctx != stream || !ctx->read_sz)
 		cnt = 0;
 	else if (len > ctx->read_sz) {
 		memcpy(p, ctx->read_data, ctx->read_sz);
@@ -49,10 +52,12 @@ static size_t read_cb(char *p, size_t size, size_t n, void *stream)
 	return cnt;
 }
 
-static size_t write_cb(void *contents, size_t size, size_t n, void *p)
+static size_t write_cb(void *contents, size_t size, size_t n, void *stream)
 {
-	struct curl_context	*ctx = p;
 	size_t			 bytes = size * n;
+
+	if (ctx != stream)
+		return 0;
 
 	ctx->write_data = realloc(ctx->write_data, ctx->write_sz + bytes + 1);
 	if (ctx->write_data == NULL) {
@@ -67,15 +72,16 @@ static size_t write_cb(void *contents, size_t size, size_t n, void *p)
 	return bytes;
 }
 
-void *init_curl(void)
+int init_curl(int debug)
 {
 	CURL			*curl;
-	struct curl_context	*ctx;
+
+	debug_curl = debug;
 
 	ctx = malloc(sizeof(*ctx));
 	if (!ctx) {
 		fprintf(stderr, "unable to alloc memory for curl context\n");
-		return NULL;
+		return -ENOMEM;
 	}
 
 	curl_global_init(CURL_GLOBAL_ALL);
@@ -84,7 +90,7 @@ void *init_curl(void)
 	if (!curl) {
 		fprintf(stderr, "unable to init curl");
 		free(ctx);
-		return NULL;
+		return -EINVAL;
 	}
 
 	/* will be grown as needed by the realloc in wrtie_cb */
@@ -99,12 +105,11 @@ void *init_curl(void)
 
 	ctx->curl = curl;
 
-	return ctx;
+	return 0;
 }
 
-void cleanup_curl(void *p)
+void cleanup_curl(void)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 
 	curl_easy_cleanup(curl);
@@ -115,7 +120,7 @@ void cleanup_curl(void *p)
 	free(ctx);
 }
 
-static int exec_curl(struct curl_context *ctx, char *url, char **p)
+static int exec_curl(char *url, char **p)
 {
 	CURL			*curl = ctx->curl;
 	CURLcode		 ret;
@@ -141,9 +146,8 @@ static int exec_curl(struct curl_context *ctx, char *url, char **p)
 	return ret;
 }
 
-int exec_get(void *p, char *url, char **result)
+int exec_get(char *url, char **result)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	int			 ret;
 
@@ -152,16 +156,15 @@ int exec_get(void *p, char *url, char **result)
 	if (debug_curl)
 		printf("GET %s\n", url);
 
-	ret = exec_curl(ctx, url, result);
+	ret = exec_curl(url, result);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPGET, 0);
 
 	return ret;
 }
 
-int exec_put(void *p, char *url, char *data, int len)
+int exec_put(char *url, char *data, int len)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	char			*result;
 	int			 ret;
@@ -177,7 +180,7 @@ int exec_put(void *p, char *url, char *data, int len)
 			printf("<< %.*s >>\n", len, data);
 	}
 
-	ret = exec_curl(ctx, url, &result);
+	ret = exec_curl(url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_PUT, 0);
 
@@ -191,9 +194,8 @@ int exec_put(void *p, char *url, char *data, int len)
 	return 0;
 }
 
-int exec_post(void *p, char *url, char *data, int len)
+int exec_post(char *url, char *data, int len)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	char			*result;
 	int			 ret;
@@ -208,7 +210,7 @@ int exec_post(void *p, char *url, char *data, int len)
 			printf("<< %.*s >>\n", len, data);
 	}
 
-	ret = exec_curl(ctx, url, &result);
+	ret = exec_curl(url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_HTTPPOST, 0);
 
@@ -222,9 +224,8 @@ int exec_post(void *p, char *url, char *data, int len)
 	return 0;
 }
 
-int exec_delete(void *p, char *url)
+int exec_delete(char *url)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	char			*result;
 	int			 ret;
@@ -234,7 +235,7 @@ int exec_delete(void *p, char *url)
 	if (debug_curl)
 		printf("DELETE %s\n", url);
 
-	ret = exec_curl(ctx, url, &result);
+	ret = exec_curl(url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
 
@@ -248,9 +249,8 @@ int exec_delete(void *p, char *url)
 	return 0;
 }
 
-int exec_delete_ex(void *p, char *url, char *data, int len)
+int exec_delete_ex(char *url, char *data, int len)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	char			*result;
 	int			 ret;
@@ -265,7 +265,7 @@ int exec_delete_ex(void *p, char *url, char *data, int len)
 			printf("<< %.*s >>\n", len, data);
 	}
 
-	ret = exec_curl(ctx, url, &result);
+	ret = exec_curl(url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
 
@@ -279,9 +279,8 @@ int exec_delete_ex(void *p, char *url, char *data, int len)
 	return 0;
 }
 
-int exec_patch(void *p, char *url, char *data, int len)
+int exec_patch(char *url, char *data, int len)
 {
-	struct curl_context	*ctx = p;
 	CURL			*curl = ctx->curl;
 	char			*result;
 	int			 ret;
@@ -296,7 +295,7 @@ int exec_patch(void *p, char *url, char *data, int len)
 			printf("<< %.*s >>\n", len, data);
 	}
 
-	ret = exec_curl(ctx, url, &result);
+	ret = exec_curl(url, &result);
 
 	curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, NULL);
 

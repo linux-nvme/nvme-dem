@@ -240,6 +240,14 @@ void fetch_log_pages(struct target *target)
 
 	save_log_pages(log, num_records, target);
 
+	/* TODO	Compare 'log' againt JSON config file.
+	 *	should this happen here of in caller
+	 *	if different:
+	 *		if OOB:	configure TGT via RESTFUL.
+	 *		else if INB: configure TGT via INB
+	 *		else: note differences, change JSON config file
+	 */
+
 	print_discovery_log(log, num_records);
 
 	free(log);
