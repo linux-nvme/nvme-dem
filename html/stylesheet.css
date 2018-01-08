@@ -35,10 +35,6 @@ body {
   color: #004280;
 }
 
-#apply {
-  background-color: red;
-}
-
 .dropdown-menu {
   position: relative;
   float: right;

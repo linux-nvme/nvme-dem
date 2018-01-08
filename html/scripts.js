@@ -1561,17 +1561,12 @@ function sendRequest() {
   xhttp.setRequestHeader("Content-type", "text/plain; charset=UTF-8");
   xhttp.setRequestHeader("Access-Control-Allow-Origin", "*");
   xhttp.setRequestHeader('Authorization', auth);
-  if (verb == "DELETE" || page == "dem/apply")
+  if (verb == "DELETE")
     xhttp.send();
   else
     xhttp.send(buildJSON(page));
 
   if ($("#post_err").html() == "") {
-    if (page == "dem/apply")
-      $("#apply-menu").hide();
-    else
-      $("#apply-menu").show();
-
     if ($("#objectValue").html() == "" || $("#renamedUri").html() == "")
       page = $("#parentUri").html();
     else {
@@ -1589,12 +1584,6 @@ function sendRequest() {
     alert($("#post_err").html());
 
   return false;
-}
-
-function sendapply() {
-    $("#editVerb").html("POST");
-    $("#editUri").html("dem/apply");
-    sendRequest();
 }
 
 function saveVal(str) {
