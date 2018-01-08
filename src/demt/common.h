@@ -34,9 +34,11 @@
 #include "linux/nvme.h"
 #include "linux/kernel.h"
 
-#include "ofi.h"
+#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
+
+#define MAX_NQN_SIZE	256
 
 #define IDLE_TIMEOUT	100
 
@@ -70,20 +72,6 @@ extern int			 debug;
 extern int			 stopped;
 extern struct list_head		*devices;
 extern struct list_head		*interfaces;
-
-/*
- *  trtypes
- *	[NVMF_TRTYPE_RDMA]	= "rdma",
- *	[NVMF_TRTYPE_TCPIP]	= "tcp"
- *	[NVMF_TRTYPE_FC]	= "fc",
- *	[NVMF_TRTYPE_LOOP]	= "loop",
- *
- *  adrfam
- *	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
- *	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
- *	[NVMF_ADDR_FAMILY_IB]	= "ib",
- *	[NVMF_ADDR_FAMILY_FC]	= "fc",
- */
 
 #define CONFIG_TYPE_SIZE	8
 #define CONFIG_FAMILY_SIZE	8
@@ -132,9 +120,15 @@ struct nsdev {
 	int			 nsid;
 };
 
+struct interface {
+	struct list_head	 node;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+};
+
 struct port_id {
 	struct list_head	 node;
-	struct fi_info		*prov;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
@@ -156,7 +150,9 @@ struct mg_connection;
 
 void shutdown_dem(void);
 void handle_http_request(struct mg_connection *c, void *ev_data);
-void dump(u8 *buf, int len);
+void dump(__u8 *buf, int len);
+
+int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);

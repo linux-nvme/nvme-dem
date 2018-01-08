@@ -71,6 +71,24 @@ static int handle_property_get(struct nvme_command *cmd,
 	return 0;
 }
 
+static int handle_set_features(struct nvme_command *cmd, u32 *kato)
+{
+	u32			cdw10 = ntohl(cmd->common.cdw10[0]);
+	int			ret;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_type_set_features");
+#endif
+
+	if ((cdw10 & 0xff) == *kato) {
+		*kato = ntohl(cmd->common.cdw10[1]);
+		ret = 0;
+	} else
+		ret = -EINVAL;
+
+	return ret;
+}
+
 static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 {
 	struct nvmf_connect_data *data = ep->data;
@@ -238,6 +256,7 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 	u64				 addr;
 	u32				 len;
 	u32				 key;
+	u32				 kato;
 	int				 ret;
 
 	addr = c->dptr.ksgl.addr;
@@ -272,12 +291,19 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
+		/* TODO - Update keepalive counter */
 		ret = 0;
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
 			ret = handle_get_log_page_count(ep, addr, key, len);
 		else
 			ret = handle_get_log_pages(ep, addr, key, len);
+	} else if (cmd->common.opcode == nvme_admin_set_features) {
+		ret = handle_set_features(cmd, &kato);
+		if (ret)
+			ret = 0;
+		else
+			kato = 0; /* TODO: Update kato */
 	} else {
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
 		ret = -EINVAL;

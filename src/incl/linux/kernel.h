@@ -15,10 +15,14 @@
 #ifndef _LINUX_KERNEL_H
 #define _LINUX_KERNEL_H
 
+/* excerpt from kernel.h */
 #ifndef ARRAY_SIZE
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof(x[0]))
 #endif
 
+/* complex for_each that checkpatch has issues with but is correct and
+ * used in multiple include files in the kernel
+ */
 #define for_each_dir(entry, subdir)			\
 	while ((entry = readdir(subdir)) != NULL)	\
 		if (strcmp(entry->d_name, ".") &&	\

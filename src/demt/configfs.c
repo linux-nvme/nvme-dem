@@ -18,7 +18,9 @@
 #include <unistd.h>
 #include <dirent.h>
 #include <sys/stat.h>
-#include <netinet/in.h>
+#include <sys/socket.h>
+#include <arpa/inet.h>
+//#include <netinet/in.h>
 
 #include "common.h"
 #include "tags.h"
@@ -612,33 +614,16 @@ void free_interfaces(void)
 {
 	struct list_head	*p;
 	struct list_head	*n;
-	struct port_id		*interface;
+	struct interface	*iface;
 
 	list_for_each_safe(p, n, interfaces) {
 		list_del(p);
-		interface = container_of(p, struct port_id, node);
-		free(interface);
+		iface = container_of(p, struct interface, node);
+		free(iface);
 	}
 }
 
-static int find_interface(struct fi_info *prov)
-{
-	struct list_head	*p;
-	struct list_head	*n;
-	struct port_id		*interface;
-
-	list_for_each_safe(p, n, interfaces) {
-		interface = container_of(p, struct port_id, node);
-		if (interface->prov->addr_format == prov->addr_format &&
-		    interface->prov->src_addrlen == prov->src_addrlen &&
-		    memcmp(interface->prov->src_addr, prov->src_addr,
-			   prov->src_addrlen) == 0)
-			return 1;
-	}
-	return 0;
-}
-
-static void addr_to_ipv4(u8 *addr, char *str)
+static void addr_to_ipv4(__u8 *addr, char *str)
 {
 	int			 i, n;
 
@@ -647,20 +632,20 @@ static void addr_to_ipv4(u8 *addr, char *str)
 		n = sprintf(str, "%s%u", i ? "." : "", *addr);
 }
 
-static void addr_to_ipv6(u8 *_addr, char *str)
+static void addr_to_ipv6(__u8 *_addr, char *str)
 {
-	u16			*addr;
+	__u16			*addr;
 	int			 i, n;
 
 	_addr += IPV6_OFFSET;
-	addr = (u16 *) _addr;
+	addr = (__u16 *) _addr;
 
 	for (i = 0; i < IPV6_LEN; i++, addr++, str += n)
 		n = sprintf(str, "%s%x", i ? IPV6_DELIM : "",
 			    htons(*addr));
 }
 
-static void addr_to_fc(u8 *addr, char *str)
+static void addr_to_fc(__u8 *addr, char *str)
 {
 	int			 i, n;
 
@@ -669,84 +654,61 @@ static void addr_to_fc(u8 *addr, char *str)
 		n = sprintf(str, "%s%u", i ? FC_DELIM : "", *addr);
 }
 
-static void store_interface_address(struct port_id *interface,
-				    struct fi_info *p)
+static void read_dem_config(FILE *fd, struct interface *iface)
 {
-	if (p->addr_format == FI_SOCKADDR_IN) {
-		strcpy(interface->family, ADRFAM_STR_IPV4);
-		strcpy(interface->type, TRTYPE_STR_RDMA);
-		addr_to_ipv4(p->src_addr, interface->address);
-	} else if (p->addr_format == FI_SOCKADDR_IN6) {
-		strcpy(interface->family, ADRFAM_STR_IPV6);
-		strcpy(interface->type, TRTYPE_STR_RDMA);
-		addr_to_ipv6(p->src_addr, interface->address);
-	} else {
-		strcpy(interface->family, ADRFAM_STR_FC);
-		strcpy(interface->type, TRTYPE_STR_FC);
-		addr_to_fc(p->src_addr, interface->address);
-	}
+	int			 ret;
+	char			 tag[LARGEST_TAG + 1];
+	char			 val[LARGEST_VAL + 1];
+
+	ret = parse_line(fd, tag, LARGEST_TAG, val, LARGEST_VAL);
+	if (ret)
+		return;
+
+	if (strcasecmp(tag, TAG_TYPE) == 0)
+		strncpy(iface->type, val, CONFIG_TYPE_SIZE);
+	else if (strcasecmp(tag, TAG_FAMILY) == 0)
+		strncpy(iface->family, val, CONFIG_FAMILY_SIZE);
+	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
+		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
 }
 
 int enumerate_interfaces(void)
 {
-	struct fi_info		*hints;
-	struct fi_info		*prov;
-	struct fi_info		*p;
-	struct port_id		*interface;
-	char			*ib_name = "ib";
-	int			 ret;
+	struct dirent		*entry;
+	DIR			*dir;
+	FILE			*fd;
+	char			 config_file[FILENAME_MAX + 1];
+	struct interface	*iface;
 	int			 cnt = 0;
-	u8			 ipv4_loopback[] = {
-		0x02, 0x00, 0x00, 0x00, 0x7f, 0x00, 0x00, 0x01,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00 };
-	u8			 ipv6_loopback[] = {
-		0x0a, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-		0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x01,
-		0x00, 0x00, 0x00, 0x00 };
 
-	hints = fi_allocinfo();
-	if (!hints) {
-		print_err("no memory for hints");
-		return -ENOMEM;
-	}
+	dir = opendir(PATH_NVMF_DEM_DISC);
+	for_each_dir(entry, dir) {
+		snprintf(config_file, FILENAME_MAX, "%s%s",
+			 PATH_NVMF_DEM_DISC, entry->d_name);
 
-	ret = fi_getinfo(FI_VER, NULL, NULL, 0, hints, &prov);
-	if (ret) {
-		cnt = ret;
-		goto out1;
-	}
+		fd = fopen(config_file, "r");
+		if (fd == NULL)
+			continue;
 
-	for (p = prov; p; p = p->next)
-		if (p->src_addrlen && !find_interface(p)) {
-			if (strncmp(p->domain_attr->name, ib_name,
-				    strlen(ib_name)))
-				continue;
-			if (p->addr_format == FI_SOCKADDR_IN &&
-			    memcmp(ipv4_loopback, p->src_addr,
-				   sizeof(ipv4_loopback)) == 0)
-				continue;
-			if (p->addr_format == FI_SOCKADDR_IN6 &&
-			    memcmp(ipv6_loopback, p->src_addr,
-				   sizeof(ipv6_loopback)) == 0)
-				continue;
-			interface = malloc(sizeof(*interface));
-			if (!interface) {
-				cnt = -ENOMEM;
-				free_interfaces();
-				goto out2;
-			}
-			interface->prov = p;
-			store_interface_address(interface, p);
-			print_debug("adding interface for %s %s %s",
-				    interface->type, interface->family,
-				    interface->address);
-			list_add_tail(&interface->node, interfaces);
-			cnt++;
+		iface = malloc(sizeof(*iface));
+		if (!iface) {
+			fclose(fd);
+			cnt = -ENOMEM;
+			free_interfaces();
+			goto out2;
 		}
+
+		while (!feof(fd))
+			read_dem_config(fd, iface);
+
+		fclose(fd);
+
+		print_debug("adding interface for %s %s %s",
+			    iface->type, iface->family, iface->address);
+
+		list_add_tail(&iface->node, interfaces);
+		cnt++;
+	}
 out2:
-	fi_freeinfo(prov);
-out1:
-	fi_freeinfo(hints);
 	return cnt;
 }

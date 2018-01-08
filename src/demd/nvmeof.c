@@ -29,7 +29,11 @@
 #define NVME_CTRL_ENABLE 0x460001
 #define NVME_CTRL_DISABLE 0x464001
 
+#define NVME_DISC_KATO	360000 /* ms = minutes */
+
 #define MSG_TIMEOUT     100
+
+#define NVMF_UUID_FMT	"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
 
 void dump(u8 *buf, int len)
 {
@@ -144,7 +148,7 @@ static int process_nvme_rsp(struct endpoint *ep)
 	return ret;
 }
 
-static int send_fabric_connect(struct endpoint *ep)
+static int send_fabric_connect(struct target *target, struct endpoint *ep)
 {
 	struct nvmf_connect_data	*data;
 	struct nvme_keyed_sgl_desc	*sg;
@@ -167,14 +171,16 @@ static int send_fabric_connect(struct endpoint *ep)
 	cmd->connect.qid	= htole16(0);
 	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
 
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		cmd->connect.kato = htole16(NVME_DISC_KATO);
+
 	uuid_generate(id);
 	memcpy(&data->hostid, id, sizeof(*id));
 	uuid_unparse_lower(id, uuid);
 
-	data->cntlid = htole16(0xffff);
+	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	snprintf(data->hostnqn, NVMF_NQN_SIZE,
-		 "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s", uuid);
+	snprintf(data->hostnqn, NVMF_NQN_SIZE, NVMF_UUID_FMT, uuid);
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -187,7 +193,19 @@ static int send_fabric_connect(struct endpoint *ep)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep);
+	ret = process_nvme_rsp(ep);
+	if (!ret || (target->mgmt_mode != IN_BAND_MGMT))
+		return ret;
+
+	print_err("misconfigured target, retry as locally managed");
+
+	cmd->connect.kato = 0;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		return ret;
+
+	return  process_nvme_rsp(ep);
 }
 
 int send_keep_alive(struct endpoint *ep)
@@ -219,7 +237,115 @@ int send_keep_alive(struct endpoint *ep)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep);
+	process_nvme_rsp(ep);
+
+	return 0;
+}
+
+int send_get_nsdevs(struct endpoint *ep,
+		    struct nvmf_ns_devices_rsp_page_hdr **hdr)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ep->cmd;
+	struct xp_mr			*mr;
+	u64				*data;
+	int				 bytes;
+	int				 key;
+	int				 ret;
+
+	bytes = sizeof(*cmd);
+
+	if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+		print_err("no memory for buffer, errno %d", errno);
+		return errno;
+	}
+
+	memset(data, 0, PAGE_SIZE);
+
+	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
+	if (ret)
+		return ret;
+
+	key = ep->ops->remote_key(mr);
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_fabrics_command;
+
+	cmd->fabrics.fctype	= nvme_fabrics_type_get_ns_devices;
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le24(PAGE_SIZE, sg->length);
+	put_unaligned_le32(key, sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	*hdr = (struct nvmf_ns_devices_rsp_page_hdr *) data;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		free(data);
+	else
+		ret =  process_nvme_rsp(ep);
+
+	ep->ops->dealloc_key(mr);
+
+	return ret;
+}
+
+int send_get_xports(struct endpoint *ep,
+		    struct nvmf_transports_rsp_page_hdr **hdr)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+	struct nvme_command		*cmd = ep->cmd;
+	struct xp_mr			*mr;
+	u64				*data;
+	int				 bytes;
+	int				 key;
+	int				 ret;
+
+	bytes = sizeof(*cmd);
+
+	if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+		print_err("no memory for buffer, errno %d", errno);
+		return errno;
+	}
+
+	memset(data, 0, PAGE_SIZE);
+
+	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
+	if (ret)
+		return ret;
+
+	key = ep->ops->remote_key(mr);
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_fabrics_command;
+
+	cmd->fabrics.fctype	= nvme_fabrics_type_get_transports;
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le24(PAGE_SIZE, sg->length);
+	put_unaligned_le32(key, sg->key);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	*hdr = (struct nvmf_transports_rsp_page_hdr *) data;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		free(data);
+	else
+		ret =  process_nvme_rsp(ep);
+
+	ep->ops->dealloc_key(mr);
+
+	return ret;
 }
 
 int send_set_port_config(struct endpoint *ep, int len,
@@ -372,7 +498,7 @@ int send_get_property(struct endpoint *ep, u32 reg)
 	sg = &cmd->common.dptr.ksgl;
 
 	sg->addr = (u64) data;
-	// CAYTON HACK put_unaligned_le24(4, sg->length);
+	//  sg->length = 0 not sizeof(u64) - put_unaligned_le24(4, sg->length);
 	put_unaligned_le32(key, sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
@@ -495,6 +621,7 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	return ret;
 }
 
+
 void disconnect_target(struct endpoint *ep, int shutdown)
 {
 	if (shutdown && (ep->state == CONNECTED))
@@ -536,20 +663,21 @@ static int build_connect_data(struct nvme_rdma_cm_req **req)
 	memcpy(&data->hostid, id, sizeof(*id));
 	uuid_unparse_lower(id, uuid);
 
-	data->cntlid = htole16(0xffff);
+	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
+
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	snprintf(data->hostnqn, NVMF_NQN_SIZE,
-		 "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s", uuid);
+	snprintf(data->hostnqn, NVMF_NQN_SIZE, NVMF_UUID_FMT, uuid);
 
 	*req = priv;
 
 	return bytes;
 }
 
-int connect_target(struct endpoint *ep, char *family, char *addr, char *port)
+int connect_target(struct target *target, char *family, char *addr, char *port)
 {
 	void			*cmd;
 	void			*data;
+	struct endpoint		*ep = &target->dq;
 	struct nvme_rdma_cm_req	*req;
 	struct sockaddr		 dest = { 0 };
 	struct sockaddr_in	 *dest_in = (struct sockaddr_in *) &dest;
@@ -608,7 +736,7 @@ int connect_target(struct endpoint *ep, char *family, char *addr, char *port)
 
 	ep->data = data;
 
-	ret = send_fabric_connect(ep);
+	ret = send_fabric_connect(target, ep);
 	if (ret)
 		return ret;
 

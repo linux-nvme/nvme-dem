@@ -18,22 +18,17 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#include <rdma/fabric.h>
-#include <rdma/fi_errno.h>
-#include <rdma/fi_eq.h>
-#include <rdma/fi_rma.h>
-#include <rdma/fi_cm.h>
-
-#include "tags.h"
 #include "mongoose.h"
 #include "common.h"
 #include "curl.h"
 
-#define RETRY_COUNT	200
-#define DEFAULT_ROOT	"/"
-#define CURL_DEBUG	0
+#define DEFAULT_ROOT		"/"
+#define CURL_DEBUG		0
 
-#define NVME_VER	((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
+/* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
+#define KEEP_ALIVE_TIMER	100000 /* ms */
+
+#define NVME_VER		((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
 #define DEV_DEBUG
 
@@ -79,74 +74,90 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 	}
 }
 
-static inline void refresh_log_pages(void)
+static int keep_alive_work(struct target *target)
+{
+	int			 ret;
+
+	if (target->kato_countdown == 0) {
+		ret = send_keep_alive(&target->dq);
+		if (ret) {
+			print_err("keep alive failed %s", target->alias);
+			disconnect_target(&target->dq, 0);
+			target->dq_connected = 0;
+			target->log_page_retry_count = LOG_PAGE_RETRY;
+			return ret;
+		}
+
+		target->kato_countdown = KEEP_ALIVE_TIMER / IDLE_TIMEOUT;
+	} else
+		target->kato_countdown--;
+
+	return 0;
+}
+
+static void periodic_work(void)
 {
 	struct target		*target;
 	struct port_id		*portid;
 	int			 ret;
 
 	list_for_each_entry(target, target_list, node) {
-		if (target->log_page_failed) // TODO Reset at some point
-			continue;
+		if ((target->mgmt_mode == IN_BAND_MGMT) &&
+		    target->dq_connected)
+			if (keep_alive_work(target))
+				continue;
+
+		if (target->log_page_retry_count)
+			if (--target->log_page_retry_count)
+				continue;
 
 		target->refresh_countdown--;
 		if (target->refresh_countdown)
 			continue;
 
-		if (target->mgmt_mode == IN_BAND_MGMT) {
-			if (!target->dq_connected)
-				continue;
-
-			if (target->kato_countdown == 0) {
-				ret = send_keep_alive(&target->dq);
-				if (ret) {
-					print_err("keep alive failed %s",
-						  target->alias);
-					disconnect_target(&target->dq, 0);
-					target->dq_connected = 0;
-					target->log_page_failed = 1;
-					continue;
-				}
-				target->kato_countdown = MINUTES / IDLE_TIMEOUT;
-			} else
-				target->kato_countdown--;
-
-			fetch_log_pages(target); // TODO fetch dev/xport pages
+		if (target->dq_connected) { // in band or out of band
+			// TODO fetch dev/xport pages
+			fetch_log_pages(target);
+			// TODO validate targets configuration
 			continue;
 		}
+
 		list_for_each_entry(portid, &target->portid_list, node) {
-			ret = connect_target(&target->dq, portid->family,
+			ret = connect_target(target, portid->family,
 					     portid->address, portid->port);
 			if (ret) {
 				print_err("Could not connect to target %s",
 					  target->alias);
-				target->log_page_failed = 1;
+				target->log_page_retry_count = LOG_PAGE_RETRY;
 				continue;
 			}
 
-
-			if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+			if ((target->mgmt_mode == OUT_OF_BAND_MGMT) ||
+			    (target->mgmt_mode == IN_BAND_MGMT))
 				// TODO get request for dev/xport data
 				fetch_log_pages(target);
+				// TODO validate targets configuration
 			else
 				fetch_log_pages(target);
 
 			target->refresh_countdown =
 				target->refresh * MINUTES / IDLE_TIMEOUT;
 
-			disconnect_target(&target->dq, 0);
-			target->dq_connected = 0;
+			if (target->mgmt_mode != IN_BAND_MGMT) {
+				disconnect_target(&target->dq, 0);
+				target->dq_connected = 0;
+			}
 		}
 	}
 }
 
 static void *poll_loop(struct mg_mgr *mgr)
 {
-	while (stopped != 1) {
+	while (!stopped) {
 		mg_mgr_poll(mgr, IDLE_TIMEOUT);
 
 		if (!stopped)
-			refresh_log_pages();
+			periodic_work();
 	}
 
 	mg_mgr_free(mgr);
@@ -321,10 +332,7 @@ static void cleanup_threads(pthread_t *listen_threads)
 		pthread_kill(listen_threads[i], SIGTERM);
 
 	/* wait for threads to cleanup before exiting so they can properly
-	 * cleanup the ofi interface. otherwise there is a race condition
-	 * that shows up as an assertion from fastlock_aquire from libfabric
-	 * fi_fabric_find(). retry countdown value is *arbitrary* since the
-	 * threads *should* shutdown gracefully.
+	 * cleanup.
 	 */
 	i = 100;
 

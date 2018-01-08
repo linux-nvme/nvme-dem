@@ -30,6 +30,7 @@
 
 #define RETRY_COUNT	200
 #define DEFAULT_ROOT	"/"
+#define DEMT_PORT	"22334"
 
 #define DEV_DEBUG
 
@@ -39,7 +40,7 @@ static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
-static char				*s_http_port = DEFAULT_PORT;
+static char				*s_http_port = DEMT_PORT;
 int					 stopped;
 int					 debug;
 static int				 signalled;
@@ -128,7 +129,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-q - quite mode, no debug prints\n"
 		"-d - run as a daemon process (default is standalone)\n"
-		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
+		"-p - port from RESTful interface (default " DEMT_PORT ")\n"
 		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
 		"-c - cert file for RESTful interface use with ssl";
 #else
@@ -137,7 +138,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
-		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
+		"-p - port from RESTful interface (default " DEMT_PORT ")\n"
 		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
 		"-c - cert file for RESTful interface use with ssl";
 #endif

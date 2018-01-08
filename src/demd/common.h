@@ -29,6 +29,9 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
+#include "json.h"
+#include "tags.h"
+
 /* NOTE: Using linux kernel include here */
 #include "linux/list.h"
 #include "linux/nvme.h"
@@ -39,6 +42,7 @@
 #define NVMF_DQ_DEPTH	1
 #define IDLE_TIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
+#define LOG_PAGE_RETRY	200
 
 #define FI_VER		FI_VERSION(1, 0)
 
@@ -111,20 +115,6 @@ static inline int msec_delta(struct timeval t0)
 	return (t1.tv_sec - t0.tv_sec) * 1000 +
 		(t1.tv_usec - t0.tv_usec) / 1000;
 }
-
-/*
- *  trtypes
- *	[NVMF_TRTYPE_RDMA]	= "rdma",
- *	[NVMF_TRTYPE_TCPIP]	= "tcp"
- *	[NVMF_TRTYPE_FC]	= "fc",
- *	[NVMF_TRTYPE_LOOP]	= "loop",
- *
- *  adrfam
- *	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
- *	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
- *	[NVMF_ADDR_FAMILY_IB]	= "ib",
- *	[NVMF_ADDR_FAMILY_FC]	= "fc",
- */
 
 /*HACK*/
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
@@ -209,7 +199,9 @@ struct endpoint {
 
 struct nsdev {
 	struct list_head	 node;
-	char			 device[CONFIG_DEVICE_SIZE + 1];
+	int			 nsdev;
+	int			 nsid;
+	int			 valid;
 };
 
 struct port_id {
@@ -221,6 +213,9 @@ struct port_id {
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
 	int			 addr[ADDR_LEN];
+	int			 adrfam;
+	int			 trtype;
+	int			 valid;
 };
 
 struct target {
@@ -230,11 +225,13 @@ struct target {
 	struct list_head	 device_list;
 	struct interface	*iface;
 	struct endpoint		 dq;
+	json_t			*json;
+	json_t			*oob_iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 dq_connected;
 	int			 mgmt_mode;
 	int			 refresh;
-	int			 log_page_failed;
+	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
 	int			 num_subsystems;
@@ -268,18 +265,21 @@ void cleanup_targets(void);
 void get_host_nqn(void *context, void *haddr, char *nqn);
 int start_pseudo_target(struct interface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
-int connect_target(struct endpoint *ep, char *family, char *addr, char *port);
+int connect_target(struct target *target, char *family, char *addr, char *port);
 void disconnect_target(struct endpoint *ep, int shutdown);
 int client_connect(struct endpoint *ep, void *data, int bytes);
 
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
-int send_get_devices(struct endpoint *ep);
 int send_set_port_config(struct endpoint *ep, int len,
 			 struct nvmf_port_config_page_hdr *hdr);
 int send_set_subsys_config(struct endpoint *ep, int len,
 			   struct nvmf_subsys_config_page_hdr *hdr);
+int send_get_nsdevs(struct endpoint *ep,
+		    struct nvmf_ns_devices_rsp_page_hdr **hdr);
+int send_get_xports(struct endpoint *ep,
+		    struct nvmf_transports_rsp_page_hdr **hdr);
 int send_get_subsys_usage(struct endpoint *ep, int len,
 			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
 void fetch_log_pages(struct target *target);

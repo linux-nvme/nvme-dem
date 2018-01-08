@@ -85,6 +85,58 @@ err1:
 	return NULL;
 }
 
+static int rdma_create_queue_recv_pool(struct rdma_ep *ep)
+{
+	struct rdma_qe		*qe;
+	struct ibv_recv_wr	 wr, *bad_wr = NULL;
+	struct ibv_sge		 sge;
+	u16			 i;
+	int			 ret;
+
+	qe = calloc(sizeof(struct rdma_qe), ep->depth);
+	if (!qe) {
+		errno = ENOMEM;
+		goto err;
+	}
+
+	for (i = 0; i < ep->depth; i++) {
+		qe[i].buf = alloc_buffer(ep, PAGE_SIZE, &qe[i].recv_mr);
+		if (!qe[i].buf) {
+			errno = ENOMEM;
+			goto err;
+		}
+	}
+
+	wr.next = NULL;
+	wr.sg_list = &sge;
+	wr.num_sge = 1;
+
+	sge.length = PAGE_SIZE;
+
+	for (i = 0; i < ep->depth; i++) {
+		wr.wr_id = (uintptr_t) &qe[i];
+		sge.addr = (uintptr_t) qe[i].buf;
+		sge.lkey = qe[i].recv_mr->lkey;
+
+		ret = ibv_post_recv(ep->id->qp, &wr, &bad_wr);
+		if (ret)
+			goto err;
+	}
+
+	ep->qe = qe;
+
+	return 0;
+err:
+	while (i > 0) {
+		free(qe[--i].buf);
+		ibv_dereg_mr(qe[i].recv_mr);
+	}
+
+	free(qe);
+
+	return -errno;
+}
+
 static int rdma_init_endpoint(struct xp_ep **_ep, int depth)
 {
 	struct rdma_ep			*ep;
@@ -107,7 +159,7 @@ static int rdma_init_endpoint(struct xp_ep **_ep, int depth)
 	ep = malloc(sizeof(*ep));
 	if (!ep) {
 		ret = -ENOMEM;
-		goto err1;
+		goto err2;
 	}
 
 	memset(ep, 0, sizeof(*ep));
@@ -119,6 +171,8 @@ static int rdma_init_endpoint(struct xp_ep **_ep, int depth)
 	ep->depth = depth;
 
 	return 0;
+err2:
+	rdma_destroy_id(id);
 err1:
 	rdma_destroy_event_channel(ec);
 	return ret;
@@ -197,58 +251,6 @@ static int rdma_create_queue_pairs(struct rdma_ep *ep)
 		return -errno;
 
 	return 0;
-}
-
-static int rdma_create_queue_recv_pool(struct rdma_ep *ep)
-{
-	struct rdma_qe		*qe;
-	struct ibv_recv_wr	 wr, *bad_wr = NULL;
-	struct ibv_sge		 sge;
-	u16			 i;
-	int			 ret;
-
-	qe = calloc(sizeof(struct rdma_qe), ep->depth);
-	if (!qe) {
-		errno = ENOMEM;
-		goto err;
-	}
-
-	for (i = 0; i < ep->depth; i++) {
-		qe[i].buf = alloc_buffer(ep, PAGE_SIZE, &qe[i].recv_mr);
-		if (!qe[i].buf) {
-			errno = ENOMEM;
-			goto err;
-		}
-	}
-
-	wr.next = NULL;
-	wr.sg_list = &sge;
-	wr.num_sge = 1;
-
-	sge.length = PAGE_SIZE;
-
-	for (i = 0; i < ep->depth; i++) {
-		wr.wr_id = (uintptr_t) &qe[i];
-		sge.addr = (uintptr_t) qe[i].buf;
-		sge.lkey = qe[i].recv_mr->lkey;
-
-		ret = ibv_post_recv(ep->id->qp, &wr, &bad_wr);
-		if (ret)
-			goto err;
-	}
-
-	ep->qe = qe;
-
-	return 0;
-err:
-	while (i > 0) {
-		free(qe[--i].buf);
-		ibv_dereg_mr(qe[i].recv_mr);
-	}
-
-	free(qe);
-
-	return -errno;
 }
 
 static void _rdma_destroy_ep(struct rdma_ep *ep)
@@ -535,6 +537,8 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 			route_resolved(ep, ep->id, data, len);
 			continue;
 		case RDMA_CM_EVENT_ESTABLISHED:
+			if (rdma_create_queue_recv_pool(ep))
+				return -errno;
 			ep->state = CONNECTED;
 			return 0;
 		default:
@@ -654,6 +658,8 @@ static int rdma_repost_recv(struct xp_ep *_ep, struct xp_qe *_qe)
 	sge.length	= PAGE_SIZE;
 	sge.addr	= (uintptr_t) qe->buf;
 	sge.lkey	= qe->recv_mr->lkey;
+
+	memset(qe->buf, 0, PAGE_SIZE);
 
 	return ibv_post_recv(ep->id->qp, &wr, &bad_wr);
 }

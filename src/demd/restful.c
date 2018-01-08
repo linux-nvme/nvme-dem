@@ -13,10 +13,7 @@
  */
 
 #include "mongoose.h"
-
 #include "common.h"
-#include "json.h"
-#include "tags.h"
 
 static const struct mg_str s_get_method = MG_MK_STR("GET");
 static const struct mg_str s_put_method = MG_MK_STR("PUT");
@@ -201,7 +198,7 @@ static int delete_target_request(char *target, char **p, int n,
 			ret = del_subsys(target, p[1], resp);
 		else if (n != 4)
 			goto bad_req;
-		else if (strcmp(p[2], URI_NAMESPACE) == 0)
+		else if (strcmp(p[2], URI_NSID) == 0)
 			ret = del_ns(target, p[1], atoi(p[3]), resp);
 		else if (strcmp(p[2], URI_HOST) == 0)
 			ret = del_acl(target, p[1], p[3], resp);
@@ -244,7 +241,7 @@ static int put_target_request(char *target, char **p, int n,
 		if (n <= 2)
 			ret = set_subsys(target, p[1], data, resp);
 		else if (n <= 4) {
-			if (strcmp(p[2], URI_NAMESPACE) == 0)
+			if (strcmp(p[2], URI_NSID) == 0)
 				ret = set_ns(target, p[1], data, resp);
 			else if (strcmp(p[2], URI_HOST) == 0)
 				ret = set_acl(target, p[1], p[3], data,

@@ -17,8 +17,6 @@
 #include <string.h>
 #include <errno.h>
 
-#include "json.h"
-#include "tags.h"
 #include "common.h"
 
 static struct json_context *ctx;

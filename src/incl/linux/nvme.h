@@ -27,8 +27,10 @@
 #define NVMF_TRSVCID_SIZE	32
 #define NVMF_TRADDR_SIZE	256
 #define NVMF_TSAS_SIZE		256
+#define NVMF_DEV_PATH_SIZE	256
 
 #define NVME_DISC_SUBSYS_NAME	"nqn.2014-08.org.nvmexpress.discovery"
+#define NVME_DOMAIN_SUBSYS_NAME	"nqn.2014-08.org.nvmexpress.domain"
 
 #define NVME_RDMA_IP_PORT	4420
 
@@ -904,9 +906,14 @@ enum nvmf_fabrics_opcode {
 };
 
 enum nvmf_capsule_command {
-	nvme_fabrics_type_property_set	= 0x00,
-	nvme_fabrics_type_connect	= 0x01,
-	nvme_fabrics_type_property_get	= 0x04,
+	nvme_fabrics_type_property_set		= 0x00,
+	nvme_fabrics_type_connect		= 0x01,
+	nvme_fabrics_type_property_get		= 0x04,
+	nvme_fabrics_type_get_subsys_usage	= 0x22,
+	nvme_fabrics_type_set_port_config	= 0x21,
+	nvme_fabrics_type_set_subsys_config	= 0x23,
+	nvme_fabrics_type_get_ns_devices	= 0x24,
+	nvme_fabrics_type_get_transports	= 0x26,
 };
 
 struct nvmf_common_command {
@@ -1036,6 +1043,73 @@ struct streams_directive_params {
 	__le16	nsa;
 	__le16	nso;
 	__u8	rsvd2[6];
+};
+
+struct nvmf_port_config_page_entry {
+	__le16		status;
+	__u8		trtype;
+	__u8		adrfam;
+	__u8		rsvd;   /* subtype */
+	__u8		treq;
+	__le16		portid;
+	char		trsvcid[NVMF_TRSVCID_SIZE];
+	char		traddr[NVMF_TRADDR_SIZE];
+};
+
+struct nvmf_port_config_page_hdr {
+	__u8		num_entries;
+	__u8		data;   /*Reference to start of config_page_entries */
+};
+
+struct nvmf_subsys_config_page_entry {
+	__le16		status;
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	char		devpath[NVMF_DEV_PATH_SIZE];
+	__u8		allowallhosts;
+	__u16		numhosts;
+	__u8		data;
+};
+
+struct nvmf_subsys_config_page_hdr {
+	__u8		num_entries;
+	__u8		data;   /*Reference to start of config_page_entries */
+};
+
+struct nvmf_transports_rsp_page_entry {
+	__u8		trtype;
+	__u8		adrfam;
+	__u8		rsvd1;   /* subtype */
+	__u8		treq;
+	__le16		rsvd2;
+	char		trsvcid[NVMF_TRSVCID_SIZE];
+	char		traddr[NVMF_TRADDR_SIZE];
+};
+
+struct nvmf_transports_rsp_page_hdr {
+	__u8		num_entries;
+	__u8		data;   /*Reference to start of usage entries */
+};
+
+struct nvmf_ns_devices_rsp_page_entry {
+	__u8		dev_id;
+	__u8		ns_id;
+	__u8		rsvd[6];
+};
+
+struct nvmf_ns_devices_rsp_page_hdr {
+	__u8		num_entries;
+	__u8		data;   /*Reference to start of usage entries */
+};
+
+struct nvmf_subsys_usage_rsp_page_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	__u8		num_entries;
+	__u8		data;
+};
+
+struct nvmf_subsys_usage_rsp_page_hdr {
+	__u8		num_entries;
+	__u8		data;   /*Reference to start of usage entries */
 };
 
 struct nvme_command {
@@ -1193,60 +1267,5 @@ struct nvme_completion {
 #define NVME_MAJOR(ver)		((ver) >> 16)
 #define NVME_MINOR(ver)		(((ver) >> 8) & 0xff)
 #define NVME_TERTIARY(ver)	((ver) & 0xff)
-
-/* START OF Proposed changes for In-Band Management */
-
-#define NVMF_DEV_PATH_SIZE	256
-#define NVME_DOMAIN_SUBSYS_NAME	"nqn.2017-08.org.nvmexpress.domain"
-
-enum {
-	nvme_fabrics_type_get_domain_nqn	= 0x20,
-	nvme_fabrics_type_get_subsys_usage	= 0x22,
-	nvme_fabrics_type_set_port_config	= 0x21,
-	nvme_fabrics_type_set_subsys_config	= 0x23,
-};
-
-struct nvmf_port_config_page_entry {
-	__le16		status;
-	__u8		trtype;
-	__u8		adrfam;
-	__u8		rsvd;	/* subtype */
-	__u8		treq;
-	__le16		portid;
-	char		trsvcid[NVMF_TRSVCID_SIZE];
-	char		traddr[NVMF_TRADDR_SIZE];
-};
-
-struct nvmf_port_config_page_hdr {
-	__u8		num_entries;
-	__u8		data;	/*Reference to start of config_page_entries */
-};
-
-struct nvmf_subsys_config_page_entry {
-	__le16		status;
-	char		subnqn[NVMF_NQN_FIELD_LEN];
-	char		devpath[NVMF_DEV_PATH_SIZE];
-	__u8		allowallhosts;
-	__u16		numhosts;
-	__u8		data;
-};
-
-struct nvmf_subsys_config_page_hdr {
-	__u8		num_entries;
-	__u8		data;	/*Reference to start of config_page_entries */
-};
-
-struct nvmf_subsys_usage_rsp_page_entry {
-	char		subnqn[NVMF_NQN_FIELD_LEN];
-	__u8		num_entries;
-	__u8		data;
-};
-
-struct nvmf_subsys_usage_rsp_page_hdr {
-	__u8		num_entries;
-	__u8		data;	/*Reference to start of usage entries */
-};
-
-/* END OF Proposed changes for In-Band Management */
 
 #endif /* _LINUX_NVME_H */

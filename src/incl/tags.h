@@ -54,6 +54,7 @@
 /* DEMT specific */
 #define TAG_NSDEVS		"NSDevices"
 #define URI_NSDEV		"nsdev"
+#define URI_NAMESPACE		"namespace"
 
 /* DEM config specific */
 #define TAG_ID			"ID"
@@ -65,7 +66,7 @@
 #define URI_DEM			"dem"
 #define URI_SUBSYSTEM		"subsystem"
 #define URI_PORTID		"portid"
-#define URI_NAMESPACE		"nsid"
+#define URI_NSID		"nsid"
 #define URI_INTERFACE		"interface"
 #define URI_TRANSPORT		"transport"
 #define URI_PARM_MODE		"mode="

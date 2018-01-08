@@ -771,7 +771,7 @@ static int set_ns(char *base, int n, char **p)
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s/%s/%s", base, alias,
-		 URI_SUBSYSTEM, subsys, URI_NAMESPACE);
+		 URI_SUBSYSTEM, subsys, URI_NSID);
 
 	len = snprintf(data, sizeof(data), "{" JSINT "," JSINT "," JSINT "}",
 		       TAG_NSID, nsid, TAG_DEVID, devid, TAG_DEVNSID, devnsid);
@@ -796,7 +796,7 @@ static int del_ns(char *base, int n, char **p)
 	}
 
 	snprintf(base_url, sizeof(base_url), "%s/%s/%s/%s/%s",
-		base, alias, URI_SUBSYSTEM, subsys, URI_NAMESPACE);
+		base, alias, URI_SUBSYSTEM, subsys, URI_NSID);
 
 	for (i = 0, n -= 2; i < n; i++) {
 		snprintf(url, sizeof(url), "%s/%d", base_url, atoi(p[i]));

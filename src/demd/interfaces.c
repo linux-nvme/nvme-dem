@@ -20,8 +20,6 @@
 #include <sys/types.h>
 #include <arpa/inet.h>
 
-#include "json.h"
-#include "tags.h"
 #include "common.h"
 
 int refresh_target(char *alias)
@@ -206,8 +204,11 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 	struct target		*target;
 	json_t			*subgroup;
 	json_t			*obj;
+	json_t			*iface = NULL;
 	char			 alias[MAX_ALIAS_SIZE + 1];
+	const char		*mode;
 	int			 refresh = 0;
+	int			 mgmt_mode = LOCAL_MGMT;
 
 	obj = json_object_get(parent, TAG_ALIAS);
 	if (!obj)
@@ -228,12 +229,25 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 	list_add_tail(&target->node, target_list);
 
 	obj = json_object_get(parent, TAG_REFRESH);
-	if (obj)
+	if (obj && json_is_integer(obj))
 		refresh = json_integer_value(obj);
+
+	obj = json_object_get(parent, TAG_MGMT_MODE);
+	if (obj && json_is_string(obj)) {
+		mode = json_string_value(obj);
+		if (strcmp(mode, TAG_OUT_OF_BAND_MGMT) == 0) {
+			mgmt_mode = OUT_OF_BAND_MGMT;
+			iface = json_object_get(parent, TAG_INTERFACE);
+		} else if (strcmp(mode, TAG_IN_BAND_MGMT) == 0)
+			mgmt_mode = IN_BAND_MGMT;
+	}
 
 	strncpy(target->alias, alias, MAX_ALIAS_SIZE);
 
+	target->json = parent;
+	target->oob_iface = iface;
 	target->refresh = refresh;
+	target->mgmt_mode = mgmt_mode;
 
 	subgroup = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (subgroup)

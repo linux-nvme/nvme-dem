@@ -220,7 +220,7 @@ static int put_portid(char *port, struct mg_str *body, char *resp)
 	if (create_portid(portid, fam, typ, treq, addr, svcid))
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Configured portid %d", portid);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -269,7 +269,7 @@ static int put_subsys(char *subsys, struct mg_str *body, char *resp)
 	if (create_subsys(subsys, allowany))
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Configured subsys %s", subsys);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -329,7 +329,7 @@ static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 	if (create_ns(subsys, nsid, devid, devnsid))
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Configured nsid %d", nsid);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -375,7 +375,7 @@ static int put_host(char *host, struct mg_str *body, char *resp)
 	if (create_host(host))
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Configured host %s", host);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -423,7 +423,7 @@ static int link_host(char *subsys, struct mg_str *body, char *resp)
 	if (ret)
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Configured host %s for subsys %s", host, subsys);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -469,7 +469,7 @@ static int link_portid(char *subsys, struct mg_str *body, char *resp)
 	if (ret)
 		goto err;
 
-	resp[0] = 0;
+	sprintf(resp, "Enabled subsys %s on portid %d", subsys, portid);
 	goto out;
 err:
 	sprintf(resp, "invalid data");
@@ -542,7 +542,7 @@ static int del_portid(char *port, char *resp)
 	if (ret)
 		sprintf(resp, "Unable to delete portid %s", port);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Deleted portid %s", port);
 
 	return ret;
 }
@@ -555,7 +555,7 @@ static int del_subsys(char *subsys, char *resp)
 	if (ret)
 		sprintf(resp, "Unable to delete subsys %s", subsys);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Deleted subsys %s", subsys);
 
 	return ret;
 }
@@ -569,7 +569,7 @@ static int del_ns(char *subsys, char *ns, char *resp)
 		sprintf(resp, "Unable to delete ns %s from subsys %s",
 			ns, subsys);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Deleted ns %s from subsys %s", ns, subsys);
 
 	return ret;
 }
@@ -582,7 +582,7 @@ static int del_host(char *host, char *resp)
 	if (ret)
 		sprintf(resp, "Unable to delete host %s", host);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Delete host %s", host);
 
 	return ret;
 }
@@ -596,7 +596,8 @@ static int unlink_host(char *subsys, char *host, char *resp)
 		sprintf(resp, "Unable to delete host %s from subsys %s",
 			host, subsys);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Deleted host %s from subsys %s",
+			host, subsys);
 
 	return ret;
 }
@@ -610,7 +611,7 @@ static int unlink_portid(char *subsys, char *portid, char *resp)
 		sprintf(resp, "Unable to delete port %s from subsys %s",
 			portid, subsys);
 	else
-		resp[0] = 0;
+		sprintf(resp, "Deleted port %s from subsys %s", portid, subsys);
 
 	return ret;
 }

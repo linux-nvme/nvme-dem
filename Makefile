@@ -23,7 +23,7 @@ VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
 DEMD_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
-DEMT_LIBS = -lpthread -lfabric -luuid jansson/libjansson.a
+DEMT_LIBS = -lpthread -luuid jansson/libjansson.a
 
 DEM_LIBS = -lcurl jansson/libjansson.a
 
@@ -39,7 +39,7 @@ DEMD_SRC = ${DEMD_DIR}/daemon.c ${DEMD_DIR}/json.c ${DEMD_DIR}/restful.c \
 DEMD_INC = ${DEMD_DIR}/json.h ${DEMD_DIR}/common.h ${DEMD_DIR}/ops.h \
 	   ${INCL_DIR}/curl.h mongoose/mongoose.h ${INCL_DIR}/tags.h
 DEMT_SRC = ${DEMT_DIR}/daemon.c ${DEMT_DIR}/restful.c ${DEMT_DIR}/configfs.c \
-	   ${DEMT_DIR}/ofi.c mongoose/mongoose.c
+	   ${DEMD_DIR}/parse.c mongoose/mongoose.c
 DEMT_INC = ${DEMT_DIR}/common.h mongoose/mongoose.h ${INCL_DIR}/tags.h
 
 all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
