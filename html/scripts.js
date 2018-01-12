@@ -1020,7 +1020,7 @@ function parseObject(obj, itemA) {
       if (typ == "group" && tmp != "group")
         str += "'" + tmp + "'";
       str += ')">';
-      if (itemA == "Targets")
+      if (itemA == "Targets" && typ == "target")
         str += buildFilterMenu();
       str += '</h1>';
       if (listB.length > 22)
