@@ -81,6 +81,7 @@
 #define JSSTR		"\"%s\":\"%s\""
 #define JSINT		"\"%s\":%lld"
 #define JSINDX		"\"%s\":%d"
+#define JSENTRY		"%s\"%s\""
 
 extern int			 debug;
 extern int			 stopped;
@@ -164,12 +165,20 @@ struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
 	char			 nqn[MAX_NQN_SIZE + 1];
-	int			 access;
+};
+
+struct ns {
+	struct list_head	 node;
+	int			 nsid;
+	int			 devid;
+	int			 devns;
+	// TODO add bits for multipath and partitions
 };
 
 struct subsystem {
 	struct list_head	 node;
 	struct list_head	 host_list;
+	struct list_head	 ns_list;
 	struct target		*target;
 	char			 nqn[MAX_NQN_SIZE + 1];
 	int			 access;
@@ -202,6 +211,7 @@ struct nsdev {
 	int			 nsdev;
 	int			 nsid;
 	int			 valid;
+	// TODO add bits for multipath and partitions
 };
 
 struct port_id {

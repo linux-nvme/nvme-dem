@@ -73,6 +73,50 @@ static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 	}
 }
 
+static void check_namespaces(struct subsystem *subsys, json_t *list)
+{
+	json_t			*iter;
+	json_t			*obj;
+	struct ns		*ns;
+	int			 i, n;
+	int			 nsid, devid, devns;
+
+	n = json_array_size(list);
+	for (i = 0; i < n; i++) {
+		iter = json_array_get(list, i);
+		obj = json_object_get(iter, TAG_NSID);
+		if (unlikely(!obj) || !json_is_integer(obj))
+			continue;
+
+		nsid = json_integer_value(obj);
+
+		obj = json_object_get(iter, TAG_DEVID);
+		if (unlikely(!obj) || !json_is_integer(obj))
+			continue;
+
+		devid = json_integer_value(obj);
+
+		obj = json_object_get(iter, TAG_DEVNSID);
+		if (unlikely(!obj) || !json_is_integer(obj))
+			devns = 0;
+		else
+			devns = json_integer_value(obj);
+
+		ns = malloc(sizeof(*ns));
+		if (!ns)
+			return;
+
+		memset(ns, 0, sizeof(*ns));
+
+		ns->nsid	= nsid;
+		ns->devid	= devid;
+		ns->devns	= devns;
+		// TODO add bits for multipath and partitions
+
+		list_add_tail(&ns->node, &subsys->ns_list);
+	}
+}
+
 static void check_hosts(struct subsystem *subsys, json_t *acl, json_t *hosts)
 {
 	json_t			*iter;
@@ -95,7 +139,6 @@ static void check_subsystems(struct target *target, json_t *array,
 {
 	json_t			*obj;
 	json_t			*iter;
-	json_t			*acl;
 	json_t			*nqn;
 	struct subsystem	*subsys;
 	int			 i, n;
@@ -116,16 +159,22 @@ static void check_subsystems(struct target *target, json_t *array,
 		strcpy(subsys->nqn, json_string_value(nqn));
 
 		INIT_LIST_HEAD(&subsys->host_list);
+		INIT_LIST_HEAD(&subsys->ns_list);
+
 		list_add_tail(&subsys->node, &target->subsys_list);
+
+		obj = json_object_get(iter, TAG_NSIDS);
+		if (obj)
+			check_namespaces(subsys, obj);
 
 		obj = json_object_get(iter, TAG_ALLOW_ANY);
 		if (obj && json_is_integer(obj))
 			subsys->access = json_integer_value(obj);
 
-		acl = json_object_get(iter, TAG_HOSTS);
+		obj = json_object_get(iter, TAG_HOSTS);
 
-		if (!subsys->access && acl && hosts)
-			check_hosts(subsys, acl, hosts);
+		if (!subsys->access && obj && hosts)
+			check_hosts(subsys, obj, hosts);
 	}
 }
 

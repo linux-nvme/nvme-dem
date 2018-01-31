@@ -155,6 +155,7 @@ static int build_set_subsys_inb(struct target *target,
 		}
 		entry->numhosts = count;
 		entry = (struct nvmf_subsys_config_page_entry *) hostnqn;
+		// TODO need nsid info too
 	}
 
 	*_hdr = hdr;
@@ -169,10 +170,51 @@ static void build_set_port_oob(struct port_id *portid, char *buf, int len)
 		 TAG_ADDRESS, portid->address, TAG_TRSVCID, portid->port_num);
 }
 
+static void build_set_host_oob(char *nqn, char *buf, int len)
+{
+	snprintf(buf, len, "{" JSSTR "}", TAG_HOSTNQN, nqn);
+}
+
 static void build_set_subsys_oob(struct subsystem *subsys, char *buf, int len)
 {
 	snprintf(buf, len, "{" JSSTR "," JSINDX "}",
 		 TAG_SUBNQN, subsys->nqn, TAG_ALLOW_ANY, subsys->access);
+}
+
+static void build_set_ns_oob(struct ns *ns, char *buf, int len)
+{
+	snprintf(buf, len, "{" JSINDX "," JSINDX "," JSINDX "}",
+		 TAG_NSID, ns->nsid, TAG_DEVID, ns->devid,
+		 TAG_DEVNSID, ns->devns);
+}
+
+static void build_set_acl_oob(struct list_head *list, char *buf, int len)
+{
+	struct host		*host;
+	char			*p = buf;
+	int			 n;
+	int			 c = 0;
+
+	n = snprintf(p, len, "{");
+	p += n;
+	len -= n;
+
+	list_for_each_entry(host, list, node) {
+		if (len < (int) strlen(host->nqn) + 4)
+			break;
+		n = snprintf(p, len,  JSENTRY, c ? "," : "", host->nqn);
+		if (!c)
+			c++;
+		p += n;
+		len -= n;
+	}
+
+	n = snprintf(p, len, "}");
+}
+
+static void build_set_portid_oob(int portid, char *buf, int len)
+{
+	snprintf(buf, len, "{" JSINDX "}", TAG_PORTID, portid);
 }
 
 int send_get_nsdevs_oob(char *addr, int port, char **buf)
@@ -193,12 +235,20 @@ int send_get_xports_oob(char *addr, int port, char **buf)
 	return exec_get(uri, buf);
 }
 
-int send_set_port_oob(struct port_id *port_id, char *addr, int port, char *buf)
+int send_set_port_oob(char *addr, int port, char *buf, int port_id)
 {
 	char			 uri[128];
 
-	sprintf(uri, "http://%s:%d/" URI_PORTID "/%d",
-		addr, port, port_id->portid);
+	sprintf(uri, "http://%s:%d/" URI_PORTID "/%d", addr, port, port_id);
+
+	return exec_put(uri, buf, strlen(buf));
+}
+
+int send_set_host_oob(char *addr, int port, char *buf)
+{
+	char			 uri[128];
+
+	sprintf(uri, "http://%s:%d/" URI_HOST, addr, port);
 
 	return exec_put(uri, buf, strlen(buf));
 }
@@ -208,9 +258,19 @@ int send_set_subsys_oob(char *addr, int port, char *buf)
 	char			 uri[128];
 
 	sprintf(uri, "http://%s:%d/" URI_SUBSYSTEM, addr, port);
-	UNUSED(buf);
 
-	return 0;
+	return exec_put(uri, buf, strlen(buf));
+}
+
+int send_update_subsys_oob(char *addr, int port, char *subsys, char *tag,
+			   char *buf)
+{
+	char			 uri[128];
+
+	sprintf(uri, "http://%s:%d/" URI_SUBSYSTEM "/%s/%s", addr, port,
+		subsys, tag);
+
+	return exec_put(uri, buf, strlen(buf));
 }
 
 static int get_oob_nsdevs(struct target *target, char *addr, int port)
@@ -282,6 +342,59 @@ static int get_oob_config(struct target *target)
 	return get_oob_xports(target, addr, port);
 }
 
+static void config_subsys_oob(struct target *target, struct subsystem *subsys,
+			      char *addr, int port)
+{
+	struct ns		*ns;
+	struct host		*host;
+	struct port_id		*portid;
+	char			*alias = target->alias;
+	char			*nqn = subsys->nqn;
+	char			 buf[256];
+	int			 ret;
+
+	build_set_subsys_oob(subsys, buf, sizeof(buf));
+
+	ret = send_set_subsys_oob(addr, port, buf);
+	if (ret) {
+		print_err("set subsys OOB failed for %s", alias);
+		return;
+	}
+
+	list_for_each_entry(ns, &subsys->ns_list, node) {
+		build_set_ns_oob(ns, buf, sizeof(buf));
+
+		ret = send_update_subsys_oob(addr, port, nqn, URI_NAMESPACE,
+					     buf);
+		if (ret)
+			print_err("set subsys ns OOB failed for %s", alias);
+	}
+
+	list_for_each_entry(host, &subsys->host_list, node) {
+		build_set_host_oob(host->nqn, buf, sizeof(buf));
+
+		ret = send_set_host_oob(addr, port, buf);
+		if (ret) {
+			print_err("set host OOB failed for %s", alias);
+			continue;
+		}
+
+		build_set_acl_oob(&subsys->host_list, buf, sizeof(buf));
+
+		ret = send_update_subsys_oob(addr, port, nqn, URI_HOST, buf);
+		if (ret)
+			print_err("set subsys acl OOB failed for %s", alias);
+	}
+
+	list_for_each_entry(portid, &target->portid_list, node) {
+		build_set_portid_oob(portid->portid, buf, sizeof(buf));
+
+		ret = send_update_subsys_oob(addr, port, nqn, URI_PORTID, buf);
+		if (ret)
+			print_err("set subsys portid OOB failed for %s", alias);
+	}
+}
+
 static int config_target_oob(struct target *target)
 {
 	json_t			*iface = target->oob_iface;
@@ -314,20 +427,13 @@ static int config_target_oob(struct target *target)
 	list_for_each_entry(portid, &target->portid_list, node) {
 		build_set_port_oob(portid, buf, sizeof(buf));
 
-		ret = send_set_port_oob(portid, addr, port, buf);
+		ret = send_set_port_oob(addr, port, buf, portid->portid);
 		if (ret)
-			print_err("send set port OOB failed for %s",
-				  target->alias);
+			print_err("set port OOB failed for %s", target->alias);
 	}
 
-	list_for_each_entry(subsys, &target->subsys_list, node) {
-		build_set_subsys_oob(subsys, buf, sizeof(buf));
-
-		ret = send_set_subsys_oob(addr, port, buf);
-		if (ret)
-			print_err("send set subsys OOB failed for %s",
-				  target->alias);
-	}
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		config_subsys_oob(target, subsys, addr, port);
 
 	return 0;
 }
@@ -524,21 +630,25 @@ void init_targets(void)
 
 		ret = connect_target(target, portid->family,
 				     portid->address, portid->port);
-		if (ret) {
-			print_err("Could not connect to target %s",
-				  target->alias);
-			continue;
+		if (target->mgmt_mode != OUT_OF_BAND_MGMT) {
+			if (ret) {
+				print_err("Could not connect to target %s",
+					  target->alias);
+				continue;
+			}
+
+			target->dq_connected = 1;
 		}
 
-		target->dq_connected = 1;
+		// TODO: Should this be worker thread?
 
-// TODO: Should this be worker thread?
 		if (target->mgmt_mode == IN_BAND_MGMT)
 			ret = get_inb_config(target);
 		else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 			ret = get_oob_config(target);
 
-		fetch_log_pages(target);
+		if (target->dq_connected)
+			fetch_log_pages(target);
 
 		if (target->mgmt_mode == IN_BAND_MGMT && !ret)
 			config_target_inb(target);
@@ -550,7 +660,7 @@ void init_targets(void)
 
 		target->log_page_retry_count = LOG_PAGE_RETRY;
 
-		if (target->mgmt_mode != IN_BAND_MGMT) {
+		if (target->mgmt_mode != IN_BAND_MGMT && target->dq_connected) {
 			disconnect_target(&target->dq, 0);
 			target->dq_connected = 0;
 		}
