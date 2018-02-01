@@ -19,7 +19,7 @@
 #include "tags.h"
 
 static const struct mg_str s_get_method = MG_MK_STR("GET");
-static const struct mg_str s_put_method = MG_MK_STR("PUT");
+static const struct mg_str s_post_method = MG_MK_STR("POST");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 
 #define MIN_PORTID			1
@@ -154,7 +154,7 @@ bad:
 	return bad_request(resp);
 }
 
-static int put_portid(char *port, struct mg_str *body, char *resp)
+static int post_portid(char *port, struct mg_str *body, char *resp)
 {
 	json_t			*new;
 	json_t			*obj;
@@ -232,7 +232,7 @@ out:
 	return ret;
 }
 
-static int put_subsys(char *subsys, struct mg_str *body, char *resp)
+static int post_subsys(char *subsys, struct mg_str *body, char *resp)
 {
 	json_t			*new;
 	json_t			*obj;
@@ -281,7 +281,7 @@ out:
 	return ret;
 }
 
-static int put_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
+static int post_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 {
 	json_t			*new;
 	json_t			*obj;
@@ -341,7 +341,7 @@ out:
 	return ret;
 }
 
-static int put_host(char *host, struct mg_str *body, char *resp)
+static int post_host(char *host, struct mg_str *body, char *resp)
 {
 	json_t			*new = NULL;
 	json_t			*obj;
@@ -481,7 +481,7 @@ out:
 	return ret;
 }
 
-static int put_request(char *p[], int n, struct mg_str *body, char *resp)
+static int post_request(char *p[], int n, struct mg_str *body, char *resp)
 {
 	int			 ret;
 
@@ -494,25 +494,25 @@ static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 			goto bad;
 	} else if (n == 1) {
 		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
-			ret = put_subsys(NULL, body, resp);
+			ret = post_subsys(NULL, body, resp);
 		else if (strcmp(p[0], URI_PORTID) == 0)
-			ret = put_portid(NULL, body, resp);
+			ret = post_portid(NULL, body, resp);
 		else if (strcmp(p[0], URI_HOST) == 0)
-			ret = put_host(NULL, body, resp);
+			ret = post_host(NULL, body, resp);
 		else
 			goto bad;
 	} else if (n == 2) {
 		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
-			ret = put_subsys(p[1], body, resp);
+			ret = post_subsys(p[1], body, resp);
 		else if (strcmp(p[0], URI_PORTID) == 0)
-			ret = put_portid(p[1], body, resp);
+			ret = post_portid(p[1], body, resp);
 		else
 			goto bad;
 	} else if (n == 3) {
 		if (strcmp(p[0], URI_SUBSYSTEM))
 			goto bad;
 		else if (strcmp(p[2], URI_NAMESPACE) == 0)
-			ret = put_ns(p[1], NULL, body, resp);
+			ret = post_ns(p[1], NULL, body, resp);
 		else if (strcmp(p[2], URI_HOST) == 0)
 			ret = link_host(p[1], body, resp);
 		else if (strcmp(p[2], URI_PORTID) == 0)
@@ -525,7 +525,7 @@ static int put_request(char *p[], int n, struct mg_str *body, char *resp)
 		else if (strcmp(p[2], URI_NAMESPACE))
 			goto bad;
 		else
-			ret = put_ns(p[1], p[3], body, resp);
+			ret = post_ns(p[1], p[3], body, resp);
 	} else
 		goto bad;
 
@@ -655,8 +655,8 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_request(p, n, resp);
-	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_request(p, n, &hm->body, resp);
+	else if (is_equal(&hm->method, &s_post_method))
+		ret = post_request(p, n, &hm->body, resp);
 	else if (is_equal(&hm->method, &s_delete_method))
 		ret = delete_request(p, n, resp);
 	else

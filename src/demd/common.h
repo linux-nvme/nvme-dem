@@ -29,13 +29,14 @@
 #include <string.h>
 #include <uuid/uuid.h>
 
-#include "json.h"
-#include "tags.h"
-
 /* NOTE: Using linux kernel include here */
 #include "linux/list.h"
 #include "linux/nvme.h"
 #include "linux/kernel.h"
+
+#include "ops.h"
+#include "json.h"
+#include "tags.h"
 
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
@@ -90,11 +91,6 @@ extern struct interface		*interfaces;
 extern struct list_head		*target_list;
 
 enum { DISCONNECTED, CONNECTED };
-
-#define  u8  __u8
-#define  u16 __u16
-#define  u32 __u32
-#define  u64 __u64
 
 static inline u32 get_unaligned_le24(const u8 *p)
 {
@@ -159,6 +155,11 @@ struct interface {
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
 	struct xp_pep		*listener;
 	struct xp_ops		*ops;
+};
+
+struct interface_oob {
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 port;
 };
 
 struct host {
@@ -236,7 +237,7 @@ struct target {
 	struct interface	*iface;
 	struct endpoint		 dq;
 	json_t			*json;
-	json_t			*oob_iface;
+	struct interface_oob	 oob_iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 dq_connected;
 	int			 mgmt_mode;
@@ -296,5 +297,11 @@ void fetch_log_pages(struct target *target);
 int refresh_target(char *alias);
 int usage_target(char *alias, char *results);
 void dump(u8 *buf, int len);
+
+int get_inb_config(struct target *target);
+int get_oob_config(struct target *target);
+int config_target_inb(struct target *target);
+int config_target_oob(struct target *target);
+
 
 #endif

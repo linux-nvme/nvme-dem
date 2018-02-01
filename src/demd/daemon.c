@@ -380,6 +380,91 @@ static int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
+void init_targets(void)
+{
+	struct target		*target;
+	struct port_id		*portid;
+	int			 ret;
+
+	build_target_list();
+
+	list_for_each_entry(target, target_list, node) {
+		// TODO walk interface list to find portid we can use
+
+		portid = list_first_entry(&target->portid_list,
+					  struct port_id, node);
+
+		if (strcmp(portid->type, "rdma") == 0)
+			target->dq.ops = rdma_register_ops();
+		else
+			continue;
+
+		ret = connect_target(target, portid->family,
+				     portid->address, portid->port);
+		if (target->mgmt_mode != OUT_OF_BAND_MGMT) {
+			if (ret) {
+				print_err("Could not connect to target %s",
+					  target->alias);
+				continue;
+			}
+
+			target->dq_connected = 1;
+		}
+
+		// TODO: Should this be worker thread?
+
+		if (target->mgmt_mode == IN_BAND_MGMT)
+			ret = get_inb_config(target);
+		else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+			ret = get_oob_config(target);
+
+		if (target->dq_connected)
+			fetch_log_pages(target);
+
+		if (target->mgmt_mode == IN_BAND_MGMT && !ret)
+			config_target_inb(target);
+		else if (target->mgmt_mode == OUT_OF_BAND_MGMT && !ret)
+			config_target_oob(target);
+
+		target->refresh_countdown =
+			target->refresh * MINUTES / IDLE_TIMEOUT;
+
+		target->log_page_retry_count = LOG_PAGE_RETRY;
+
+		if (target->mgmt_mode != IN_BAND_MGMT && target->dq_connected) {
+			disconnect_target(&target->dq, 0);
+			target->dq_connected = 0;
+		}
+	}
+}
+
+void cleanup_targets(void)
+{
+	struct target		*target;
+	struct target		*next_target;
+	struct subsystem	*subsys;
+	struct subsystem	*next_subsys;
+	struct host		*host;
+	struct host		*next_host;
+
+	list_for_each_entry_safe(target, next_target, target_list, node) {
+		list_for_each_entry_safe(subsys, next_subsys,
+					 &target->subsys_list, node) {
+			list_for_each_entry_safe(host, next_host,
+						 &subsys->host_list, node)
+				free(host);
+
+			free(subsys);
+		}
+
+		list_del(&target->node);
+
+		if (target->dq_connected)
+			disconnect_target(&target->dq, 0);
+
+		free(target);
+	}
+}
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;

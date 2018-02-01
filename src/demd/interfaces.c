@@ -293,8 +293,22 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 
 	strncpy(target->alias, alias, MAX_ALIAS_SIZE);
 
+	if (mgmt_mode == OUT_OF_BAND_MGMT) {
+		obj = json_object_get(iface, TAG_IFADDRESS);
+		if (!obj || !json_is_string(obj))
+			goto err;
+
+		strcpy(target->oob_iface.address,
+		       (char *) json_string_value(obj));
+
+		obj = json_object_get(iface, TAG_IFPORT);
+		if (!obj || !json_is_integer(obj))
+			goto err;
+
+		target->oob_iface.port = json_integer_value(obj);
+	}
+
 	target->json = parent;
-	target->oob_iface = iface;
 	target->refresh = refresh;
 	target->mgmt_mode = mgmt_mode;
 

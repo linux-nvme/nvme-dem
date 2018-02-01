@@ -57,6 +57,7 @@
 #define NOT_SPECIFIED		"not specified"
 
 #define MAXPATHLEN		512
+#define MAXSTRLEN		64
 
 #define write_chr(fn, ch)				\
 	do {						\
@@ -71,6 +72,20 @@
 		fd = fopen(fn, "w");			\
 		if (fd) {				\
 			fputs(s, fd);			\
+			fclose(fd);			\
+		}					\
+	} while (0)
+#define read_str(fn, s)					\
+	do {						\
+		s[0] = 0;				\
+		s[MAXSTRLEN - 1] = 0;			\
+		fd = fopen(fn, "r");			\
+		if (fd) {				\
+			char *nl;			\
+			fgets(s, MAXSTRLEN - 1, fd);	\
+			nl = strchr(s, '\n');		\
+			if (nl)				\
+				*nl = 0;		\
 			fclose(fd);			\
 		}					\
 	} while (0)
@@ -94,14 +109,15 @@ int create_subsys(char *subsys, int allowany)
 		return -errno;
 
 	ret = mkdir(subsys, 0x755);
-	if (ret && errno != EEXIST)
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
 		goto err;
 
-	ret = chdir(subsys);
-	if (ret)
-		goto err;
+	chdir(subsys);
 
 	write_chr(CFS_ALLOW_ANY, allowany ? TRUE : FALSE);
+
 	goto out;
 err:
 	ret = -errno;
@@ -194,7 +210,7 @@ int delete_subsys(char *subsys)
 	sprintf(path, CFS_PATH CFS_SUBSYS "%s", subsys);
 	ret = chdir(path);
 	if (ret)
-		return -errno;
+		return 0;
 
 	delete_all_allowed_hosts();
 	delete_all_ns();
@@ -228,12 +244,12 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 
 	sprintf(path, "%s/" CFS_NS "%d", subsys, nsid);
 	ret = mkdir(path, 0x755);
-	if (ret && errno != EEXIST)
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
 		goto err;
 
-	ret = chdir(path);
-	if (ret)
-		goto err;
+	chdir(path);
 
 	if (devid < 0)
 		write_str(CFS_DEV_PATH, NULL_DEVICE);
@@ -243,6 +259,7 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 	}
 
 	write_chr(CFS_ENABLE, TRUE);
+
 	goto out;
 err:
 	ret = -errno;
@@ -267,23 +284,20 @@ int delete_ns(char *subsys, int nsid)
 
 	ret = chdir(CFS_PATH CFS_SUBSYS);
 	if (ret)
-		return -errno;
+		return 0;
 
 	sprintf(path, "%s/" CFS_NS "%d", subsys, nsid);
 	ret = chdir(path);
 	if (ret)
-		goto err;
+		goto out;
 
 	write_chr(CFS_ENABLE, FALSE);
 
 	chdir("../../..");
 	rmdir(path);
-	goto out;
-err:
-	ret = -errno;
 out:
 	chdir(dir);
-	return ret;
+	return 0;
 }
 
 /*
@@ -302,7 +316,9 @@ int create_host(char *host)
 		return -errno;
 
 	ret = mkdir(host, 0x755);
-	if (ret && errno != EEXIST)
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
 		ret = -errno;
 
 	chdir(dir);
@@ -322,14 +338,12 @@ int delete_host(char *host)
 
 	ret = chdir(CFS_PATH CFS_HOSTS);
 	if (ret)
-		return -errno;
+		return 0;
 
-	ret = rmdir(host);
-	if (ret)
-		ret = -errno;
+	rmdir(host);
 
 	chdir(dir);
-	return ret;
+	return 0;
 }
 
 /*
@@ -346,6 +360,7 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 {
 	char			 dir[MAXPATHLEN];
 	char			 str[8];
+	char			 val[MAXSTRLEN];
 	FILE			*fd;
 	int			 ret;
 
@@ -357,29 +372,62 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 
 	snprintf(str, sizeof(str) - 1, "%d", portid);
 	ret = mkdir(str, 0x755);
-	if (ret && errno != EEXIST)
-		goto err;
+	if (ret && errno != EEXIST) {
+		ret = -errno;
+		goto out;
+	}
 
-	ret = chdir(str);
-	if (ret)
-		goto err;
+	chdir(str);
 
-	write_str(CFS_TR_ADRFAM, fam);
-	write_str(CFS_TR_TYPE, typ);
-	write_str(CFS_TR_ADDR, addr);
-	if (req == NVMF_TREQ_REQUIRED)
-		write_str(CFS_TREQ, REQUIRED);
-	else if (req == NVMF_TREQ_NOT_REQUIRED)
-		write_str(CFS_TREQ, NOT_REQUIRED);
-	else
-		write_str(CFS_TREQ, NOT_SPECIFIED);
+	if (!ret) {
+		write_str(CFS_TR_ADRFAM, fam);
+		write_str(CFS_TR_TYPE, typ);
+		write_str(CFS_TR_ADDR, addr);
+		if (req == NVMF_TREQ_REQUIRED)
+			write_str(CFS_TREQ, REQUIRED);
+		else if (req == NVMF_TREQ_NOT_REQUIRED)
+			write_str(CFS_TREQ, NOT_REQUIRED);
+		else
+			write_str(CFS_TREQ, NOT_SPECIFIED);
 
+		snprintf(str, sizeof(str) - 1, "%d", svcid);
+		write_str(CFS_TR_SVCID, str);
+		goto out;
+	}
+
+	ret = -EINVAL;
+
+	read_str(CFS_TR_ADRFAM, val);
+	if (strcmp(val, fam))
+		goto fix;
+	read_str(CFS_TR_TYPE, val);
+	if (strcmp(val, typ))
+		goto fix;
+	read_str(CFS_TR_ADDR, val);
+	if (strcmp(val, addr))
+		goto fix;
+	read_str(CFS_TREQ, val);
+	if (req == NVMF_TREQ_REQUIRED) {
+		if (strcmp(val, REQUIRED))
+			goto fix;
+	} else if (req == NVMF_TREQ_NOT_REQUIRED) {
+		if (strcmp(val, NOT_REQUIRED))
+			goto fix;
+	} else {
+		if (strcmp(val, NOT_SPECIFIED))
+			goto fix;
+	}
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
-	write_str(CFS_TR_SVCID, str);
+	read_str(CFS_TR_SVCID, val);
+	if (strcmp(val, str))
+		goto fix;
 
+	ret = 0;
 	goto out;
-err:
-	ret = -errno;
+fix:
+	// TODO unlink subsystems, write data, relink subsystems
+
+	ret = -EBUSY;
 out:
 	chdir(dir);
 	return ret;
@@ -394,6 +442,7 @@ int delete_portid(int portid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
+	char			 file[MAXPATHLEN];
 	DIR			*subdir;
 	struct dirent		*entry;
 	int			 ret;
@@ -402,24 +451,25 @@ int delete_portid(int portid)
 
 	ret = chdir(CFS_PATH CFS_PORTS);
 	if (ret)
-		return -errno;
+		return 0;
 
 	snprintf(path, sizeof(path) - 1, "%d/" CFS_SUBSYS, portid);
 
 	subdir = opendir(path);
-	if (!subdir) {
-		ret = -errno;
+	if (!subdir)
 		goto out;
+
+	for_each_dir(entry, subdir) {
+		sprintf(file, "%s/%s", path, entry->d_name);
+		remove(file);
 	}
-	for_each_dir(entry, subdir)
-		remove(entry->d_name);
 	closedir(subdir);
 
 	snprintf(path, sizeof(path) - 1, "%d", portid);
 	rmdir(path);
 out:
 	chdir(dir);
-	return ret;
+	return 0;
 }
 
 /*
@@ -443,7 +493,9 @@ int link_host_to_subsys(char *subsys, char *host)
 	sprintf(link, "%s/" CFS_ALLOWED "%s", subsys, host);
 
 	ret = symlink(path, link);
-	if (ret)
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
 		ret = -errno;
 
 	chdir(dir);
@@ -496,7 +548,9 @@ int link_port_to_subsys(char *subsys, int portid)
 	sprintf(link, "%d/" CFS_SUBSYS "%s", portid, subsys);
 
 	ret = symlink(path, link);
-	if (ret)
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
 		ret = -errno;
 
 	chdir(dir);

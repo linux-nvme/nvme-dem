@@ -674,6 +674,36 @@ int del_json_group_member(char *group, char *member, char *tag,
 	return ret;
 }
 
+static void del_from_groups(char *tag, char *member)
+{
+	json_t			*groups;
+	json_t			*group;
+	json_t			*array;
+	json_t			*item;
+	int			 num_groups;
+	int			 num_members;
+	int			 i, j;
+
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups)
+		return;
+
+	num_groups = json_array_size(groups);
+	for (i = 0; i < num_groups; i++) {
+		group = json_array_get(groups, i);
+		array = json_object_get(group, tag);
+		num_members = json_array_size(array);
+		for (j = 0; j < num_members; j++) {
+			item = json_array_get(array, j);
+			if (json_is_string(item) &&
+			    !strcmp(member, json_string_value(item))) {
+				json_array_remove(array, j);
+				break;
+			}
+		}
+	}
+}
+
 int del_json_group(char *group, char *resp)
 {
 	json_t			*groups;
@@ -863,6 +893,8 @@ int del_json_host(char *host, char *resp)
 	json_array_remove(hosts, i);
 
 	del_from_allowed_hosts(host);
+
+	del_from_groups(TAG_HOSTS, host);
 
 	sprintf(resp, "%s '%s' deleted", TAG_HOST, host);
 
@@ -1518,6 +1550,8 @@ int del_json_target(char *alias, char *resp)
 	}
 
 	json_array_remove(targets, idx);
+
+	del_from_groups(TAG_TARGETS, alias);
 
 	sprintf(resp, "%s '%s' deleted", TAG_TARGET, alias);
 

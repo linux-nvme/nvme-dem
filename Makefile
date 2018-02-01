@@ -32,7 +32,7 @@ GDB_OPTS = -g -O0
 DEM_SRC = ${DEM_DIR}/cli.c ${DEM_DIR}/curl.c ${DEM_DIR}/show.c
 DEM_INC = ${INCL_DIR}/curl.h ${DEM_DIR}/show.h ${INCL_DIR}/tags.h
 DEMD_SRC = ${DEMD_DIR}/daemon.c ${DEMD_DIR}/json.c ${DEMD_DIR}/restful.c \
-	   ${DEMD_DIR}/parse.c ${DEMD_DIR}/domain.c ${DEMD_DIR}/logpages.c \
+	   ${DEMD_DIR}/parse.c ${DEMD_DIR}/logpages.c \
 	   ${DEMD_DIR}/interfaces.c ${DEMD_DIR}/pseudo_target.c \
 	   ${DEMD_DIR}/config.c ${DEMD_DIR}/nvmeof.c ${DEM_DIR}/curl.c \
 	   ${DEMD_DIR}/rdma.c mongoose/mongoose.c
