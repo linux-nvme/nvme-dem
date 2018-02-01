@@ -17,7 +17,6 @@ function showContents(page) {
   $("#listPage").html("");
   $("#detailPage").html("");
   $("#contentPage").html("");
-  $("#contentPage").show();
   $("#contactPage").hide();
   $("#listPage").hide();
   $("#detailPage").hide();
@@ -1264,11 +1263,11 @@ function checkAddress() {
     if (typeof(Storage) != "undefined") {
         if (sessionStorage.dem_addr == null ||
             sessionStorage.dem_addr == "undefined")
-             $("#addrForm").show();
+            $("#addrForm").show();
         else {
-            $("#menu").show();
+            $("#loginMessage").html("<p>Connecting</p>");
             showContents("dem");
-       }
+        }
     } else
         $("#notSupported").show();
 }
