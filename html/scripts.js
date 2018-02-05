@@ -1217,6 +1217,9 @@ function loadDoc(page) {
         $("#addrForm").hide();
         $("#contentPage").show();
         $("#menu").show();
+      } else if (cur_page == document.getElementById("contentPage")) {
+        $("#contentPage").show();
+        $("#menu").show();
       }
 
       if (this.responseText[0] == '{')
