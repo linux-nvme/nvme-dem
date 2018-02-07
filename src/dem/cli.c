@@ -31,8 +31,7 @@ static char *groups[] = { URI_DEM, URI_TARGET, URI_HOST, URI_GROUP };
 static char *dem_server = DEFAULT_ADDR;
 static char *dem_port = DEFAULT_PORT;
 static int prompt_deletes = 1;
-int formatted;
-int debug_curl;
+static int formatted;
 
 enum { HUMAN = 0, RAW = -1, JSON = 1 };
 

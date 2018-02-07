@@ -134,6 +134,26 @@ static void check_hosts(struct subsystem *subsys, json_t *acl, json_t *hosts)
 	}
 }
 
+struct subsystem *new_subsys(struct target *target, char *nqn)
+{
+	struct subsystem	*subsys;
+
+	subsys = malloc(sizeof(*subsys));
+	if (!subsys)
+		return NULL;
+
+	memset(subsys, 0, sizeof(*subsys));
+	subsys->target = target;
+	strcpy(subsys->nqn, nqn);
+
+	INIT_LIST_HEAD(&subsys->host_list);
+	INIT_LIST_HEAD(&subsys->ns_list);
+
+	list_add_tail(&subsys->node, &target->subsys_list);
+
+	return subsys;
+}
+
 static void check_subsystems(struct target *target, json_t *array,
 			     json_t *hosts)
 {
@@ -150,18 +170,7 @@ static void check_subsystems(struct target *target, json_t *array,
 		if (!nqn)
 			continue;
 
-		subsys = malloc(sizeof(*subsys));
-		if (!subsys)
-			return;
-
-		memset(subsys, 0, sizeof(*subsys));
-		subsys->target = target;
-		strcpy(subsys->nqn, json_string_value(nqn));
-
-		INIT_LIST_HEAD(&subsys->host_list);
-		INIT_LIST_HEAD(&subsys->ns_list);
-
-		list_add_tail(&subsys->node, &target->subsys_list);
+		subsys = new_subsys(target, (char *) json_string_value(nqn));
 
 		obj = json_object_get(iter, TAG_NSIDS);
 		if (obj)
@@ -178,7 +187,7 @@ static void check_subsystems(struct target *target, json_t *array,
 	}
 }
 
-static int get_transport_info(char *alias, json_t *grp, struct port_id *portid)
+static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 {
 	json_t			*obj;
 	char			*str;
@@ -248,26 +257,13 @@ out:
 	return 0;
 }
 
-static struct target *add_to_target_list(json_t *parent, json_t *hosts)
+struct target *alloc_target(char *alias)
 {
-	struct target		*target;
-	json_t			*subgroup;
-	json_t			*obj;
-	json_t			*iface = NULL;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	const char		*mode;
-	int			 refresh = 0;
-	int			 mgmt_mode = LOCAL_MGMT;
-
-	obj = json_object_get(parent, TAG_ALIAS);
-	if (!obj)
-		goto err;
-
-	strncpy(alias, (char *) json_string_value(obj), MAX_ALIAS_SIZE);
+	struct target	*target;
 
 	target = malloc(sizeof(*target));
 	if (!target)
-		goto err;
+		return NULL;
 
 	memset(target, 0, sizeof(*target));
 
@@ -277,23 +273,44 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 
 	list_add_tail(&target->node, target_list);
 
+	strncpy(target->alias, alias, MAX_ALIAS_SIZE);
+
+	return target;
+}
+
+static struct target *add_to_target_list(json_t *parent, json_t *hosts)
+{
+	struct target		*target;
+	json_t			*subgroup;
+	json_t			*obj;
+	json_t			*iface = NULL;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	int			 refresh = 0;
+	int			 mgmt_mode = LOCAL_MGMT;
+
+	obj = json_object_get(parent, TAG_ALIAS);
+	if (!obj)
+		goto err;
+
+	strncpy(alias, (char *) json_string_value(obj), MAX_ALIAS_SIZE);
+
+	target = alloc_target(alias);
+	if (!target)
+		goto err;
+
 	obj = json_object_get(parent, TAG_REFRESH);
 	if (obj && json_is_integer(obj))
 		refresh = json_integer_value(obj);
 
 	obj = json_object_get(parent, TAG_MGMT_MODE);
-	if (obj && json_is_string(obj)) {
-		mode = json_string_value(obj);
-		if (strcmp(mode, TAG_OUT_OF_BAND_MGMT) == 0) {
-			mgmt_mode = OUT_OF_BAND_MGMT;
-			iface = json_object_get(parent, TAG_INTERFACE);
-		} else if (strcmp(mode, TAG_IN_BAND_MGMT) == 0)
-			mgmt_mode = IN_BAND_MGMT;
-	}
-
-	strncpy(target->alias, alias, MAX_ALIAS_SIZE);
+	if (obj && json_is_string(obj))
+		mgmt_mode = get_mgmt_mode((char *) json_string_value(obj));
 
 	if (mgmt_mode == OUT_OF_BAND_MGMT) {
+		iface = json_object_get(parent, TAG_INTERFACE);
+		if (!iface)
+			goto err;
+
 		obj = json_object_get(iface, TAG_IFADDRESS);
 		if (!obj || !json_is_string(obj))
 			goto err;
@@ -323,7 +340,7 @@ err:
 
 static int add_port_to_target(struct target *target, json_t *obj)
 {
-	struct port_id		*portid;
+	struct portid		*portid;
 
 	portid = malloc(sizeof(*portid));
 	if (!portid)

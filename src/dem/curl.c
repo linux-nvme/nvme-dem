@@ -131,9 +131,11 @@ static int exec_curl(char *url, char **p)
 
 	if (!ret)
 		*p = ctx->write_data;
-	else
-		fprintf(stderr, "curl returned error %s (%d)\n",
-			curl_easy_strerror(ret), ret);
+	else {
+		fprintf(stderr, "curl returned error %s (%d) errno %d\n",
+			curl_easy_strerror(ret), ret, errno);
+		ret = -errno;
+	}
 
 	if (ctx->write_sz) {
 		if (ret)

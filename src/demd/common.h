@@ -25,6 +25,7 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
 #include <uuid/uuid.h>
@@ -107,7 +108,7 @@ static inline int msec_delta(struct timeval t0)
 {
 	struct timeval		t1;
 
-	gettimeofday(&t1, 0);
+	gettimeofday(&t1, NULL);
 
 	return (t1.tv_sec - t0.tv_sec) * 1000 +
 		(t1.tv_usec - t0.tv_usec) / 1000;
@@ -215,7 +216,7 @@ struct nsdev {
 	// TODO add bits for multipath and partitions
 };
 
-struct port_id {
+struct portid {
 	struct list_head	 node;
 	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
@@ -293,6 +294,7 @@ int send_get_xports(struct endpoint *ep,
 		    struct nvmf_transports_rsp_page_hdr **hdr);
 int send_get_subsys_usage(struct endpoint *ep, int len,
 			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
+struct subsystem *new_subsys(struct target *target, char *nqn);
 void fetch_log_pages(struct target *target);
 int refresh_target(char *alias);
 int usage_target(char *alias, char *results);
@@ -303,5 +305,8 @@ int get_oob_config(struct target *target);
 int config_target_inb(struct target *target);
 int config_target_oob(struct target *target);
 
+struct target *alloc_target(char *alias);
+
+int get_mgmt_mode(char *mode);
 
 #endif

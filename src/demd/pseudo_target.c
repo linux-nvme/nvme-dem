@@ -15,6 +15,7 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <arpa/inet.h>
 
 #include "mongoose.h"
 #include "common.h"
@@ -291,7 +292,7 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
-		/* TODO - Update keepalive counter */
+		/* TODO Update keepalive counter */
 		ret = 0;
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
@@ -303,7 +304,7 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 		if (ret)
 			ret = 0;
 		else
-			kato = 0; /* TODO: Update kato */
+			kato = 0; /* TODO Update kato */
 	} else {
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
 		ret = -EINVAL;
@@ -387,7 +388,7 @@ static void *host_thread(void *arg)
 	INIT_LIST_HEAD(&host_list);
 
 	while (!stopped) {
-		gettimeofday(&t0, 0);
+		gettimeofday(&t0, NULL);
 
 		do {
 			ret = get_new_host_conn(q, &ep);

@@ -14,6 +14,11 @@
 
 #include <jansson.h>
 
+struct target;
+struct subsystem;
+struct ns;
+struct portid;
+
 struct json_context *get_json_context(void);
 void store_json_config_file(void);
 
@@ -21,58 +26,57 @@ int list_json_group(char *resp);
 int show_json_group(char *grp, char *resp);
 int add_json_group(char *grp, char *resp);
 int update_json_group(char *grp, char *data, char *resp);
-int set_json_group_target(char *host, char *data, char *resp);
+int set_json_group_target(char *alias, char *data, char *resp);
 int set_json_group_host(char *host, char *data, char *resp);
 int del_json_group(char *grp, char *resp);
 int set_json_group_member(char *group, char *data, char *tag,
-		     char *parent_tag, char *resp);
+			  char *parent_tag, char *resp);
 int del_json_group_member(char *group, char *member, char *tag,
-		     char *parent_tag, char *resp);
+			  char *parent_tag, char *resp);
 
 int add_json_target(char *alias, char *resp);
-int update_json_target(char *target, char *data, char *resp);
+int update_json_target(char *alias, char *data, char *resp,
+		       struct target *target);
 int list_json_target(char *query, char *resp);
 int show_json_target(char *alias, char *resp);
 int del_json_target(char *alias, char *resp);
 
 int add_json_host(char *host, char *resp);
-int update_json_host(char *host, char *data, char *resp);
+int update_json_host(char *host, char *data, char *resp, char *nqn);
 int list_json_host(char *resp);
 int show_json_host(char *alias, char *resp);
 int del_json_host(char *host, char *resp);
 
-int set_json_subsys(char *alias, char *ss, char *data, char *resp);
-int del_json_subsys(char *alias, char *ss, char *resp);
+int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
+		    struct subsystem *subsys);
+int del_json_subsys(char *alias, char *subnqn, char *resp);
 
 int set_json_drive(char *alias, char *data, char *resp);
 int del_json_drive(char *alias,  char *data, char *resp);
 
 int set_json_interface(char *target, char *data, char *resp);
-int set_json_portid(char *target, int portid, char *data,
-	       char *resp);
-int del_json_portid(char *alias, int portid, char *resp);
+int set_json_portid(char *target, int id, char *data, char *resp,
+		    struct portid *portid);
+int del_json_portid(char *alias, int id, char *resp);
 
-int set_json_ns(char *alias, char *ss, char *data,
-	   char *resp);
-int del_json_ns(char *alias,  char *ss, int ns,
-	   char *resp);
-
-int set_json_acl(char *alias, char *ss, char *hostnqn,
-	    char *data, char *resp);
-int del_json_acl(char *alias,  char *ss, char *hostnqn,
-	    char *resp);
+int set_json_ns(char *alias, char *subnqn, char *data, char *resp,
+		struct ns *ns);
+int del_json_ns(char *alias,  char *subnqn, int ns, char *resp);
+int set_json_acl(char *alias, char *subnqn, char *host, char *data,
+		 char *resp, char *new_host);
+int del_json_acl(char *alias,  char *subnqn, char *host, char *resp);
 
 int list_group(char *resp);
 int show_group(char *grp, char *resp);
 int add_group(char *grp, char *resp);
 int update_group(char *grp, char *data, char *resp);
-int set_group_target(char *host, char *data, char *resp);
+int set_group_target(char *alias, char *data, char *resp);
 int set_group_host(char *host, char *data, char *resp);
 int del_group(char *grp, char *resp);
-int set_group_member(char *group, char *data, char *tag,
-		     char *parent_tag, char *resp);
-int del_group_member(char *group, char *member, char *tag,
-		     char *parent_tag, char *resp);
+int set_group_member(char *group, char *data, char *tag, char *parent_tag,
+		     char *resp);
+int del_group_member(char *group, char *member, char *tag, char *parent_tag,
+		     char *resp);
 
 int add_target(char *alias, char *resp);
 int update_target(char *target, char *data, char *resp);
@@ -83,29 +87,22 @@ int del_target(char *alias, char *resp);
 int add_host(char *host, char *resp);
 int update_host(char *host, char *data, char *resp);
 int list_host(char *resp);
-int show_host(char *alias, char *resp);
+int show_host(char *host, char *resp);
 int del_host(char *host, char *resp);
 
-int set_subsys(char *alias, char *ss, char *data, char *resp);
-int del_subsys(char *alias, char *ss, char *resp);
-
-int set_drive(char *alias, char *data, char *resp);
-int del_drive(char *alias,  char *data, char *resp);
+int set_subsys(char *alias, char *subnqn, char *data, char *resp);
+int del_subsys(char *alias, char *subnqn, char *resp);
 
 int set_interface(char *target, char *data, char *resp);
 int set_portid(char *target, int portid, char *data,
 	       char *resp);
 int del_portid(char *alias, int portid, char *resp);
 
-int set_ns(char *alias, char *ss, char *data,
-	   char *resp);
-int del_ns(char *alias,  char *ss, int ns,
-	   char *resp);
+int set_ns(char *alias, char *subnqn, char *data, char *resp);
+int del_ns(char *alias,  char *subnqn, int ns, char *resp);
 
-int set_acl(char *alias, char *ss, char *hostnqn,
-	    char *data, char *resp);
-int del_acl(char *alias,  char *ss, char *hostnqn,
-	    char *resp);
+int set_acl(char *alias, char *subnqn, char *host, char *data, char *resp);
+int del_acl(char *alias,  char *subnqn, char *host, char *resp);
 
 #define MAX_STRING		128
 
@@ -183,6 +180,32 @@ struct json_context {
 				json_set_int(w, y, \
 					     json_integer_value(z)); \
 			else \
+				fprintf(stderr, "%s(%d) Bad type\n", \
+					__func__, __LINE__); \
+		} \
+	} while (0)
+#define json_update_string_ex(w, x, y, z, res) \
+	do { \
+		z = json_object_get(x, y); \
+		if (z) { \
+			if (json_is_object(w)) { \
+				json_set_string(w, y, \
+						json_string_value(z)); \
+				strcpy(res, (char *) json_string_value(z)); \
+			} else \
+				fprintf(stderr, "%s(%d) Bad type\n", \
+					__func__, __LINE__); \
+		} \
+	} while (0)
+#define json_update_int_ex(w, x, y, z, res) \
+	do { \
+		z = json_object_get(x, y); \
+		if (z) { \
+			if (json_is_object(w)) { \
+				json_set_int(w, y, \
+					     json_integer_value(z)); \
+				res = json_integer_value(z); \
+			} else \
 				fprintf(stderr, "%s(%d) Bad type\n", \
 					__func__, __LINE__); \
 		} \

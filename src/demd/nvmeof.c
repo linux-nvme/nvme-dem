@@ -120,7 +120,7 @@ static int process_nvme_rsp(struct endpoint *ep)
 	int			 bytes;
 	int			 ret;
 
-	gettimeofday(&t0, 0);
+	gettimeofday(&t0, NULL);
 
 	while (1) {
 		ret = ep->ops->poll_for_msg(ep->ep, &qe, (void **) &rsp,
@@ -474,7 +474,7 @@ int send_get_subsys_usage(struct endpoint *ep, int len,
 	return ret;
 }
 
-int send_get_property(struct endpoint *ep, u32 reg)
+static int send_get_property(struct endpoint *ep, u32 reg)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;

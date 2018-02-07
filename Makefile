@@ -233,7 +233,7 @@ test: put get16 post get del
 
 memcheck: demd
 	reset
-	valgrind ${VALGRIND_OPTS} --log-file=demd.vglog ./demd
+	valgrind ${VALGRIND_OPTS} --log-file=demd.vglog demd
 	echo "valgrind output in 'demd.vglog'"
 
 sparse:

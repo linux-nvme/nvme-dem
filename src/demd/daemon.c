@@ -98,7 +98,7 @@ static int keep_alive_work(struct target *target)
 static void periodic_work(void)
 {
 	struct target		*target;
-	struct port_id		*portid;
+	struct portid		*portid;
 	int			 ret;
 
 	list_for_each_entry(target, target_list, node) {
@@ -383,7 +383,7 @@ static int init_interface_threads(pthread_t **listen_threads)
 void init_targets(void)
 {
 	struct target		*target;
-	struct port_id		*portid;
+	struct portid		*portid;
 	int			 ret;
 
 	build_target_list();
@@ -392,7 +392,7 @@ void init_targets(void)
 		// TODO walk interface list to find portid we can use
 
 		portid = list_first_entry(&target->portid_list,
-					  struct port_id, node);
+					  struct portid, node);
 
 		if (strcmp(portid->type, "rdma") == 0)
 			target->dq.ops = rdma_register_ops();
@@ -411,7 +411,7 @@ void init_targets(void)
 			target->dq_connected = 1;
 		}
 
-		// TODO: Should this be worker thread?
+		// TODO Should this be worker thread?
 
 		if (target->mgmt_mode == IN_BAND_MGMT)
 			ret = get_inb_config(target);

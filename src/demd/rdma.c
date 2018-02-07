@@ -235,7 +235,7 @@ err1:
 
 static int rdma_create_queue_pairs(struct rdma_ep *ep)
 {
-	struct ibv_qp_init_attr	 qp_attr = { 0 };
+	struct ibv_qp_init_attr	 qp_attr = { NULL };
 	const int		 send_wr_factor = 3;	/* MR, SEND, INV */
 
 	qp_attr.send_cq = ep->scq;
@@ -399,7 +399,7 @@ err1:
 static int rdma_accept_connection(struct xp_ep *_ep)
 {
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
-	struct rdma_conn_param	 params = { 0 };
+	struct rdma_conn_param	 params = { NULL };
 
 	params.initiator_depth	= RDMA_MAX_INIT_DEPTH;
 	params.responder_resources = RDMA_MAX_RESP_RES;
@@ -478,7 +478,7 @@ static int rdma_wait_for_connection(struct xp_pep *_pep, void **_id)
 static void route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 			   void *data, int bytes)
 {
-	struct rdma_conn_param	 params = { 0 };
+	struct rdma_conn_param	 params = { NULL };
 	int			 ret;
 
 	params.initiator_depth	= RDMA_MAX_INIT_DEPTH;
@@ -787,7 +787,7 @@ static int rdma_dealloc_key(struct xp_mr *_mr)
 	return ibv_dereg_mr(mr);
 }
 
-struct xp_ops rdma_ops = {
+static struct xp_ops rdma_ops = {
 	.init_endpoint		= rdma_init_endpoint,
 	.create_endpoint	= rdma_create_endpoint,
 	.destroy_endpoint	= rdma_destroy_endpoint,
