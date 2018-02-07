@@ -450,9 +450,12 @@ function formNSID(sub,val) {
     if (args[0] != undefined) devid = args[0];
     if (args[1] != undefined) devnsid = args[1];
   }
-  if (val == "")
-    str += "Add a Namespace to "
-  else
+  if (val == "") {
+    str += "Add a Namespace to ";
+    val = "1";
+    devid = "0";
+    devnsid = "1";
+  } else
     str += "Update Namespace ID " + val + " on ";
   str += " Target '" + $("#objectValue").html() + "'";
   str += " Subsystem '" + sub + "'";
@@ -467,7 +470,7 @@ function formNSID(sub,val) {
   str += "<p>Device NS ID: <input id='devnsid' type='number'" +
          " value='" + devnsid + "'min='1'></input>" +
          "<span class='units'><font class='hilite2'>Y</font> of " +
-         "/dev/nvmeXn<font class='hilite2'>Y</font>";
+         "/dev/nvmeXn<font class='hilite2'>Y</font> - ignored for /dev/nullb0";
   return str;
 }
 
@@ -1241,6 +1244,11 @@ function loadDoc(page) {
     console.log(xhttp.responseText);
   };
 
+  if (sessionStorage.dem_addr == "" || sessionStorage.dem_port == "") {
+    showError(message, "Invalid user id and/or password.");
+    return;
+  }
+
   url += sessionStorage.dem_addr + ":" + sessionStorage.dem_port + "/";
 
   $("#parentUri").html(page);
@@ -1307,6 +1315,12 @@ function openDialog(str, verb, uri) {
   str += "<p id='err'></p>";
 
   document.getElementById("editPage").style.width = "100%";
+  $("#editForm").keyup(function (e) {
+    if (e.key === "Enter")
+      closeDialog(true);
+    if (e.key === "Escape")
+      closeDialog(false);
+  });
   window.setTimeout(function() {
     $("#editForm").html(str);
     if ($("#alias").length) 
