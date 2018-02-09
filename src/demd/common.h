@@ -166,6 +166,7 @@ struct interface_oob {
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
+	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 nqn[MAX_NQN_SIZE + 1];
 };
 

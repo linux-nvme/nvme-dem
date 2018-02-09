@@ -18,6 +18,7 @@ struct target;
 struct subsystem;
 struct ns;
 struct portid;
+struct host;
 
 struct json_context *get_json_context(void);
 void store_json_config_file(void);

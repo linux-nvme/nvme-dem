@@ -23,6 +23,8 @@
 #include "curl.h"
 
 #define CONFIG_ERR " - unable to configure remote target"
+#define INTERNAL_ERR " - unable to comply, internal error"
+#define TARGET_ERR " - target not found"
 
 static inline char *trtype_str(u8 trtype)
 {
@@ -221,7 +223,7 @@ static int build_set_subsys_inb(struct target *target,
 		}
 		entry->numhosts = count;
 		entry = (struct nvmf_subsys_config_page_entry *) hostnqn;
-		print_debug("TODO need nsid info too");
+		print_debug("TODO need nsid info for INB request");
 	}
 
 	*_hdr = hdr;
@@ -273,7 +275,7 @@ static int send_get_config_oob(struct target *target, char *tag, char **buf)
 	return exec_get(uri, buf);
 }
 
-static int send_set_port_oob(struct target *target, char *buf, int portid)
+static int send_set_portid_oob(struct target *target, char *buf, int portid)
 {
 	char			 uri[128];
 	char			*p = uri;
@@ -524,43 +526,87 @@ int add_host(char *host, char *resp)
 	return ret;
 }
 
-int update_host(char *host, char *data, char *resp)
+static int send_del_subsys_inb(struct subsystem *subsys)
 {
-	int			 ret;
-	char			 hostnqn[MAX_NQN_SIZE + 1];
+	UNUSED(subsys);
 
-	ret = update_json_host(host, data, resp, hostnqn);
-
-	print_debug("TODO walk subsys if nqn changed");
-	/* if host name changes, we need to walk all subsystems to
-	 * delete the old host and create the new host
-	 */
-
-	return ret;
-}
-
-static int send_del_host_inb(struct target *target, char *hostnqn)
-{
-	UNUSED(hostnqn);
-	UNUSED(target);
-
-	print_debug("TODO need to send INB del host");
+	print_debug("TODO need to send INB del subsys");
 
 	return 0;
 }
 
-static int send_del_host_oob(struct target *target, char *hostnqn)
+static int send_del_subsys_oob(struct subsystem *subsys)
 {
 	char			 uri[128];
 	char			*p = uri;
 	int			 len;
 
-	len = get_uri(target, p);
+	len = get_uri(subsys->target, p);
 	p += len;
 
-	sprintf(p, URI_HOST "/%s", hostnqn);
+	sprintf(p, URI_SUBSYSTEM "/%s", subsys->nqn);
 
 	return exec_delete(uri);
+}
+
+static int _del_subsys(struct subsystem *subsys)
+{
+	struct target		*target = subsys->target;
+	int			 ret;
+
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		ret = send_del_subsys_inb(subsys);
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		ret = send_del_subsys_oob(subsys);
+
+	return ret;
+}
+
+static int send_set_acl_inb(struct subsystem *subsys, struct host *host)
+{
+	UNUSED(host);
+	UNUSED(subsys);
+
+	print_debug("TODO need to send INB set acl");
+
+	return 0;
+}
+
+static int send_set_acl_oob(struct subsystem *subsys, struct host *host)
+{
+	char			 uri[128];
+	char			 buf[128];
+	char			*p = uri;
+	int			 len;
+	int			 ret;
+
+	len = get_uri(subsys->target, p);
+	p += len;
+
+	strcpy(p, URI_HOST);
+
+	build_set_host_oob(host->nqn, buf, sizeof(buf));
+
+	ret = exec_post(uri, buf, strlen(buf));
+	if (ret)
+		return ret;
+
+	sprintf(p, URI_SUBSYSTEM "/%s/" URI_HOST, subsys->nqn);
+
+	return exec_post(uri, buf, strlen(buf));
+}
+
+static int _set_acl(struct subsystem *subsys, struct host *host)
+{
+	struct target		*target = subsys->target;
+	int			 ret;
+
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		ret = send_set_acl_inb(subsys, host);
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		ret = send_set_acl_oob(subsys, host);
+
+	return ret;
 }
 
 static int send_del_acl_inb(struct subsystem *subsys, struct host *host)
@@ -593,18 +639,65 @@ static void _del_acl(struct subsystem *subsys, struct host *host)
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		send_del_acl_inb(subsys, host);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		send_del_acl_oob(subsys, host);
+}
 
-	list_del(&host->node);
+static int send_del_host_inb(struct target *target, char *hostnqn)
+{
+	UNUSED(hostnqn);
+	UNUSED(target);
+
+	print_debug("TODO need to send INB del host");
+
+	return 0;
+}
+
+static int send_del_host_oob(struct target *target, char *hostnqn)
+{
+	char			 uri[128];
+	char			*p = uri;
+	int			 len;
+
+	len = get_uri(target, p);
+	p += len;
+
+	sprintf(p, URI_HOST "/%s", hostnqn);
+
+	return exec_delete(uri);
 }
 
 static void _del_host(struct target  *target, char *hostnqn)
 {
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		send_del_host_inb(target, hostnqn);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		send_del_host_oob(target, hostnqn);
+}
+
+
+int update_host(char *nqn, char *data, char *resp)
+{
+	struct target		*target;
+	struct subsystem	*subsys;
+	struct host		*host;
+	char			 hostnqn[MAX_STRING + 1];
+	int			 ret;
+
+	ret = update_json_host(nqn, data, resp, hostnqn);
+
+	if (!nqn)
+		return ret;
+
+	list_for_each_entry(target, target_list, node)
+		list_for_each_entry(subsys, &target->subsys_list, node)
+			list_for_each_entry(host, &subsys->host_list, node)
+				if (!strcmp(host->nqn, nqn)) {
+					_del_acl(subsys, host);
+					strcpy(host->nqn, hostnqn);
+					_set_acl(subsys, host);
+				}
+	return 0;
 }
 
 int del_host(char *hostnqn, char *resp)
@@ -623,6 +716,7 @@ int del_host(char *hostnqn, char *resp)
 			list_for_each_entry(host, &subsys->host_list, node)
 				if (!strcmp(host->nqn, hostnqn)) {
 					_del_acl(subsys, host);
+					list_del(&host->node);
 					break;
 				}
 		_del_host(target, hostnqn);
@@ -656,94 +750,30 @@ static int send_set_subsys_oob(struct subsystem *subsys)
 	return ret;
 }
 
-int set_subsys(char *alias, char *nqn, char *data, char *resp)
-{
-	struct target		*target;
-	struct subsystem	*subsys;
-	struct portid		*portid;
-	struct subsystem	 new_ss;
-	char			 buf[256];
-	int			 ret;
-
-	memset(&new_ss, 0, sizeof(new_ss));
-
-	ret = set_json_subsys(alias, nqn, data, resp, &new_ss);
-	if (ret)
-		return ret;
-
-	resp += strlen(resp);
-
-	target = find_target(alias);
-	if (!target)
-		return -ENOENT;
-
-	if (!nqn) {
-		subsys = new_subsys(target, new_ss.nqn);
-		if (!subsys)
-			return -ENOMEM;
-
-		subsys->access =  new_ss.access;
-	} else {
-		subsys = find_subsys(target, nqn);
-		if (!subsys)
-			return -ENOENT;
-
-		if (target->mgmt_mode != LOCAL_MGMT &&
-		    (strcmp(nqn, new_ss.nqn) ||
-		     subsys->access != new_ss.access)) {
-			print_debug("TODO delete old ss bofore send_set calls");
-			strcpy(subsys->nqn, new_ss.nqn);
-			subsys->access = new_ss.access;
-		}
-	}
-
-	if (target->mgmt_mode == LOCAL_MGMT)
-		return 0;
-
-	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_set_subsys_inb(subsys);
-	else
-		ret = send_set_subsys_oob(subsys);
-
-	if (ret || nqn) {
-		sprintf(resp, CONFIG_ERR);
-		return ret;
-	}
-
-	list_for_each_entry(portid, &target->portid_list, node) {
-		/* TODO this only works for OOB */
-		build_set_portid_oob(portid->portid, buf, sizeof(buf));
-
-		ret = send_update_subsys_oob(target, subsys->nqn, URI_PORTID,
-					     buf);
-		if (ret)
-			print_err("set subsys portid OOB failed: %s", alias);
-	}
-
-	return ret;
-}
-
-static int send_del_subsys_inb(struct subsystem *subsys)
+static int link_portid_inb(struct subsystem *subsys, struct portid *portid)
 {
 	UNUSED(subsys);
+	UNUSED(portid);
 
-	print_debug("TODO need to send INB del subsys");
+	print_debug("TODO need to send INB set portid");
 
 	return 0;
 }
 
-static int send_del_subsys_oob(struct subsystem *subsys)
+static int link_portid_oob(struct subsystem *subsys, struct portid *portid)
 {
-	char			 uri[128];
-	char			*p = uri;
-	int			 len;
+	struct target		*target = subsys->target;
+	char			*alias = target->alias;
+	char			 buf[256];
+	int			 ret;
 
-	len = get_uri(subsys->target, p);
-	p += len;
+	build_set_portid_oob(portid->portid, buf, sizeof(buf));
 
-	sprintf(p, URI_SUBSYSTEM "/%s", subsys->nqn);
+	ret = send_update_subsys_oob(target, subsys->nqn, URI_PORTID, buf);
+	if (ret)
+		print_err("set portid OOB failed for %s", alias);
 
-	return exec_delete(uri);
+	return ret;
 }
 
 int del_subsys(char *alias, char *nqn, char *resp)
@@ -764,10 +794,7 @@ int del_subsys(char *alias, char *nqn, char *resp)
 	if (!subsys)
 		goto out;
 
-	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_del_subsys_inb(subsys);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
-		ret = send_del_subsys_oob(subsys);
+	ret = _del_subsys(subsys);
 
 	list_del(&subsys->node);
 out:
@@ -820,7 +847,7 @@ int del_portid(char *alias, int id, char *resp)
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = send_del_portid_inb(target, portid);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_del_portid_oob(target, portid);
 
 	list_del(&portid->node);
@@ -828,7 +855,7 @@ out:
 	return ret;
 }
 
-static int send_set_portid_inb(struct target *target, struct portid *portid)
+static int config_portid_inb(struct target *target, struct portid *portid)
 {
 	UNUSED(target);
 	UNUSED(portid);
@@ -838,14 +865,14 @@ static int send_set_portid_inb(struct target *target, struct portid *portid)
 	return 0;
 }
 
-static int send_set_portid_oob(struct target *target, struct portid *portid)
+static int config_portid_oob(struct target *target, struct portid *portid)
 {
 	int			ret;
 	char			buf[256];
 
 	build_set_port_oob(portid, buf, sizeof(buf));
 
-	ret = send_set_port_oob(target, buf, portid->portid);
+	ret = send_set_portid_oob(target, buf, portid->portid);
 	if (ret)
 		print_err("set port OOB failed for %s", target->alias);
 
@@ -857,6 +884,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	int			 ret;
 	struct portid		 portid;
 	struct target		*target;
+	struct subsystem	*subsys;
 
 	memset(&portid, 0, sizeof(portid));
 
@@ -867,12 +895,14 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	resp += strlen(resp);
 
 	target = find_target(alias);
-
 	if (!target) {
 		ret = -ENOENT;
-		sprintf(resp, " - internal error: target not found");
+		sprintf(resp, TARGET_ERR);
 		goto out;
 	}
+
+	if (target->mgmt_mode == LOCAL_MGMT)
+		return 0;
 
 	if ((portid.portid != id) && id) {
 		print_debug("TODO delete old port first");
@@ -880,14 +910,26 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	}
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_set_portid_inb(target, &portid);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
-		ret = send_set_portid_oob(target, &portid);
+		ret = config_portid_inb(target, &portid);
+	else
+		ret = config_portid_oob(target, &portid);
 
-	if (ret)
+	if (ret) {
 		sprintf(resp, CONFIG_ERR);
+		goto out;
+	}
 
-	print_debug("TODO: Connect all subsystems");
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		if (target->mgmt_mode == IN_BAND_MGMT)
+			ret = link_portid_inb(subsys, &portid);
+		else
+			ret = link_portid_oob(subsys, &portid);
+
+		if (ret) {
+			sprintf(resp, CONFIG_ERR);
+			break;
+		}
+	}
 out:
 	return ret;
 }
@@ -947,14 +989,24 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 		goto out;
 
 	ns = find_ns(subsys, result.nsid);
-	if (!ns)
-		ns = &result;
-	else
-		print_debug("TODO update ns structure");
+	if (!ns) {
+		ns = malloc(sizeof(*ns));
+		if (!ns) {
+			sprintf(resp, INTERNAL_ERR);
+			ret = -ENOMEM;
+			goto out;
+		}
+		ns->nsid = result.nsid;
+
+		list_add_tail(&ns->node, &subsys->ns_list);
+	}
+
+	ns->devid = result.devid;
+	ns->devns = result.devns;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = send_set_ns_inb(subsys, ns);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_set_ns_oob(subsys, ns);
 
 	if (ret)
@@ -1013,7 +1065,7 @@ int del_ns(char *alias, char *nqn, int nsid, char *resp)
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = send_del_ns_inb(subsys, ns);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_del_ns_oob(subsys, ns);
 
 	list_del(&ns->node);
@@ -1075,7 +1127,7 @@ int get_oob_config(struct target *target)
 	return get_oob_xports(target);
 }
 
-static void config_subsys_oob(struct target *target, struct subsystem *subsys)
+static int  config_subsys_oob(struct target *target, struct subsystem *subsys)
 {
 	struct ns		*ns;
 	struct host		*host;
@@ -1090,7 +1142,7 @@ static void config_subsys_oob(struct target *target, struct subsystem *subsys)
 	ret = send_set_config_oob(target, URI_SUBSYSTEM, buf);
 	if (ret) {
 		print_err("set subsys OOB failed for %s", alias);
-		return;
+		return ret;
 	}
 
 	list_for_each_entry(ns, &subsys->ns_list, node) {
@@ -1115,27 +1167,30 @@ static void config_subsys_oob(struct target *target, struct subsystem *subsys)
 			print_err("set subsys acl OOB failed for %s", alias);
 	}
 
-	list_for_each_entry(portid, &target->portid_list, node) {
-		build_set_portid_oob(portid->portid, buf, sizeof(buf));
-
-		ret = send_update_subsys_oob(target, nqn, URI_PORTID, buf);
-		if (ret)
-			print_err("set subsys portid OOB failed for %s", alias);
-	}
+	list_for_each_entry(portid, &target->portid_list, node)
+		link_portid_oob(subsys, portid);
+	return 0;
 }
 
 int config_target_oob(struct target *target)
 {
 	struct portid		*portid;
 	struct subsystem	*subsys;
+	int			 ret;
 
-	list_for_each_entry(portid, &target->portid_list, node)
-		send_set_portid_oob(target, portid);
+	list_for_each_entry(portid, &target->portid_list, node) {
+		ret = config_portid_oob(target, portid);
+		if (ret)
+			goto out;
+	}
 
-	list_for_each_entry(subsys, &target->subsys_list, node)
-		config_subsys_oob(target, subsys);
-
-	return 0;
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		ret = config_subsys_oob(target, subsys);
+		if (ret)
+			break;
+	}
+out:
+	return ret;
 }
 
 int del_target(char *alias, char *resp)
@@ -1158,13 +1213,13 @@ int del_target(char *alias, char *resp)
 	list_for_each_entry(subsys, &target->subsys_list, node) {
 		if (target->mgmt_mode == IN_BAND_MGMT)
 			ret = send_del_subsys_inb(subsys);
-		else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+		else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 			ret = send_del_subsys_oob(subsys);
 
 		list_for_each_entry(host, &subsys->host_list, node) {
 			if (target->mgmt_mode == IN_BAND_MGMT)
 				send_del_host_inb(target, host->nqn);
-			else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+			else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 				send_del_host_oob(target, host->nqn);
 		}
 	}
@@ -1172,12 +1227,66 @@ int del_target(char *alias, char *resp)
 	list_for_each_entry(portid, &target->portid_list, node) {
 		if (target->mgmt_mode == IN_BAND_MGMT)
 			ret = send_del_portid_inb(target, portid);
-		else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+		else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 			ret = send_del_portid_oob(target, portid);
 	}
 
 	list_del(&target->node);
 out:
+	return ret;
+}
+
+int set_subsys(char *alias, char *nqn, char *data, char *resp)
+{
+	struct target		*target;
+	struct subsystem	*subsys;
+	struct subsystem	 new_ss;
+	int			 ret;
+
+	memset(&new_ss, 0, sizeof(new_ss));
+
+	ret = set_json_subsys(alias, nqn, data, resp, &new_ss);
+	if (ret)
+		return ret;
+
+	resp += strlen(resp);
+
+	target = find_target(alias);
+	if (!target)
+		return -ENOENT;
+
+	if (!nqn) {
+		subsys = new_subsys(target, new_ss.nqn);
+		if (!subsys)
+			return -ENOMEM;
+
+		subsys->access =  new_ss.access;
+	} else {
+		subsys = find_subsys(target, nqn);
+		if (!subsys)
+			return -ENOENT;
+
+		if (target->mgmt_mode != LOCAL_MGMT &&
+		    (strcmp(nqn, new_ss.nqn) ||
+		     subsys->access != new_ss.access)) {
+			_del_subsys(subsys);
+
+			strcpy(subsys->nqn, new_ss.nqn);
+			subsys->access = new_ss.access;
+		}
+	}
+
+	if (target->mgmt_mode == LOCAL_MGMT)
+		return 0;
+
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		print_debug("TODO - INB create config_subsys_inb");
+	else {
+		ret = config_subsys_oob(target, subsys);
+		if (ret)
+			sprintf(resp, CONFIG_ERR);
+	}
+
 	return ret;
 }
 
@@ -1187,7 +1296,7 @@ int set_interface(char *target, char *data, char *resp)
 
 	ret = set_json_interface(target, data, resp);
 
-	print_debug("TODO store info in target structure\n");
+	print_debug("TODO store info in target structure");
 
 	return ret;
 }
@@ -1231,40 +1340,6 @@ int update_target(char *alias, char *data, char *resp)
 	return ret;
 }
 
-static int send_set_acl_inb(struct subsystem *subsys, struct host *host)
-{
-	UNUSED(host);
-	UNUSED(subsys);
-
-	print_debug("TODO need to send INB set acl");
-
-	return 0;
-}
-
-static int send_set_acl_oob(struct subsystem *subsys, struct host *host)
-{
-	char			 uri[128];
-	char			 buf[128];
-	char			*p = uri;
-	int			 len;
-	int			 ret;
-
-	len = get_uri(subsys->target, p);
-	p += len;
-
-	strcpy(p, URI_HOST);
-
-	build_set_host_oob(host->nqn, buf, sizeof(buf));
-
-	ret = exec_post(uri, buf, strlen(buf));
-	if (ret)
-		return ret;
-
-	sprintf(p, URI_SUBSYSTEM "/%s/" URI_HOST, subsys->nqn);
-
-	return exec_post(uri, buf, strlen(buf));
-}
-
 int set_acl(char *alias, char *subnqn, char *hostnqn, char *data, char *resp)
 {
 	struct target		*target;
@@ -1302,7 +1377,7 @@ int set_acl(char *alias, char *subnqn, char *hostnqn, char *data, char *resp)
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = send_set_acl_inb(subsys, host);
-	else if (target->mgmt_mode  == OUT_OF_BAND_MGMT)
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_set_acl_oob(subsys, host);
 
 	if (ret)
@@ -1336,6 +1411,7 @@ int del_acl(char *alias, char *nqn, char *hostnqn, char *resp)
 	list_for_each_entry(host, &subsys->host_list, node)
 		if (!strcmp(host->nqn, hostnqn)) {
 			_del_acl(subsys, host);
+			list_del(&host->node);
 			break;
 		}
 out:
