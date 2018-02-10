@@ -491,7 +491,7 @@ out:
 
 void *interface_thread(void *arg)
 {
-	struct interface	*iface = arg;
+	struct host_iface	*iface = arg;
 	struct xp_pep		*listener;
 	void			*id;
 	struct host_queue	 q;

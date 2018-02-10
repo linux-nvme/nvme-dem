@@ -28,7 +28,6 @@ static const struct mg_str s_signature =
 #define HTTP_HDR			"HTTP/1.1"
 #define SMALL_RSP			128
 #define LARGE_RSP			512
-#define BODY_SZ				1024
 
 #define HTTP_OK				200
 #define HTTP_ERR_NOT_FOUND		402
@@ -90,7 +89,7 @@ static int parse_uri(char *p, int depth, char *part[])
 
 static int get_dem_request(char *verb, char *resp)
 {
-	struct interface	*iface = interfaces;
+	struct host_iface	*iface = interfaces;
 	int			 i;
 	int			 n = 0;
 
@@ -156,7 +155,7 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 }
 
 static int get_target_request(char *target, char **p, int n, char *query,
-			      char *resp)
+			      char **resp)
 {
 	int			 ret;
 
@@ -170,13 +169,13 @@ static int get_target_request(char *target, char **p, int n, char *query,
 		else
 			ret = list_json_target(NULL, resp);
 	} else if (n == 0)
-		ret = show_json_target(target, resp);
+		ret = show_json_target(target, *resp);
 	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
-		ret = usage_target(target, resp);
+		ret = usage_target(target, *resp);
 		if (ret)
-			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+			sprintf(*resp, "%s '%s' not found", TAG_TARGET, target);
 	} else
-		ret = bad_request(resp);
+		ret = bad_request(*resp);
 
 	return http_error(ret);
 }
@@ -201,7 +200,7 @@ static int delete_target_request(char *target, char **p, int n,
 		else if (strcmp(p[2], URI_NSID) == 0)
 			ret = del_ns(target, p[1], atoi(p[3]), resp);
 		else if (strcmp(p[2], URI_HOST) == 0)
-			ret = del_acl(target, p[1], p[3], resp);
+			ret = unlink_host(target, p[1], p[3], resp);
 		else
 			goto bad_req;
 	} else if (strcmp(*p, URI_PORTID) == 0 && n == 2) {
@@ -244,8 +243,7 @@ static int put_target_request(char *target, char **p, int n,
 			if (strcmp(p[2], URI_NSID) == 0)
 				ret = set_ns(target, p[1], data, resp);
 			else if (strcmp(p[2], URI_HOST) == 0)
-				ret = set_acl(target, p[1], p[3], data,
-					      resp);
+				ret = link_host(target, p[1], p[3], data, resp);
 			else
 				goto bad_req;
 		} else
@@ -352,7 +350,7 @@ out:
 }
 
 static int handle_target_requests(char *p[], int n, struct http_message *hm,
-				  char *resp)
+				  char **resp)
 {
 	char			*target;
 	char			 query[32] = { 0 };
@@ -369,18 +367,15 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_target_request(target, p, n, query, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_target_request(target, p, n, &hm->body, resp);
+		ret = put_target_request(target, p, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_target_request(target, p, n,
-					    &hm->body, resp);
+		ret = delete_target_request(target, p, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_target_request(target, p, n, &hm->body,
-					  resp);
+		ret = post_target_request(target, p, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_target_request(target, p, n, &hm->body,
-					   resp);
+		ret = patch_target_request(target, p, n, &hm->body, *resp);
 	else
-		ret = bad_request(resp);
+		ret = bad_request(*resp);
 
 	return ret;
 }
@@ -660,7 +655,7 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 		goto out;
 	}
 
-	resp = malloc(BODY_SZ);
+	resp = malloc(BODY_SIZE);
 	if (!resp) {
 		strcpy(resp, "No memory!");
 		strcpy(error, "No Memory");
@@ -689,7 +684,7 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	if (hm->body.len)
 		print_debug("%.*s", (int) hm->body.len, hm->body.p);
 
-	memset(resp, 0, BODY_SZ);
+	memset(resp, 0, BODY_SIZE);
 
 	uri = malloc(hm->uri.len + 1);
 	if (!uri) {
@@ -715,7 +710,7 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	else if (strncmp(parts[0], URI_HOST, HOST_LEN) == 0)
 		ret = handle_host_requests(parts, n, hm, resp);
 	else if (strncmp(parts[0], URI_TARGET, TARGET_LEN) == 0)
-		ret = handle_target_requests(parts, n, hm, resp);
+		ret = handle_target_requests(parts, n, hm, &resp);
 	else
 		goto bad_page;
 

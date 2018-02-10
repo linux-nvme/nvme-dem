@@ -94,6 +94,29 @@ static int find_array_string(json_t *array, char *val)
 	return -ENOENT;
 }
 
+
+static int strlen_array(json_t *array, char *tag)
+{
+	json_t			*iter;
+	json_t			*obj;
+	int			 i, cnt;
+	int			 n = 0;
+
+	cnt = json_array_size(array);
+
+	for (i = 0; i < cnt; i++) {
+		iter = json_array_get(array, i);
+		if (!json_is_object(iter))
+			continue;
+
+		obj = json_object_get(iter, tag);
+		if (obj && json_is_string(obj))
+			n += strlen(json_string_value(obj)) + 4;
+	}
+
+	return n;
+}
+
 static int list_array(json_t *array, char *tag, char *resp)
 {
 	json_t			*iter;
@@ -403,29 +426,43 @@ void cleanup_json(void)
 	free(ctx);
 }
 
-static int _list_target(char *query, char *resp)
+static int _list_target(char *query, char **resp, int offset)
 {
 	json_t			*targets;
-	char			*p = resp;
+	char			*p = *resp + offset;
+	char			*new;
 	int			 n;
+	int			 cnt;
+	int			 max = BODY_SIZE - 32;
 
 	targets = json_object_get(ctx->root, TAG_TARGETS);
 
 	start_json_array(TAG_TARGETS, p, n);
 
+	cnt = n;
+
 	if (targets) {
+		n = strlen_array(targets, TAG_ALIAS);
+		if (n > max) {
+			max += n - BODY_SIZE;
+			new = realloc(*resp, max);
+			*resp = new;
+			p = new + cnt + offset;
+		}
+
 		if (query == NULL)
 			n = list_array(targets, TAG_ALIAS, p);
 		else if (strncmp(query, URI_PARM_MODE, PARM_MODE_LEN) == 0)
 			n = filter_mode(targets, query, p);
 		else if (strncmp(query, URI_PARM_FABRIC, PARM_FABRIC_LEN) == 0)
 			n = filter_fabric(targets, query, p);
+
 		p += n;
 	}
 
 	end_json_array(p, n);
 
-	return p - resp;
+	return p - *resp;
 }
 
 static int _list_host(char *resp)
@@ -1145,153 +1182,234 @@ int del_json_subsys(char *alias, char *subnqn, char *resp)
 	return 0;
 }
 
-/* DRIVE */
+/* set target lists */
 
-int set_json_drive(char *alias, char *data, char *resp)
+int set_json_nsdevs(struct target *target, char *data)
 {
-	json_t			*targets;
-	json_t			*obj;
-	json_t			*iter;
+	struct nsdev		*nsdev, *next;
 	json_t			*array;
+	json_t			*targets;
+	json_t			*tgt;
+	json_t			*nsdevs;
 	json_t			*new;
+	json_t			*obj;
 	json_t			*tmp;
+	json_t			*iter;
 	json_error_t		 error;
-	char			 val[128];
+	char			*alias = target->alias;
 	int			 i, cnt;
-
-	targets = json_object_get(ctx->root, TAG_TARGETS);
-	if (!targets) {
-		sprintf(resp, "%s not found", TAG_TARGETS);
-		return -ENOENT;
-	}
-
-	i = find_array(targets, TAG_ALIAS, alias, &obj);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_ALIAS, alias);
-		return -ENOENT;
-	}
-
-	json_get_array(obj, TAG_NSIDS, array);
-	if (!array) {
-		array = json_array();
-		json_object_set_new(array, TAG_NSIDS, obj);
-	}
+	int			 devid, nsid;
+	int			 ret;
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
-		sprintf(resp, "invalid json syntax");
+		print_err("invalid json syntax %s '%s'", TAG_TARGET, alias);
 		return -EINVAL;
 	}
 
-	obj = json_object_get(new, TAG_DEVID);
-	if (!obj) {
-		sprintf(resp, "invalid json syntax");
-		json_decref(new);
-		return -EINVAL;
-	}
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	find_array(targets, TAG_ALIAS, alias, &tgt);
 
-	strcpy(val, json_string_value(obj));
+	json_get_array(tgt, TAG_NSDEVS, nsdevs);
+	if (!nsdevs) {
+		nsdevs = json_array();
+		json_object_set_new(tgt, TAG_NSDEVS, nsdevs);
+	} else
+		json_array_clear(nsdevs);
 
-	json_decref(new);
+	list_for_each_entry(nsdev, &target->device_list, node)
+		nsdev->valid = 0;
 
-	cnt = json_array_size(array);
+	json_get_array(new, TAG_NSDEVS, array);
+	if (!array)
+		cnt = 0;
+	else
+		cnt = json_array_size(array);
 
 	for (i = 0; i < cnt; i++) {
 		iter = json_array_get(array, i);
-		if (!json_is_object(iter))
-			continue;
+
 		obj = json_object_get(iter, TAG_DEVID);
-		if (!obj || !json_is_string(obj))
-			continue;
-		if (strcmp(json_string_value(obj), val) == 0) {
-			sprintf(resp,
-				"%s '%s' exists in %s '%s'",
-				TAG_DEVID, val, TAG_TARGET, alias);
-			return -EEXIST;
+		if (!obj || !json_is_integer(obj)) {
+			print_err("invalid json syntax");
+			ret = -EINVAL;
+			goto out;
 		}
+
+		devid = json_integer_value(obj);
+		if (devid == -1)
+			nsid = 0;
+		else {
+			obj = json_object_get(iter, TAG_DEVNSID);
+			if (!obj || !json_is_integer(obj)) {
+				print_err("invalid json syntax");
+				ret = -EINVAL;
+				goto out;
+			}
+			nsid = json_integer_value(obj);
+		}
+
+		list_for_each_entry(nsdev, &target->device_list, node)
+			if (nsdev->nsdev == devid) {
+				if (devid == -1)
+					goto found;
+				if (nsdev->nsid == nsid)
+					goto found;
+			}
+
+		nsdev = malloc(sizeof(*nsdev));
+		if (!nsdev) {
+			print_err("unable to alloc nsdev");
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		nsdev->nsdev = devid;
+		nsdev->nsid = nsid;
+
+		list_add_tail(&nsdev->node, &target->device_list);
+
+		print_debug("Added %s %d:%d to %s '%s'",
+			    TAG_DEVID, devid, nsid, TAG_TARGET, alias);
+
+found:
+		iter = json_object();
+		json_set_int(iter, TAG_DEVID, devid);
+		json_set_int(iter, TAG_DEVNSID, nsid);
+
+		json_array_append_new(nsdevs, iter);
+
+		nsdev->valid = 1;
 	}
 
-	obj = json_object();
-	json_set_string(obj, TAG_DEVID, val);
-	json_array_append_new(array, obj);
+	list_for_each_entry_safe(nsdev, next, &target->device_list, node)
+		if (!nsdev->valid) {
+			print_err("Removing %s %d:%d from %s '%s'",
+				  TAG_DEVID, nsdev->nsdev, nsdev->nsid,
+				  TAG_TARGET, alias);
 
-	sprintf(resp, "Added %s '%s' to %s '%s'",
-		TAG_DEVID, val, TAG_TARGET, alias);
+			list_del(&nsdev->node);
+		}
 
-	return 0;
+	ret = 0;
+out:
+	json_decref(new);
+
+	return ret;
 }
 
-int del_json_drive(char *alias, char *data, char *resp)
+int set_json_fabric_ifaces(struct target *target, char *data)
 {
-	json_t			*targets;
-	json_t			*array;
 	json_t			*new;
+	json_t			*trtype, *tradr, *trfam;
 	json_t			*iter;
-	json_t			*obj;
+	json_t			*array;
+	json_t			*targets;
+	json_t			*tgt;
+	json_t			*ifaces;
+	json_t			*tmp;
 	json_error_t		 error;
-	char			 val[128];
-	int			 i;
-	int			 cnt;
-
-	targets = json_object_get(ctx->root, TAG_TARGETS);
-	if (!targets) {
-		sprintf(resp, "%s not found", TAG_TARGETS);
-		return -ENOENT;
-	}
-
-	i = find_array(targets, TAG_ALIAS, alias, &obj);
-	if (i < 0) {
-		sprintf(resp, "%s '%s' not found ", TAG_ALIAS, alias);
-		return -ENOENT;
-	}
-
-	json_get_array(obj, TAG_NSIDS, array);
-	if (!array) {
-		array = json_array();
-		json_object_set_new(array, TAG_NSIDS, obj);
-	}
+	struct fabric_iface	*iface, *next;
+	char			*alias = target->alias;
+	int			 i, cnt;
+	int			 ret;
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
-		sprintf(resp, "invalid json syntax");
+		print_err("invalid json syntax %s '%s'", TAG_TARGET, alias);
 		return -EINVAL;
 	}
 
-	obj = json_object_get(new, TAG_DEVID);
-	if (!obj) {
-		sprintf(resp, "invalid json syntax");
-		json_decref(new);
-		return -EINVAL;
-	}
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	find_array(targets, TAG_ALIAS, alias, &tgt);
 
-	strcpy(val, json_string_value(obj));
+	json_get_array(tgt, TAG_INTERFACES, ifaces);
+	if (!ifaces) {
+		ifaces = json_array();
+		json_object_set_new(tgt, TAG_INTERFACES, ifaces);
+	} else
+		json_array_clear(ifaces);
 
-	json_decref(new);
+	list_for_each_entry(iface, &target->fabric_iface_list, node)
+		iface->valid = 0;
 
-	cnt = json_array_size(array);
+	json_get_array(new, TAG_INTERFACES, array);
+	if (!array)
+		cnt = 0;
+	else
+		cnt = json_array_size(array);
 
 	for (i = 0; i < cnt; i++) {
 		iter = json_array_get(array, i);
-		if (!json_is_object(iter))
+
+		trtype = json_object_get(iter, TAG_TYPE);
+		if (!trtype || !json_is_string(trtype)) {
+			print_err("invalid json syntax. bad type %s '%s'",
+				  TAG_TARGET, alias);
 			continue;
-		obj = json_object_get(iter, TAG_DEVID);
-		if (!obj || !json_is_string(obj))
+		}
+
+		trfam = json_object_get(iter, TAG_FAMILY);
+		if (!trfam || !json_is_string(trfam)) {
+			print_err("invalid json syntax. bad family %s '%s'",
+				  TAG_TARGET, alias);
 			continue;
-		if (strcmp(json_string_value(obj), val) == 0)
-			break;
+		}
+
+		tradr = json_object_get(iter, TAG_ADDRESS);
+		if (!tradr || !json_is_string(tradr)) {
+			print_err("invalid json syntax. bad address %s '%s'",
+				  TAG_TARGET, alias);
+			continue;
+		}
+
+		list_for_each_entry(iface, &target->fabric_iface_list, node)
+			if (!strcmp(iface->type, json_string_value(trtype)) &&
+			    !strcmp(iface->fam, json_string_value(trfam)) &&
+			    !strcmp(iface->addr, json_string_value(tradr)))
+				goto found;
+
+		iface = malloc(sizeof(*iface));
+		if (!iface) {
+			print_err("unable to alloc iface");
+			ret = -ENOMEM;
+			goto out;
+		}
+
+		strcpy(iface->type, json_string_value(trtype));
+		strcpy(iface->fam, json_string_value(trfam));
+		strcpy(iface->addr, json_string_value(tradr));
+
+		list_add_tail(&iface->node, &target->fabric_iface_list);
+
+		print_debug("Added %s %s %s to %s '%s'",
+			    iface->type, iface->fam, iface->addr,
+			    TAG_TARGET, alias);
+
+found:
+		iter = json_object();
+		json_set_string(iter, TAG_TYPE, iface->type);
+		json_set_string(iter, TAG_FAMILY, iface->fam);
+		json_set_string(iter, TAG_ADDRESS, iface->addr);
+
+		json_array_append_new(ifaces, iter);
+
+		iface->valid = 1;
 	}
 
-	if (i == cnt) {
-		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_DEVID, val, TAG_TARGET, alias);
-		return -ENOENT;
-	}
+	list_for_each_entry_safe(iface, next, &target->fabric_iface_list, node)
+		if (!iface->valid) {
+			print_err("Removing %s %s %s from %s '%s'",
+				  iface->type, iface->fam, iface->addr,
+				  TAG_TARGET, alias);
 
-	json_array_remove(array, i);
+			list_del(&iface->node);
+		}
 
-	sprintf(resp, "%s '%s' deleted from %s '%s'",
-		TAG_DEVID, val, TAG_TARGET, alias);
-	return 0;
+	ret = 0;
+out:
+	json_decref(new);
+	return ret;
 }
 
 /* PORTID */
@@ -1325,7 +1443,6 @@ int set_json_portid(char *target, int id, char *data, char *resp,
 	if (!array)
 		return -EINVAL;
 
-	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (strlen(data) == 0) {
 		sprintf(resp, "no data to update %s '%d' in %s '%s'",
 			TAG_PORTID, id, TAG_TARGET, target);
@@ -1333,6 +1450,7 @@ int set_json_portid(char *target, int id, char *data, char *resp,
 		return -EINVAL;
 	}
 
+	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
 		sprintf(resp, "invalid json syntax");
 		return -EINVAL;
@@ -1572,56 +1690,74 @@ int del_json_target(char *alias, char *resp)
 	return 0;
 }
 
-int list_json_target(char *query, char *resp)
+int list_json_target(char *query, char **resp)
 {
-	char			*p = resp;
-	int			 n;
+	char			*p = *resp;
+	int			 n, m;
 
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_target(query, p);
-	p += n;
+	m = _list_target(query, resp, n);
+	p = *resp + n + m - 1;
 
 	sprintf(p, "}");
 
 	return 0;
 }
 
-int set_json_interface(char *target, char *data, char *resp)
+int set_json_interface(char *alias, char *data, char *resp,
+		       struct oob_iface *iface)
 {
 	json_t			*targets;
 	json_t			*new;
 	json_t			*obj;
+	json_t			*newobj;
 	json_t			*iter;
 	json_t			*value;
 	json_t			*tmp;
 	int			 i;
 	json_error_t		 error;
+	char			 port[MAX_STRING + 1];
 
 	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s '%s' not found", TAG_TARGETS, target);
+		sprintf(resp, "%s '%s' not found", TAG_TARGETS, alias);
 		return -ENOENT;
 	}
 
-	i = find_array(targets, TAG_ALIAS, target, &obj);
+	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
-
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new) {
+		sprintf(resp, "invalid json syntax");
+		return -EINVAL;
+	}
+
+	newobj = json_object_get(new, TAG_INTERFACES);
+	if (!newobj) {
+		sprintf(resp, "invalid json syntax");
+		return -EINVAL;
+	}
 
 	iter = json_object();
-	json_update_string(iter, new, TAG_IFFAMILY, value);
-	json_update_string(iter, new, TAG_IFADDRESS, value);
-	json_update_string(iter, new, TAG_IFPORT, value);
+	json_update_string(iter, newobj, TAG_IFFAMILY, value);
+	json_update_string_ex(iter, newobj, TAG_IFADDRESS, value,
+			      iface->address);
+	json_update_string_ex(iter, newobj, TAG_IFPORT, value, port);
 
-	json_object_set(obj, TAG_INTERFACE, iter);
+	iface->port = atoi(port);
+
+	print_debug("Added %s:%d", iface->address, iface->port);
+
+	json_object_set(obj, TAG_INTERFACES, iter);
 
 	json_decref(new);
+
 	return 0;
 }
 

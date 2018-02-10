@@ -41,6 +41,7 @@
 
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
+#define BODY_SIZE	1024
 #define NVMF_DQ_DEPTH	1
 #define IDLE_TIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
@@ -88,7 +89,7 @@
 extern int			 debug;
 extern int			 stopped;
 extern int			 num_interfaces;
-extern struct interface		*interfaces;
+extern struct host_iface	*interfaces;
 extern struct list_head		*target_list;
 
 enum { DISCONNECTED, CONNECTED };
@@ -148,7 +149,7 @@ static inline int msec_delta(struct timeval t0)
 
 enum {RESTRICTED = 0, ALOW_ALL = 1};
 
-struct interface {
+struct host_iface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
@@ -158,7 +159,7 @@ struct interface {
 	struct xp_ops		*ops;
 };
 
-struct interface_oob {
+struct oob_iface {
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	int			 port;
 };
@@ -217,6 +218,14 @@ struct nsdev {
 	// TODO add bits for multipath and partitions
 };
 
+struct fabric_iface {
+	struct list_head	 node;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 fam[CONFIG_FAMILY_SIZE + 1];
+	char			 addr[CONFIG_ADDRESS_SIZE + 1];
+	int			 valid;
+};
+
 struct portid {
 	struct list_head	 node;
 	int			 portid;
@@ -236,10 +245,11 @@ struct target {
 	struct list_head	 subsys_list;
 	struct list_head	 portid_list;
 	struct list_head	 device_list;
-	struct interface	*iface;
+	struct list_head	 fabric_iface_list;
+	struct host_iface	*iface;
 	struct endpoint		 dq;
 	json_t			*json;
-	struct interface_oob	 oob_iface;
+	struct oob_iface	 oob_iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 dq_connected;
 	int			 mgmt_mode;
@@ -276,7 +286,7 @@ void build_target_list(void);
 void init_targets(void);
 void cleanup_targets(void);
 void get_host_nqn(void *context, void *haddr, char *nqn);
-int start_pseudo_target(struct interface *iface);
+int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
 int connect_target(struct target *target, char *family, char *addr, char *port);
 void disconnect_target(struct endpoint *ep, int shutdown);
@@ -301,10 +311,11 @@ int refresh_target(char *alias);
 int usage_target(char *alias, char *results);
 void dump(u8 *buf, int len);
 
-int get_inb_config(struct target *target);
-int get_oob_config(struct target *target);
-int config_target_inb(struct target *target);
-int config_target_oob(struct target *target);
+int set_json_nsdevs(struct target *target, char *data);
+int set_json_fabric_ifaces(struct target *target, char *data);
+
+int get_config(struct target *target);
+int config_target(struct target *target);
 
 struct target *alloc_target(char *alias);
 

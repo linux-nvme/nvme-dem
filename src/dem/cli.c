@@ -1147,7 +1147,7 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf(" | delete | link | unlink\n");
 	printf("	 | refresh | config | shutdown\n");
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
-	printf("object : group | target | drive | subsystem | portid | acl\n");
+	printf("object : group | target | subsystem | portid | acl\n");
 	printf("	 | ns | host\n");
 	printf("       : shorthand objects may be used (first character)\n");
 	printf("allow_any -- 0 : use host list\n");

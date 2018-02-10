@@ -743,7 +743,7 @@ int connect_target(struct target *target, char *family, char *addr, char *port)
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
 }
 
-int start_pseudo_target(struct interface *iface)
+int start_pseudo_target(struct host_iface *iface)
 {
 	struct sockaddr		 dest;
 	int			 ret;

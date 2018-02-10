@@ -395,39 +395,34 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 		goto out;
 	}
 
-	ret = -EINVAL;
+	ret = -EBUSY;
 
 	read_str(CFS_TR_ADRFAM, val);
 	if (strcmp(val, fam))
-		goto fix;
+		goto out;
 	read_str(CFS_TR_TYPE, val);
 	if (strcmp(val, typ))
-		goto fix;
+		goto out;
 	read_str(CFS_TR_ADDR, val);
 	if (strcmp(val, addr))
-		goto fix;
+		goto out;
 	read_str(CFS_TREQ, val);
 	if (req == NVMF_TREQ_REQUIRED) {
 		if (strcmp(val, REQUIRED))
-			goto fix;
+			goto out;
 	} else if (req == NVMF_TREQ_NOT_REQUIRED) {
 		if (strcmp(val, NOT_REQUIRED))
-			goto fix;
+			goto out;
 	} else {
 		if (strcmp(val, NOT_SPECIFIED))
-			goto fix;
+			goto out;
 	}
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
 	read_str(CFS_TR_SVCID, val);
 	if (strcmp(val, str))
-		goto fix;
+		goto out;
 
 	ret = 0;
-	goto out;
-fix:
-	// TODO unlink subsystems, write data, relink subsystems
-
-	ret = -EBUSY;
 out:
 	chdir(dir);
 	return ret;
@@ -638,7 +633,6 @@ int enumerate_devices(void)
 					       &device->devid, &device->nsid);
 					list_add_tail(&device->node, devices);
 					cnt++;
-					devices++;
 				}
 			closedir(subdir);
 		}

@@ -269,6 +269,7 @@ struct target *alloc_target(char *alias)
 
 	INIT_LIST_HEAD(&target->subsys_list);
 	INIT_LIST_HEAD(&target->portid_list);
+	INIT_LIST_HEAD(&target->fabric_iface_list);
 	INIT_LIST_HEAD(&target->device_list);
 
 	list_add_tail(&target->node, target_list);
@@ -429,7 +430,7 @@ static int count_dem_config_files(void)
 	return filecount;
 }
 
-static void read_dem_config(FILE *fid, struct interface *iface)
+static void read_dem_config(FILE *fid, struct host_iface *iface)
 {
 	int			 ret;
 	char			 tag[LARGEST_TAG + 1];
@@ -449,7 +450,7 @@ static void read_dem_config(FILE *fid, struct interface *iface)
 		strncpy(iface->pseudo_target_port, val, CONFIG_PORT_SIZE);
 }
 
-static void translate_addr_to_array(struct interface *iface)
+static void translate_addr_to_array(struct host_iface *iface)
 {
 	int			 mask_bits;
 	char			*p;
@@ -474,7 +475,7 @@ static void translate_addr_to_array(struct interface *iface)
 		sprintf(iface->pseudo_target_port, "%d", NVME_RDMA_IP_PORT);
 }
 
-static int read_dem_config_files(struct interface *iface)
+static int read_dem_config_files(struct host_iface *iface)
 {
 	struct dirent		*entry;
 	DIR			*dir;
@@ -525,7 +526,7 @@ out:
 
 int init_interfaces(void)
 {
-	struct interface	*table;
+	struct host_iface	*table;
 	int			 count;
 	int			 ret;
 
@@ -534,11 +535,11 @@ int init_interfaces(void)
 	if (count < 0)
 		return count;
 
-	table = calloc(count, sizeof(struct interface));
+	table = calloc(count, sizeof(struct host_iface));
 	if (!table)
 		return -ENOMEM;
 
-	memset(table, 0, count * sizeof(struct interface));
+	memset(table, 0, count * sizeof(struct host_iface));
 
 	ret = read_dem_config_files(table);
 	if (ret) {

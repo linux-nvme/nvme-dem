@@ -38,7 +38,7 @@ static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_PORT;
 int					 stopped;
 int					 debug;
-struct interface			*interfaces;
+struct host_iface			*interfaces;
 int					 num_interfaces;
 struct list_head			*target_list = &target_list_head;
 static pthread_t			*listen_threads;
@@ -413,18 +413,14 @@ void init_targets(void)
 
 		// TODO Should this be worker thread?
 
-		if (target->mgmt_mode == IN_BAND_MGMT)
-			ret = get_inb_config(target);
-		else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-			ret = get_oob_config(target);
+		if (target->mgmt_mode != LOCAL_MGMT)
+			ret = get_config(target);
 
 		if (target->dq_connected)
 			fetch_log_pages(target);
 
-		if (target->mgmt_mode == IN_BAND_MGMT && !ret)
-			config_target_inb(target);
-		else if (target->mgmt_mode == OUT_OF_BAND_MGMT && !ret)
-			config_target_oob(target);
+		if (!ret && target->mgmt_mode != LOCAL_MGMT)
+			config_target(target);
 
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
