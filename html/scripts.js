@@ -800,7 +800,7 @@ function parseInterfaces(obj, itemA, itemB) {
       svc = ":" + listD;
     });
   str += '<p class="data">';
-  str += itemB + ": " + typ + fam + adr + svc + "</p>" ;
+  str += itemB + ":&nbsp; " + typ + fam + adr + svc + "</p>" ;
 
   return str;
 }
@@ -857,9 +857,10 @@ function parseSubsystems(obj, itemA, itemB) {
         else if (itemD == "DeviceNSID")
           devns = nsid[itemD];
       })
-      str += '<p>NSID: ' + id + " &nbsp; Device: ID: " + devid +
-             " &nbsp; NSID: " + devns + " &nbsp; ";
-      str += '<img src="pencil.png" alt="get" class="icon" ';
+      str += '<p>' + id + ":&nbsp; Device: ID " + devid + " &nbsp;";
+      if (devid != -1)
+	 str += "NSID " + devns + " &nbsp;";
+      str += ' <img src="pencil.png" alt="get" class="icon" ';
       str += 'onclick="saveVal(' + "'" + devid + ',' + devns + "'" + ');';
       str += 'loadEdit(' + ref + ",'/nsid'," + id  + ')">&nbsp; ';
       str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
@@ -940,7 +941,7 @@ function parsePortIDs(obj, itemA, itemB) {
 
   ref += "'/portid'," + id;
 
-  str += '<p style="margin-left:-40px">' + id + ": " + typ;
+  str += '<p style="margin-left:-40px">' + id + ":&nbsp; " + typ;
   if (typ == "fc")
     str += " " + adr + " service id " + svc;
   else
@@ -956,27 +957,34 @@ function parsePortIDs(obj, itemA, itemB) {
 function parseNSDevs(obj, itemA, itemB) {
   var listC = Object.keys(obj[itemA][itemB]);
   var str = "";
-  var id = 0;
-  var devid = 0;
-  var devns = 0;
+  var id = undefined;
+  var devid = "";
+  var devns = "";
   var nsdev = undefined;
   listC.forEach(function(itemC){
     if (itemC == "NSID")
-      id = obj[itemA][itemB][itemC] + ": ";
-    else if (itemC == "DeviceID")
-      devid = " Device ID: " + obj[itemA][itemB][itemC]
+      id = obj[itemA][itemB][itemC] + ":&nbsp; ";
+    else if (itemC == "DeviceID")      
+      devid = obj[itemA][itemB][itemC]
     else if (itemC == "DeviceNSID")
-      devns = " Device NSID" + obj[itemA][itemB][itemC]
+      devns = " &nbsp; NSID " + obj[itemA][itemB][itemC]
     else if (itemC == "NSDEV")
       nsdev = " " + obj[itemA][itemB][itemC]
   });
 
-  str += '<p style="margin:0 -40px;">';
+  str += '<p class="data">';
+
+  if (devid == "-1")
+    devns = "";
+
+  devid = "Device:&nbsp; ID " + devid;
 
   if (nsdev != undefined)
     str += nsdev;
-  else
+  if (id != undefined)
     str += id + devid + devns;
+  else
+    str += itemB + ":&nbsp;" + devid + devns;
 
   str += "</p>";
 
@@ -1008,11 +1016,8 @@ function parseObject(obj, itemA) {
 
   tmp = itemA.substr(0,itemA.length-1).toLowerCase();
 
-  if (itemA == "NSDevs") {
-    closeDiv = true;
-    str += '</h1><div class="details">';
-  } else if ((itemA == "Interfaces" && typ == "dem") ||
-             (itemA == "Shared") || (itemA == "Restricted"))
+  if ((itemA == "Interfaces") || (itemA == "NSDevices") ||
+      (itemA == "Shared") || (itemA == "Restricted"))
     str += "</h1>";
   else {
     closeDiv = true;
@@ -1075,7 +1080,7 @@ function parseObject(obj, itemA) {
        str += parseSubsystems(obj, itemA, itemB)
     } else if (itemA == "PortIDs") {
        str += parsePortIDs(obj, itemA, itemB)
-    } else if (itemA == "NSDevs") {
+    } else if (itemA == "NSDevices") {
        str += parseNSDevs(obj, itemA, itemB)
     } else if (itemA == "Shared" || itemA == "Restricted") {
        str += parseACL(obj, itemA, itemB)
