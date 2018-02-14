@@ -102,6 +102,7 @@ static void show_nsids(json_t *parent, int formatted)
 	json_t			*obj;
 	char			 tab[] = "      ";
 	int			 i, cnt;
+	int			 devid = INVALID_DEVID;
 
 	array = json_object_get(parent, TAG_NSIDS);
 
@@ -126,15 +127,17 @@ static void show_nsids(json_t *parent, int formatted)
 
 		obj = json_object_get(iter, TAG_DEVID);
 		if (obj) {
+			devid = json_integer_value(obj);
 			if (formatted)
-				printf(", " FMT_INT " ", TAG_DEVID,
-				       json_integer_value(obj));
+				printf(", " FMT_NUM " ", TAG_DEVID, devid);
+			else if (devid != NULL_BLK_DEVID)
+				printf(" nvme%d", devid);
 			else
-				printf("nvme%lld", json_integer_value(obj));
+				printf(" nullb0");
 		}
 
 		obj = json_object_get(iter, TAG_DEVNSID);
-		if (obj) {
+		if (obj && devid >= 0) {
 			if (formatted)
 				printf(", " FMT_INT " ", TAG_DEVNSID,
 				       json_integer_value(obj));

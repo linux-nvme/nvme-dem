@@ -169,7 +169,7 @@ static int get_target_request(char *target, char **p, int n, char *query,
 		else
 			ret = list_json_target(NULL, resp);
 	} else if (n == 0)
-		ret = show_json_target(target, *resp);
+		ret = show_json_target(target, resp);
 	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
 		ret = usage_target(target, *resp);
 		if (ret)
@@ -380,7 +380,7 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 	return ret;
 }
 
-static int get_host_request(char *host, char *resp)
+static int get_host_request(char *host, char **resp)
 {
 	int			 ret;
 
@@ -490,7 +490,7 @@ out:
 	return 0;
 }
 
-static int get_group_request(char *group, char *resp)
+static int get_group_request(char *group, char **resp)
 {
 	int			 ret;
 
@@ -582,7 +582,7 @@ static int patch_group_request(char *group, struct mg_str *body, char *resp)
 }
 
 static int handle_group_requests(char *p[], int n, struct http_message *hm,
-				 char *resp)
+				 char **resp)
 {
 	char			*group;
 	int			 ret;
@@ -595,21 +595,21 @@ static int handle_group_requests(char *p[], int n, struct http_message *hm,
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_group_request(group, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_group_request(group, p, n, &hm->body, resp);
+		ret = put_group_request(group, p, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_group_request(group, p, n, resp);
+		ret = delete_group_request(group, p, n, *resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_group_request(group, resp);
+		ret = post_group_request(group, *resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_group_request(group, &hm->body, resp);
+		ret = patch_group_request(group, &hm->body, *resp);
 	else
-		ret = bad_request(resp);
+		ret = bad_request(*resp);
 
 	return ret;
 }
 
 static int handle_host_requests(char *p[], int n, struct http_message *hm,
-				char *resp)
+				char **resp)
 {
 	char			*host = NULL;
 	int			 ret;
@@ -621,15 +621,15 @@ static int handle_host_requests(char *p[], int n, struct http_message *hm,
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_host_request(host, resp);
 	else if (is_equal(&hm->method, &s_put_method))
-		ret = put_host_request(host, n, &hm->body, resp);
+		ret = put_host_request(host, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_delete_method))
-		ret = delete_host_request(host, n, resp);
+		ret = delete_host_request(host, n, *resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_host_request(host, n, &hm->body, resp);
+		ret = post_host_request(host, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_patch_method))
-		ret = patch_host_request(host, p, n, &hm->body, resp);
+		ret = patch_host_request(host, p, n, &hm->body, *resp);
 	else
-		ret = bad_request(resp);
+		ret = bad_request(*resp);
 
 	return ret;
 }
@@ -706,9 +706,9 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	}
 
 	if (strncmp(parts[0], URI_GROUP, GROUP_LEN) == 0)
-		ret = handle_group_requests(parts, n, hm, resp);
+		ret = handle_group_requests(parts, n, hm, &resp);
 	else if (strncmp(parts[0], URI_HOST, HOST_LEN) == 0)
-		ret = handle_host_requests(parts, n, hm, resp);
+		ret = handle_host_requests(parts, n, hm, &resp);
 	else if (strncmp(parts[0], URI_TARGET, TARGET_LEN) == 0)
 		ret = handle_target_requests(parts, n, hm, &resp);
 	else

@@ -12,6 +12,9 @@
  * more details.
  */
 
+#ifndef __TAGS_H__
+#define __TAGS_H__
+
 #define TAG_GROUPS		"Groups"
 #define TAG_GROUP		"Group"
 #define TAG_TARGETS		"Targets"
@@ -95,3 +98,7 @@
 #define ADRFAM_STR_IPV6		"ipv6"
 #define ADRFAM_STR_FC		"fc"
 
+#define NULL_BLK_DEVID		-1
+#define INVALID_DEVID		-2
+
+#endif

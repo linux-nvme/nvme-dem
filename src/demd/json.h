@@ -24,8 +24,8 @@ struct oob_iface;
 struct json_context *get_json_context(void);
 void store_json_config_file(void);
 
-int list_json_group(char *resp);
-int show_json_group(char *grp, char *resp);
+int list_json_group(char **resp);
+int show_json_group(char *grp, char **resp);
 int add_json_group(char *grp, char *resp);
 int update_json_group(char *grp, char *data, char *resp);
 int set_json_group_target(char *alias, char *data, char *resp);
@@ -40,13 +40,13 @@ int add_json_target(char *alias, char *resp);
 int update_json_target(char *alias, char *data, char *resp,
 		       struct target *target);
 int list_json_target(char *query, char **resp);
-int show_json_target(char *alias, char *resp);
+int show_json_target(char *alias, char **resp);
 int del_json_target(char *alias, char *resp);
 
 int add_json_host(char *host, char *resp);
 int update_json_host(char *host, char *data, char *resp, char *nqn);
-int list_json_host(char *resp);
-int show_json_host(char *alias, char *resp);
+int list_json_host(char **resp);
+int show_json_host(char *alias, char **resp);
 int del_json_host(char *host, char *resp);
 
 int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,

@@ -232,7 +232,7 @@ static int del_group(char *base, int n, char **p)
 		if (n > 1)
 			printf(DELETE_PROMPT "these " TAG_GROUP "s? (N/y) ");
 		else
-			printf(DELETE_PROMPT TAG_GROUP "'%s'? (N/y) ", *p);
+			printf(DELETE_PROMPT TAG_GROUP " '%s'? (N/y) ", *p);
 
 		if (cancel_delete())
 			return 0;
@@ -426,7 +426,7 @@ static int del_target(char *base, int n, char **p)
 		if (n > 1)
 			printf(DELETE_PROMPT "these " TAG_TARGET "s? (N/y) ");
 		else
-			printf(DELETE_PROMPT TAG_TARGET "'%s'? (N/y) ", *p);
+			printf(DELETE_PROMPT TAG_TARGET " '%s'? (N/y) ", *p);
 
 		if (cancel_delete())
 			return 0;
@@ -922,7 +922,7 @@ static int del_host(char *base, int n, char **p)
 		if (n > 1)
 			printf(DELETE_PROMPT "these " TAG_HOST "s? (N/y) ");
 		else
-			printf(DELETE_PROMPT TAG_HOST "'%s'? (N/y) ", *p);
+			printf(DELETE_PROMPT TAG_HOST " '%s'? (N/y) ", *p);
 
 		if (cancel_delete())
 			return 0;

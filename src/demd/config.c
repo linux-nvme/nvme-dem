@@ -122,15 +122,6 @@ int del_group(char *group, char *resp)
 	return del_json_group(group, resp);
 }
 
-int add_host(char *host, char *resp)
-{
-	int			 ret;
-
-	ret = add_json_group(host, resp);
-
-	return ret;
-}
-
 /* internal helper functions */
 
 static inline struct target *find_target(char *alias)
@@ -682,6 +673,15 @@ int update_host(char *nqn, char *data, char *resp)
 					_link_host(subsys, host);
 				}
 	return 0;
+}
+
+int add_host(char *host, char *resp)
+{
+	int			 ret;
+
+	ret = add_json_host(host, resp);
+
+	return ret;
 }
 
 int del_host(char *hostnqn, char *resp)

@@ -46,7 +46,7 @@
 #define SYSFS_DEVICE		SYSFS_PREFIX "%dn%d"
 #define SYSFS_TRANSPORT		"transport"
 #define SYSFS_PCIE		"pcie"
-#define NULL_DEVICE		"/dev/nullb0"
+#define NULL_BLK_DEVICE		"/dev/nullb0"
 #define NVME_DEVICE		"/dev/" SYSFS_DEVICE
 
 #define TRUE			'1'
@@ -252,7 +252,7 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 	chdir(path);
 
 	if (devid < 0)
-		write_str(CFS_DEV_PATH, NULL_DEVICE);
+		write_str(CFS_DEV_PATH, NULL_BLK_DEVICE);
 	else {
 		sprintf(path, NVME_DEVICE, devid, devnsid);
 		write_str(CFS_DEV_PATH, path);
@@ -640,7 +640,7 @@ int enumerate_devices(void)
 	}
 	closedir(nvmedir);
 
-	fd = fopen(NULL_DEVICE, "r");
+	fd = fopen(NULL_BLK_DEVICE, "r");
 	if (fd) {
 		device = malloc(sizeof(*device));
 		if (!device) {
@@ -648,7 +648,9 @@ int enumerate_devices(void)
 			free_devices();
 			goto out;
 		}
-		device->devid = device->nsid = -1;
+		device->devid = NULL_BLK_DEVID;
+		device->nsid = 0;
+
 		list_add_tail(&device->node, devices);
 		cnt++;
 		fclose(fd);

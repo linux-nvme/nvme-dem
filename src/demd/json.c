@@ -382,7 +382,7 @@ void store_json_config_file(void)
 	char			*filename = ctx->filename;
 	int			 ret;
 
-	ret = json_dump_file(root, filename, 0);
+	ret = json_dump_file(root, filename, 2);
 	if (ret)
 		fprintf(stderr, "json_dump_file failed %d\n", ret);
 }
@@ -463,26 +463,6 @@ static int _list_target(char *query, char **resp, int offset)
 	end_json_array(p, n);
 
 	return p - *resp;
-}
-
-static int _list_host(char *resp)
-{
-	json_t			*hosts;
-	char			*p = resp;
-	int			 n;
-
-	hosts = json_object_get(ctx->root, TAG_HOSTS);
-
-	start_json_array(TAG_HOSTS, p, n);
-
-	if (hosts) {
-		n = list_array(hosts, TAG_ALIAS, p);
-		p += n;
-	}
-
-	end_json_array(p, n);
-
-	return p - resp;
 }
 
 /* GROUPS */
@@ -765,28 +745,42 @@ int del_json_group(char *group, char *resp)
 	return 0;
 }
 
-int list_json_group(char *resp)
+int list_json_group(char **resp)
 {
 	json_t			*groups;
-	char			*p = resp;
-	int			 n;
+	char			*p = *resp;
+	char			*new;
+	int			 n, m;
+	int			 max = BODY_SIZE - 32;
+	int			 len;
 
-	groups = json_object_get(ctx->root, TAG_GROUPS);
-
-	n = sprintf(p, "{" JSARRAY, TAG_GROUPS);
+	n = sprintf(p, "{");
 	p += n;
 
+	start_json_array(TAG_GROUPS, p, m);
+
+	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (groups) {
+		len = strlen_array(groups, TAG_NAME);
+		if (len > max) {
+			max += len - BODY_SIZE;
+			new = realloc(*resp, max);
+			*resp = new;
+			p = new + n + m;
+		}
+
 		n = list_array(groups, TAG_NAME, p);
 		p += n;
 	}
 
-	sprintf(p, "]}");
+	end_json_array(p, n);
+
+	sprintf(p, "}");
 
 	return 0;
 }
 
-int show_json_group(char *group, char *resp)
+int show_json_group(char *group, char **resp)
 {
 	json_t			*groups;
 	json_t			*obj;
@@ -794,17 +788,19 @@ int show_json_group(char *group, char *resp)
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(*resp, "%s '%s' not found", TAG_GROUP, group);
 		return -ENOENT;
 	}
 
 	i = find_array(groups, TAG_NAME, group, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_GROUP, group);
+		sprintf(*resp, "%s '%s' not found", TAG_GROUP, group);
 		return -ENOENT;
 	}
 
-	sprintf(resp, "%s", json_dumps(obj, 0));
+	free(*resp);
+
+	*resp = json_dumps(obj, 0);
 
 	return 0;
 }
@@ -938,16 +934,35 @@ int del_json_host(char *host, char *resp)
 	return 0;
 }
 
-int list_json_host(char *resp)
+int list_json_host(char **resp)
 {
-	char			*p = resp;
-	int			 n;
+	json_t			*hosts;
+	char			*p = *resp;
+	char			*new;
+	int			 m, n;
+	int			 max = BODY_SIZE - 32;
+	int			 len;
 
 	n = sprintf(p, "{");
 	p += n;
 
-	n = _list_host(p);
-	p += n;
+	start_json_array(TAG_HOSTS, p, m);
+
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
+	if (hosts) {
+		len = strlen_array(hosts, TAG_ALIAS);
+		if (len > max) {
+			max += len - BODY_SIZE;
+			new = realloc(*resp, max);
+			*resp = new;
+			p = new + n + m;
+		}
+
+		n = list_array(hosts, TAG_ALIAS, p);
+		p += n;
+	}
+
+	end_json_array(p, n);
 
 	sprintf(p, "}");
 
@@ -1028,7 +1043,7 @@ static void get_host_subsystems(char *host, json_t *parent)
 	}
 }
 
-int show_json_host(char *alias, char *resp)
+int show_json_host(char *alias, char **resp)
 {
 	json_t			*hosts;
 	json_t			*obj;
@@ -1037,21 +1052,23 @@ int show_json_host(char *alias, char *resp)
 
 	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "'%s' not found", TAG_HOSTS);
+		sprintf(*resp, "'%s' not found", TAG_HOSTS);
 		return -ENOENT;
 	}
 
 	i = find_array(hosts, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, alias);
+		sprintf(*resp, "%s '%s' not found", TAG_HOST, alias);
 		return -ENOENT;
 	}
+
+	free(*resp);
 
 	host = json_copy(obj);
 
 	get_host_subsystems(alias, host);
 
-	sprintf(resp, "%s", json_dumps(host, 0));
+	*resp = json_dumps(host, 0);
 
 	json_decref(host);
 
@@ -1237,7 +1254,7 @@ int set_json_nsdevs(struct target *target, char *data)
 		}
 
 		devid = json_integer_value(obj);
-		if (devid == -1)
+		if (devid == NULL_BLK_DEVID)
 			nsid = 0;
 		else {
 			obj = json_object_get(iter, TAG_DEVNSID);
@@ -1251,7 +1268,7 @@ int set_json_nsdevs(struct target *target, char *data)
 
 		list_for_each_entry(nsdev, &target->device_list, node)
 			if (nsdev->nsdev == devid) {
-				if (devid == -1)
+				if (devid == NULL_BLK_DEVID)
 					goto found;
 				if (nsdev->nsid == nsid)
 					goto found;
@@ -1998,7 +2015,7 @@ out:
 	return ret;
 }
 
-int show_json_target(char *alias, char *resp)
+int show_json_target(char *alias, char **resp)
 {
 	json_t			*targets;
 	json_t			*obj;
@@ -2006,17 +2023,20 @@ int show_json_target(char *alias, char *resp)
 
 	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
-		sprintf(resp, "%s not found", TAG_TARGETS);
+		sprintf(*resp, "%s not found", TAG_TARGETS);
 		return -ENOENT;
 	}
 
 	i = find_array(targets, TAG_ALIAS, alias, &obj);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
+		sprintf(*resp, "%s '%s' not found", TAG_TARGET, alias);
 		return -ENOENT;
 	}
 
-	sprintf(resp, "%s", json_dumps(obj, 0));
+	free(*resp);
+
+	*resp = json_dumps(obj, 0);
+
 	return 0;
 }
 
