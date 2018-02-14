@@ -513,10 +513,10 @@ static int put_group_request(char *group, char **p, int n, struct mg_str *body,
 	if (n <= 2)
 		ret = update_group(group, data, resp);
 	else if (strcmp(*p, URI_HOST) == 0)
-		ret = set_group_member(group, data, TAG_HOST,
+		ret = set_group_member(group, data, NULL, TAG_HOST,
 				       TAG_HOSTS, resp);
 	else if (strcmp(*p, URI_TARGET) == 0)
-		ret = set_group_member(group, data, TAG_TARGET,
+		ret = set_group_member(group, data, NULL, TAG_TARGET,
 				       TAG_TARGETS, resp);
 	else
 		ret = bad_request(resp);
@@ -529,11 +529,21 @@ static int put_group_request(char *group, char **p, int n, struct mg_str *body,
 	return 0;
 }
 
-static int post_group_request(char *group, char *resp)
+static int post_group_request(char *group, char **p, int n, char *resp)
 {
 	int			 ret;
 
-	ret = add_group(group, resp);
+	if (n <= 2)
+		ret = add_group(group, resp);
+	else if (n == 4 && strcmp(*p, URI_HOST) == 0)
+		ret = set_group_member(group, NULL, *++p, TAG_HOST,
+				       TAG_HOSTS, resp);
+	else if (n == 4 && strcmp(*p, URI_TARGET) == 0)
+		ret = set_group_member(group, NULL, *++p, TAG_TARGET,
+				       TAG_TARGETS, resp);
+	else
+		ret = bad_request(resp);
+
 	if (ret)
 		return http_error(ret);
 
@@ -599,7 +609,7 @@ static int handle_group_requests(char *p[], int n, struct http_message *hm,
 	else if (is_equal(&hm->method, &s_delete_method))
 		ret = delete_group_request(group, p, n, *resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_group_request(group, *resp);
+		ret = post_group_request(group, p, n, *resp);
 	else if (is_equal(&hm->method, &s_patch_method))
 		ret = patch_group_request(group, &hm->body, *resp);
 	else

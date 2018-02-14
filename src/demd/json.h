@@ -31,7 +31,7 @@ int update_json_group(char *grp, char *data, char *resp);
 int set_json_group_target(char *alias, char *data, char *resp);
 int set_json_group_host(char *host, char *data, char *resp);
 int del_json_group(char *grp, char *resp);
-int set_json_group_member(char *group, char *data, char *tag,
+int set_json_group_member(char *group, char *data, char *alias, char *tag,
 			  char *parent_tag, char *resp);
 int del_json_group_member(char *group, char *member, char *tag,
 			  char *parent_tag, char *resp);
@@ -43,11 +43,12 @@ int list_json_target(char *query, char **resp);
 int show_json_target(char *alias, char **resp);
 int del_json_target(char *alias, char *resp);
 
-int add_json_host(char *host, char *resp);
-int update_json_host(char *host, char *data, char *resp, char *nqn);
+int add_json_host(char *alias, char *resp);
+int update_json_host(char *alias, char *data, char *resp,
+		     char *newalias, char *nqn);
 int list_json_host(char **resp);
 int show_json_host(char *alias, char **resp);
-int del_json_host(char *host, char *resp);
+int del_json_host(char *alias, char *resp, char *nqn);
 
 int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 		    struct subsystem *subsys);
@@ -62,8 +63,8 @@ int del_json_portid(char *alias, int id, char *resp);
 int set_json_ns(char *alias, char *subnqn, char *data, char *resp,
 		struct ns *ns);
 int del_json_ns(char *alias,  char *subnqn, int ns, char *resp);
-int set_json_acl(char *alias, char *subnqn, char *host, char *data,
-		 char *resp, char *new_host);
+int set_json_acl(char *tgt, char *subnqn, char *alias, char *data,
+		 char *resp, char *newalias, char *hostnqn);
 int del_json_acl(char *alias,  char *subnqn, char *host, char *resp);
 
 int list_group(char *resp);
@@ -73,8 +74,8 @@ int update_group(char *grp, char *data, char *resp);
 int set_group_target(char *alias, char *data, char *resp);
 int set_group_host(char *host, char *data, char *resp);
 int del_group(char *grp, char *resp);
-int set_group_member(char *group, char *data, char *tag, char *parent_tag,
-		     char *resp);
+int set_group_member(char *group, char *data, char *alias, char *tag,
+		     char *parent_tag, char *resp);
 int del_group_member(char *group, char *member, char *tag, char *parent_tag,
 		     char *resp);
 

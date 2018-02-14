@@ -92,6 +92,21 @@ static inline int cancel_delete(void)
 	return (c != 'y' && c != 'Y');
 }
 
+static inline int formatted_json(json_t *json)
+{
+	char			*str;
+
+	str = json_dumps(json, 2);
+	if (!str)
+		return -EINVAL;
+
+	printf("%s\n", str);
+
+	free(str);
+
+	return 0;
+}
+
 /* DEM */
 
 static int dem_config(char *base, int n, char **p)
@@ -109,15 +124,22 @@ static int dem_config(char *base, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_config(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_config(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -139,10 +161,10 @@ static int dem_shutdown(char *base, int n, char **p)
 
 static int list_group(char *url, int n, char **p)
 {
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 	UNUSED(p);
@@ -152,15 +174,22 @@ static int list_group(char *url, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_group_list(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_group_list(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -182,10 +211,10 @@ static int get_group(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 
@@ -196,15 +225,22 @@ static int get_group(char *base, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_group_data(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_group_data(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -267,10 +303,10 @@ static int rename_group(char *base, int n, char **p)
 
 static int list_target(char *url, int n, char **p)
 {
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 	UNUSED(p);
@@ -280,15 +316,22 @@ static int list_target(char *url, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_target_list(parent, formatted, 0);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_target_list(parent, 0);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -310,10 +353,10 @@ static int get_target(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 
@@ -324,15 +367,22 @@ static int get_target(char *base, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_target_data(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_target_data(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -473,19 +523,16 @@ static int refresh_target(char *base, int n, char **p)
 
 static int link_target(char *base, int n, char **p)
 {
-	char			 data[256];
 	char			 url[128];
 	char			*target = *p++;
 	char			*group = *p;
-	int			 len;
 
 	UNUSED(n);
 
-	snprintf(url, sizeof(url), "%s/%s/%s", base, group, URI_TARGET);
+	snprintf(url, sizeof(url), "%s/%s/%s/%s", base, group, URI_TARGET,
+		 target);
 
-	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, target);
-
-	return exec_put(url, data, len);
+	return exec_post(url, NULL, 0);
 }
 
 static int unlink_target(char *base, int n, char **p)
@@ -513,9 +560,9 @@ static int usage_target(char *base, int n, char **p)
 	char			 url[128];
 	char			*result;
 	char			*alias = *p;
-	int			 ret;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 
@@ -526,15 +573,22 @@ static int usage_target(char *base, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_usage_data(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_usage_data(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -809,10 +863,10 @@ static int del_ns(char *base, int n, char **p)
 
 static int list_host(char *url, int n, char **p)
 {
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 	UNUSED(p);
@@ -822,15 +876,22 @@ static int list_host(char *url, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_host_list(parent, formatted, 0);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_host_list(parent, 0);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -853,10 +914,10 @@ static int get_host(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			*alias = *p;
-	int			 ret;
 	char			*result;
 	json_t			*parent;
 	json_error_t		 error;
+	int			 ret;
 
 	UNUSED(n);
 
@@ -867,15 +928,22 @@ static int get_host(char *base, int n, char **p)
 		return ret;
 
 	if (formatted == RAW)
-		printf("%s\n", result);
-	else {
-		parent = json_loads(result, JSON_DECODE_ANY, &error);
-		if (parent)
-			show_host_data(parent, formatted);
-		else
-			printf("%s\n", result);
-	}
+		goto err;
 
+	parent = json_loads(result, JSON_DECODE_ANY, &error);
+	if (!parent)
+		goto err;
+
+	if (formatted) {
+		if (formatted_json(parent))
+			goto err;
+	} else
+		show_host_data(parent);
+
+	goto out;
+err:
+	printf("%s\n", result);
+out:
 	free(result);
 
 	return 0;
@@ -957,19 +1025,15 @@ static int rename_host(char *base, int n, char **p)
 
 static int link_host(char *base, int n, char **p)
 {
-	char			 data[256];
 	char			 url[128];
 	char			*host = *p++;
 	char			*group = *p;
-	int			 len;
 
 	UNUSED(n);
 
-	snprintf(url, sizeof(url), "%s/%s/%s", base, group, URI_HOST);
+	snprintf(url, sizeof(url), "%s/%s/%s/%s", base, group, URI_HOST, host);
 
-	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_ALIAS, host);
-
-	return exec_put(url, data, len);
+	return exec_post(url, NULL, 0);
 }
 
 static int unlink_host(char *base, int n, char **p)

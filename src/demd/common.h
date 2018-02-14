@@ -128,6 +128,8 @@ static inline int msec_delta(struct timeval t0)
 #define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
+#define MAX_BODY_SIZE		1024
+#define MAX_URI_SIZE		128
 #define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
 
@@ -147,7 +149,7 @@ static inline int msec_delta(struct timeval t0)
 #define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
 #define SYS_NVME		"/sys/class/nvme"
 
-enum {RESTRICTED = 0, ALOW_ALL = 1};
+enum {RESTRICTED = 0, ALLOW_ALL = 1};
 
 struct host_iface {
 	char			 type[CONFIG_TYPE_SIZE + 1];

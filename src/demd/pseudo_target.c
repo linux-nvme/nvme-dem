@@ -111,12 +111,12 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 			  NVME_DOMAIN_SUBSYS_NAME);
 		ret = -EINVAL;
 	}
+
 	if (data->cntlid != 0xffff) {
 		print_err("bad controller id %x, expecting %x",
 			  data->cntlid, 0xffff);
 		ret = -EINVAL;
 	}
-
 out:
 	return ret;
 }
@@ -135,7 +135,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	memset(id, 0, sizeof(*id));
 
 	memset(id->fr, ' ', sizeof(id->fr));
-	strncpy((char *)id->fr, " ", sizeof(id->fr));
+	strncpy((char *) id->fr, " ", sizeof(id->fr));
 
 	id->mdts = 0;
 	id->cntlid = 0;

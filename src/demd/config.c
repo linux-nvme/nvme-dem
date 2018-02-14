@@ -22,10 +22,12 @@
 #include "ops.h"
 #include "curl.h"
 
-#define CONFIG_ERR " - unable to configure remote target"
-#define INTERNAL_ERR " - unable to comply, internal error"
-#define TARGET_ERR " - target not found"
-#define MGMT_MODE_ERR " - invalid mgmt mode for setting interface"
+/* TODO: Consider changing these to const chars */
+#define CONFIG_ERR	" - unable to configure remote target"
+#define INTERNAL_ERR	" - unable to comply, internal error"
+#define TARGET_ERR	" - target not found"
+#define NSDEV_ERR	" - invalid ns device"
+#define MGMT_MODE_ERR	" - invalid mgmt mode for setting interface"
 
 /* helper functions */
 
@@ -105,10 +107,10 @@ int update_group(char *group, char *data, char *resp)
 	return update_json_group(group, data, resp);
 }
 
-int set_group_member(char *group, char *data, char *tag, char *parent_tag,
-		     char *resp)
+int set_group_member(char *group, char *data, char *alias, char *tag,
+		     char *parent_tag, char *resp)
 {
-	return set_json_group_member(group, data, tag, parent_tag, resp);
+	return set_json_group_member(group, data, alias, tag, parent_tag, resp);
 }
 
 int del_group_member(char *group, char *member, char *tag, char *parent_tag,
@@ -173,7 +175,7 @@ static int build_set_port_inb(struct target *target,
 	struct nvmf_port_config_page_hdr *hdr;
 	struct portid		*portid;
 	void			*ptr;
-	int			 len = 0;
+	int			 len;
 	int			 count = 0;
 
 	list_for_each_entry(portid, &target->portid_list, node)
@@ -217,10 +219,11 @@ static int build_set_subsys_inb(struct target *target,
 	struct host		*host;
 	char			*hostnqn;
 	void			*ptr;
-	int			 len = 0;
+	int			 len;
 	int			 count = 0;
 
 	len = sizeof(hdr) - 1;
+
 	list_for_each_entry(subsystem, &target->subsys_list, node) {
 		len += sizeof(*entry) - 1;
 		count++;
@@ -236,12 +239,13 @@ static int build_set_subsys_inb(struct target *target,
 	hdr = ptr;
 	hdr->num_entries = count;
 
-	/* TODO do we validate subsystems? */
+	/* TODO INB do we validate subsystems? */
 	entry = (struct nvmf_subsys_config_page_entry *) &hdr->data;
 	list_for_each_entry(subsystem, &target->subsys_list, node) {
 		entry->status = 0;
 		entry->allowallhosts = subsystem->access;
 		strcpy(entry->subnqn, subsystem->nqn);
+
 		count = 0;
 		hostnqn = (char *) &entry->data;
 		list_for_each_entry(host, &subsystem->host_list, node) {
@@ -249,8 +253,10 @@ static int build_set_subsys_inb(struct target *target,
 			count++;
 			hostnqn += NVMF_NQN_FIELD_LEN;
 		}
+
 		entry->numhosts = count;
 		entry = (struct nvmf_subsys_config_page_entry *) hostnqn;
+
 		print_debug("TODO need nsid info for INB request");
 	}
 
@@ -303,7 +309,7 @@ static void build_set_portid_oob(int portid, char *buf, int len)
 
 static int send_get_config_oob(struct target *target, char *tag, char **buf)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -317,7 +323,7 @@ static int send_get_config_oob(struct target *target, char *tag, char **buf)
 
 static int send_set_portid_oob(struct target *target, char *buf, int portid)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -331,7 +337,7 @@ static int send_set_portid_oob(struct target *target, char *buf, int portid)
 
 static int send_set_config_oob(struct target *target, char *tag, char *buf)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -346,7 +352,7 @@ static int send_set_config_oob(struct target *target, char *tag, char *buf)
 static int send_update_subsys_oob(struct target *target, char *subsys,
 				  char *tag, char *buf)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -547,8 +553,8 @@ static int send_link_host_inb(struct subsystem *subsys, struct host *host)
 
 static int send_link_host_oob(struct subsystem *subsys, struct host *host)
 {
-	char			 uri[128];
-	char			 buf[128];
+	char			 uri[MAX_URI_SIZE];
+	char			 buf[MAX_BODY_SIZE];
 	char			*p = uri;
 	int			 len;
 	int			 ret;
@@ -594,7 +600,7 @@ static int send_unlink_host_inb(struct subsystem *subsys, struct host *host)
 
 static int send_unlink_host_oob(struct subsystem *subsys, struct host *host)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -631,7 +637,7 @@ static int send_del_host_inb(struct target *target, char *hostnqn)
 
 static int send_del_host_oob(struct target *target, char *hostnqn)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -651,26 +657,31 @@ static inline void _del_host(struct target  *target, char *hostnqn)
 		send_del_host_oob(target, hostnqn);
 }
 
-int update_host(char *nqn, char *data, char *resp)
+int update_host(char *alias, char *data, char *resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
-	char			 hostnqn[MAX_STRING + 1];
+	char			 newalias[MAX_ALIAS_SIZE + 1];
+	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
-	ret = update_json_host(nqn, data, resp, hostnqn);
-
-	if (!nqn)
+	ret = update_json_host(alias, data, resp, newalias, hostnqn);
+	if (ret)
 		return ret;
 
 	list_for_each_entry(target, target_list, node)
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			list_for_each_entry(host, &subsys->host_list, node)
-				if (!strcmp(host->nqn, nqn)) {
-					_unlink_host(subsys, host);
-					strcpy(host->nqn, hostnqn);
-					_link_host(subsys, host);
+				if (!strcmp(host->alias, alias)) {
+					if (strcmp(host->nqn, hostnqn)) {
+						_unlink_host(subsys, host);
+						strcpy(host->nqn, hostnqn);
+						_link_host(subsys, host);
+					}
+					if (strcmp(host->alias, newalias))
+						strcpy(host->alias, newalias);
+					break;
 				}
 	return 0;
 }
@@ -684,27 +695,35 @@ int add_host(char *host, char *resp)
 	return ret;
 }
 
-int del_host(char *hostnqn, char *resp)
+int del_host(char *alias, char *resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
+	char			 hostnqn[MAX_NQN_SIZE + 1];
+	int			 dirty;
 	int			 ret;
 
-	ret = del_json_host(hostnqn, resp);
+	ret = del_json_host(alias, resp, hostnqn);
 	if (ret)
 		return ret;
 
 	list_for_each_entry(target, target_list, node) {
-		list_for_each_entry(subsys, &target->subsys_list, node)
+		dirty = 0;
+		list_for_each_entry(subsys, &target->subsys_list, node) {
+			if (subsys->access == ALLOW_ALL)
+				continue;
+			dirty = 1;
 			list_for_each_entry(host, &subsys->host_list, node)
-				if (!strcmp(host->nqn, hostnqn)) {
+				if (!strcmp(host->alias, alias)) {
 					_unlink_host(subsys, host);
 					list_del(&host->node);
 					break;
 				}
+		}
 
-		_del_host(target, hostnqn);
+		if (dirty)
+			_del_host(target, hostnqn);
 	}
 
 	return 0;
@@ -712,21 +731,22 @@ int del_host(char *hostnqn, char *resp)
 
 /* link functions (hosts to subsystems and subsystems to ports */
 
-int link_host(char *alias, char *subnqn, char *hostnqn, char *data, char *resp)
+int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
-	char			 nqn[MAX_STRING + 1];
+	char			 newalias[MAX_ALIAS_SIZE + 1];
+	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
-	ret = set_json_acl(alias, subnqn, hostnqn, data, resp, nqn);
+	ret = set_json_acl(tgt, subnqn, alias, data, resp, newalias, hostnqn);
 	if (ret)
 		goto out;
 
 	resp += strlen(resp);
 
-	target = find_target(alias);
+	target = find_target(tgt);
 	if (!target)
 		goto out;
 
@@ -734,20 +754,29 @@ int link_host(char *alias, char *subnqn, char *hostnqn, char *data, char *resp)
 	if (!subsys)
 		goto out;
 
-	if (!hostnqn)
-		hostnqn = nqn;
+	if (!alias)
+		alias = newalias;
 
 	list_for_each_entry(host, &subsys->host_list, node)
-		if (!strcmp(host->nqn, hostnqn))
-			goto out;
+		if (!strcmp(host->alias, alias))
+			goto found;
 
 	host = malloc(sizeof(*host));
 	if (!host)
 		return -ENOMEM;
 
+	memset(host, 0, sizeof(*host));
+found:
+	ret = _unlink_host(subsys, host);
+	if (ret) {
+		sprintf(resp, CONFIG_ERR);
+		goto out;
+	}
+
+	strcpy(host->alias, alias);
 	strcpy(host->nqn, hostnqn);
 
-	ret = _unlink_host(subsys, host);
+	ret = _link_host(subsys, host);
 	if (ret)
 		sprintf(resp, CONFIG_ERR);
 
@@ -756,27 +785,27 @@ out:
 	return ret;
 }
 
-int unlink_host(char *alias, char *nqn, char *hostnqn, char *resp)
+int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
 	int			 ret;
 
-	ret = del_json_acl(alias, nqn, hostnqn, resp);
+	ret = del_json_acl(tgt, subnqn, alias, resp);
 	if (ret)
 		goto out;
 
-	target = find_target(alias);
+	target = find_target(tgt);
 	if (!target)
 		goto out;
 
-	subsys = find_subsys(target, nqn);
+	subsys = find_subsys(target, subnqn);
 	if (!subsys)
 		goto out;
 
 	list_for_each_entry(host, &subsys->host_list, node)
-		if (!strcmp(host->nqn, hostnqn)) {
+		if (!strcmp(host->alias, alias)) {
 			_unlink_host(subsys, host);
 			list_del(&host->node);
 			break;
@@ -799,7 +828,7 @@ static int link_portid_oob(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
 	char			*alias = target->alias;
-	char			 buf[256];
+	char			 buf[MAX_BODY_SIZE];
 	int			 ret;
 
 	build_set_portid_oob(portid->portid, buf, sizeof(buf));
@@ -837,7 +866,7 @@ static int unlink_portid_inb(struct subsystem *subsys, struct portid *portid)
 static int unlink_portid_oob(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -877,7 +906,7 @@ static int send_del_subsys_inb(struct subsystem *subsys)
 
 static int send_del_subsys_oob(struct subsystem *subsys)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -915,7 +944,7 @@ static int send_set_subsys_oob(struct subsystem *subsys)
 {
 	struct target		*target = subsys->target;
 	char			*alias = target->alias;
-	char			 buf[256];
+	char			 buf[MAX_BODY_SIZE];
 	int			 ret;
 
 	build_set_subsys_oob(subsys, buf, sizeof(buf));
@@ -959,7 +988,7 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 	struct portid		*portid;
 	char			*alias = target->alias;
 	char			*nqn = subsys->nqn;
-	char			 buf[256];
+	char			 buf[MAX_BODY_SIZE];
 	int			 ret;
 
 	build_set_subsys_oob(subsys, buf, sizeof(buf));
@@ -1072,7 +1101,7 @@ static int send_del_portid_inb(struct target *target, struct portid *portid)
 
 static int send_del_portid_oob(struct target *target, struct portid *portid)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -1133,7 +1162,7 @@ static int config_portid_inb(struct target *target, struct portid *portid)
 static int config_portid_oob(struct target *target, struct portid *portid)
 {
 	int			ret;
-	char			buf[256];
+	char			buf[MAX_BODY_SIZE];
 
 	build_set_port_oob(portid, buf, sizeof(buf));
 
@@ -1215,8 +1244,8 @@ static int send_set_ns_inb(struct subsystem *subsys, struct ns *ns)
 
 static int send_set_ns_oob(struct subsystem *subsys, struct ns *ns)
 {
-	char			 uri[128];
-	char			 buf[256];
+	char			 uri[MAX_URI_SIZE];
+	char			 buf[MAX_BODY_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -1248,6 +1277,7 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 {
 	struct subsystem	*subsys;
 	struct target		*target;
+	struct nsdev		*nsdev;
 	struct ns		*ns;
 	struct ns		 result;
 	int			 ret;
@@ -1264,6 +1294,16 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 	if (!target)
 		goto out;
 
+	list_for_each_entry(nsdev, &target->device_list, node)
+		if ((nsdev->nsdev == result.devid) &&
+		    (nsdev->nsid == result.devns))
+			goto found;
+
+	sprintf(resp, NSDEV_ERR);
+
+	ret = -EINVAL;
+	goto out;
+found:
 	subsys = find_subsys(target, nqn);
 	if (!subsys)
 		goto out;
@@ -1303,7 +1343,7 @@ static int send_del_ns_inb(struct subsystem *subsys, struct ns *ns)
 
 static int send_del_ns_oob(struct subsystem *subsys, struct ns *ns)
 {
-	char			 uri[128];
+	char			 uri[MAX_URI_SIZE];
 	char			*p = uri;
 	int			 len;
 
@@ -1470,7 +1510,7 @@ int del_target(char *alias, char *resp)
 		_del_subsys(subsys);
 
 		list_for_each_entry(host, &subsys->host_list, node)
-			_del_host(target, host->nqn);
+			_del_host(target, host->alias);
 	}
 
 	list_for_each_entry(portid, &target->portid_list, node)

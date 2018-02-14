@@ -115,13 +115,6 @@ static void periodic_work(void)
 		if (target->refresh_countdown)
 			continue;
 
-		if (target->dq_connected) { // in band or out of band
-			// TODO fetch dev/xport pages
-			fetch_log_pages(target);
-			// TODO validate targets configuration
-			continue;
-		}
-
 		list_for_each_entry(portid, &target->portid_list, node) {
 			ret = connect_target(target, portid->family,
 					     portid->address, portid->port);
@@ -132,12 +125,11 @@ static void periodic_work(void)
 				continue;
 			}
 
-			if ((target->mgmt_mode == OUT_OF_BAND_MGMT) ||
-			    (target->mgmt_mode == IN_BAND_MGMT))
-				// TODO get request for dev/xport data
-				fetch_log_pages(target);
-				// TODO validate targets configuration
-			else
+			if (target->mgmt_mode != LOCAL_MGMT)
+				ret = get_config(target);
+
+// TODO need separate aq for getting log pages on each fabric
+			if (target->dq_connected)
 				fetch_log_pages(target);
 
 			target->refresh_countdown =
@@ -389,7 +381,7 @@ void init_targets(void)
 	build_target_list();
 
 	list_for_each_entry(target, target_list, node) {
-		// TODO walk interface list to find portid we can use
+		// TODO need separate aq for getting log pages on each fabric
 
 		portid = list_first_entry(&target->portid_list,
 					  struct portid, node);

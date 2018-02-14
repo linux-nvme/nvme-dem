@@ -51,7 +51,8 @@ int usage_target(char *alias, char *results)
 /* TODO Possible performance improvement, best method to identify valid ACLs
  *	check Hosts againsti the ACL or check the ACL against the Host list
  */
-static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
+static void check_host(struct subsystem *subsys, json_t *acl,
+		       const char *alias, const char *nqn)
 {
 	json_t			*obj;
 	struct host		*host;
@@ -60,14 +61,17 @@ static void check_host(struct subsystem *subsys, json_t *acl, const char *nqn)
 	n = json_array_size(acl);
 	for (i = 0; i < n; i++) {
 		obj = json_array_get(acl, i);
-		if (obj && strcmp(nqn, json_string_value(obj)) == 0) {
+		if (obj && !strcmp(alias, json_string_value(obj))) {
 			host = malloc(sizeof(*host));
 			if (!host)
 				return;
 
 			memset(host, 0, sizeof(*host));
+
 			host->subsystem = subsys;
 			strcpy(host->nqn, nqn);
+			strcpy(host->alias, alias);
+
 			list_add_tail(&host->node, &subsys->host_list);
 		}
 	}
@@ -97,7 +101,7 @@ static void check_namespaces(struct subsystem *subsys, json_t *list)
 		devid = json_integer_value(obj);
 
 		obj = json_object_get(iter, TAG_DEVNSID);
-		if (unlikely(!obj) || !json_is_integer(obj))
+		if (devid == NULL_BLK_DEVID || !obj || !json_is_integer(obj))
 			devns = 0;
 		else
 			devns = json_integer_value(obj);
@@ -121,16 +125,24 @@ static void check_hosts(struct subsystem *subsys, json_t *acl, json_t *hosts)
 {
 	json_t			*iter;
 	json_t			*obj;
+	const char		*alias;
 	int			 i, n;
 
 	n = json_array_size(hosts);
 	for (i = 0; i < n; i++) {
 		iter = json_array_get(hosts, i);
+
+		obj = json_object_get(iter, TAG_ALIAS);
+		if (unlikely(!obj))
+			continue;
+
+		alias = json_string_value(obj);
+
 		obj = json_object_get(iter, TAG_HOSTNQN);
 		if (unlikely(!obj))
 			continue;
 
-		check_host(subsys, acl, json_string_value(obj));
+		check_host(subsys, acl, alias, json_string_value(obj));
 	}
 }
 
@@ -365,11 +377,11 @@ static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
 {
 	switch (sa->sa_family) {
 	case AF_INET:
-		inet_ntop(AF_INET, &(((struct sockaddr_in *)sa)->sin_addr),
+		inet_ntop(AF_INET, &(((struct sockaddr_in *) sa)->sin_addr),
 			  s, len);
 		break;
 	case AF_INET6:
-		inet_ntop(AF_INET6, &(((struct sockaddr_in6 *)sa)->sin6_addr),
+		inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) sa)->sin6_addr),
 			  s, len);
 		break;
 	default:

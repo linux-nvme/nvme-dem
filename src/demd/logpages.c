@@ -170,7 +170,7 @@ static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 
 	print_debug("%s %d, %s %" PRIu64,
 		    "Discovery Log Number of Records", numrec,
-		    "Generation counter", (uint64_t)le64toh(log->genctr));
+		    "Generation counter", (uint64_t) le64toh(log->genctr));
 
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];

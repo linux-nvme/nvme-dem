@@ -318,7 +318,7 @@ static void rename_in_allowed_hosts(char *old, char *new)
 		m = json_array_size(array);
 
 		for (j = 0; j < m; j++) {
-			subsys = json_array_get(array, i);
+			subsys = json_array_get(array, j);
 
 			list = json_object_get(subsys, TAG_HOSTS);
 			if (!list)
@@ -326,7 +326,7 @@ static void rename_in_allowed_hosts(char *old, char *new)
 
 			idx = find_array_string(list, old);
 			if (idx >= 0) {
-				obj = json_array_get(list, i);
+				obj = json_array_get(list, idx);
 				json_string_set(obj, new);
 			}
 		}
@@ -575,7 +575,7 @@ out:
 	return ret;
 }
 
-int set_json_group_member(char *group, char *data, char *tag,
+int set_json_group_member(char *group, char *data, char *alias, char *tag,
 			  char *parent_tag, char *resp)
 {
 	json_t			*groups;
@@ -585,12 +585,9 @@ int set_json_group_member(char *group, char *data, char *tag,
 	json_t			*new;
 	json_t			*value;
 	json_error_t		 error;
-	char			 alias[MAX_STRING + 1];
+	char			 member[MAX_STRING + 1];
 	int			 i;
 	int			 ret = 0;
-
-	if (strlen(data) == 0)
-		return -EINVAL;
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups) {
@@ -604,20 +601,28 @@ int set_json_group_member(char *group, char *data, char *tag,
 		return -ENOENT;
 	}
 
-	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (data) {
+		if (strlen(data) == 0)
+			return -EINVAL;
 
-	value = json_object_get(new, TAG_ALIAS);
-	if (!value) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+		new = json_loads(data, JSON_DECODE_ANY, &error);
+		if (!new) {
+			sprintf(resp, "invalid json syntax");
+			return -EINVAL;
+		}
 
-	sprintf(alias, "%.*s", (int) sizeof(alias) - 1,
-		(char *) json_string_value(value));
+		value = json_object_get(new, TAG_ALIAS);
+		if (!value) {
+			sprintf(resp, "invalid json syntax");
+			json_decref(new);
+			return -EINVAL;
+		}
+
+		sprintf(member, "%.*s", (int) sizeof(member) - 1,
+			(char *) json_string_value(value));
+		alias = member;
+		json_decref(new);
+	}
 
 	parent = json_object_get(ctx->root, parent_tag);
 	if (!parent) {
@@ -644,8 +649,6 @@ int set_json_group_member(char *group, char *data, char *tag,
 
 	sprintf(resp, "%s '%s' updated", TAG_GROUP, group);
 out:
-	json_decref(new);
-
 	return ret;
 }
 
@@ -689,6 +692,39 @@ int del_json_group_member(char *group, char *member, char *tag,
 	sprintf(resp, "%s '%s' updated", TAG_GROUP, group);
 
 	return ret;
+}
+
+static void rename_in_groups(char *tag, char *member, char *alias)
+{
+	json_t			*groups;
+	json_t			*group;
+	json_t			*array;
+	json_t			*item;
+	int			 num_groups;
+	int			 num_members;
+	int			 i, j;
+
+	groups = json_object_get(ctx->root, TAG_GROUPS);
+	if (!groups)
+		return;
+
+	num_groups = json_array_size(groups);
+
+	num_groups = json_array_size(groups);
+	for (i = 0; i < num_groups; i++) {
+		group = json_array_get(groups, i);
+		array = json_object_get(group, tag);
+		num_members = json_array_size(array);
+		for (j = 0; j < num_members; j++) {
+			item = json_array_get(array, j);
+			if (json_is_string(item) &&
+			    !strcmp(member, json_string_value(item))) {
+				json_string_set(item, alias);
+				break;
+			}
+		}
+	}
+
 }
 
 static void del_from_groups(char *tag, char *member)
@@ -836,7 +872,7 @@ int add_json_host(char *host, char *resp)
 	return 0;
 }
 
-int update_json_host(char *host, char *data, char *resp, char *nqn)
+int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 {
 	json_t			*hosts;
 	json_t			*iter;
@@ -844,7 +880,6 @@ int update_json_host(char *host, char *data, char *resp, char *nqn)
 	json_t			*new;
 	json_t			*value;
 	json_error_t		 error;
-	char			 alias[MAX_STRING + 1];
 	int			 ret = 0;
 	int			 i;
 
@@ -875,7 +910,7 @@ int update_json_host(char *host, char *data, char *resp, char *nqn)
 	if (value) {
 		strcpy(alias, (char *) json_string_value(value));
 
-		if ((!host && *alias) || (strcmp(host, alias) != 0)) {
+		if ((!host && *alias) || (strcmp(host, alias))) {
 			i = find_array(hosts, TAG_ALIAS, alias, &tmp);
 			if (i >= 0) {
 				sprintf(resp, "%s '%s' exists",
@@ -886,6 +921,7 @@ int update_json_host(char *host, char *data, char *resp, char *nqn)
 			if (host) {
 				json_update_string(iter, new, TAG_ALIAS, value);
 				rename_in_allowed_hosts(host, alias);
+				rename_in_groups(TAG_HOSTS, host, alias);
 			} else {
 				iter = json_object();
 				json_set_string(iter, TAG_ALIAS, alias);
@@ -905,31 +941,38 @@ out:
 	return ret;
 }
 
-int del_json_host(char *host, char *resp)
+int del_json_host(char *alias, char *resp, char *nqn)
 {
 	json_t			*hosts;
 	json_t			*iter;
+	json_t			*obj;
 	int			 i;
 
 	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, alias);
 		return -ENOENT;
 	}
 
-	i = find_array(hosts, TAG_ALIAS, host, &iter);
+	i = find_array(hosts, TAG_ALIAS, alias, &iter);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, alias);
 		return -ENOENT;
+	}
+
+	if (nqn) {
+		obj = json_object_get(iter, TAG_HOSTNQN);
+		if (obj)
+			strcpy(nqn, json_string_value(obj));
 	}
 
 	json_array_remove(hosts, i);
 
-	del_from_allowed_hosts(host);
+	del_from_allowed_hosts(alias);
 
-	del_from_groups(TAG_HOSTS, host);
+	del_from_groups(TAG_HOSTS, alias);
 
-	sprintf(resp, "%s '%s' deleted", TAG_HOST, host);
+	sprintf(resp, "%s '%s' deleted", TAG_HOST, alias);
 
 	return 0;
 }
@@ -1254,6 +1297,7 @@ int set_json_nsdevs(struct target *target, char *data)
 		}
 
 		devid = json_integer_value(obj);
+
 		if (devid == NULL_BLK_DEVID)
 			nsid = 0;
 		else {
@@ -1291,8 +1335,11 @@ int set_json_nsdevs(struct target *target, char *data)
 
 found:
 		iter = json_object();
+
 		json_set_int(iter, TAG_DEVID, devid);
-		json_set_int(iter, TAG_DEVNSID, nsid);
+
+		if (devid != NULL_BLK_DEVID)
+			json_set_int(iter, TAG_DEVNSID, nsid);
 
 		json_array_append_new(nsdevs, iter);
 
@@ -1497,7 +1544,7 @@ int set_json_portid(char *target, int id, char *data, char *resp,
 	json_update_string_ex(iter, new, TAG_FAMILY, value, portid->family);
 	json_update_int_ex(iter, new, TAG_TRSVCID, value, portid->port_num);
 
-	/* TODO do we used and need to save the treq
+	/* TODO do we use and need to save the treq
 	 * json_update_string_ex(iter, new, TAG_TREQ, value, portid->treq);
 	 */
 
@@ -1923,6 +1970,7 @@ int update_json_target(char *alias, char *data, char *resp,
 	json_error_t		 error;
 	char			 buf[MAX_STRING + 1];
 	char			 mode[MAX_STRING + 1];
+	char			*newalias;
 	int			 i;
 	int			 ret = 0;
 
@@ -1962,9 +2010,12 @@ int update_json_target(char *alias, char *data, char *resp,
 				goto out;
 			}
 
-			if (alias)
+			if (alias) {
 				json_update_string(iter, new, TAG_ALIAS, value);
-			else {
+
+				newalias = (char *) json_string_value(value);
+				rename_in_groups(TAG_TARGETS, alias, newalias);
+			} else {
 				iter = json_object();
 				json_set_string(iter, TAG_ALIAS, buf);
 
@@ -2040,8 +2091,8 @@ int show_json_target(char *alias, char **resp)
 	return 0;
 }
 
-int set_json_acl(char *alias, char *subnqn, char *host_uri, char *data,
-		 char *resp, char *hostnqn)
+int set_json_acl(char *tgt, char *subnqn, char *alias, char *data,
+		 char *resp, char *newalias, char *hostnqn)
 {
 	json_t			*targets;
 	json_t			*hosts;
@@ -2050,8 +2101,8 @@ int set_json_acl(char *alias, char *subnqn, char *host_uri, char *data,
 	json_t			*obj;
 	json_t			*value;
 	json_t			*array;
+	json_t			*host;
 	json_error_t		 error;
-	char			 host[MAX_STRING + 1];
 	int			 i;
 
 	hosts = json_object_get(ctx->root, TAG_HOSTS);
@@ -2066,23 +2117,23 @@ int set_json_acl(char *alias, char *subnqn, char *host_uri, char *data,
 		return -ENOENT;
 	}
 
-	i = find_array(targets, TAG_ALIAS, alias, &subgroup);
+	i = find_array(targets, TAG_ALIAS, tgt, &subgroup);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, tgt);
 		return -ENOENT;
 	}
 
 	json_get_array(subgroup, TAG_SUBSYSTEMS, array);
 	if (!array) {
 		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_SUBSYSTEM, subnqn, TAG_TARGET, alias);
+			TAG_SUBSYSTEM, subnqn, TAG_TARGET, tgt);
 		return -ENOENT;
 	}
 
 	i = find_array(array, TAG_SUBNQN, subnqn, &obj);
 	if (i < 0) {
 		sprintf(resp, "%s '%s' not found in %s '%s'",
-			TAG_SUBSYSTEM, subnqn, TAG_TARGET, alias);
+			TAG_SUBSYSTEM, subnqn, TAG_TARGET, tgt);
 		return -ENOENT;
 	}
 
@@ -2093,43 +2144,52 @@ int set_json_acl(char *alias, char *subnqn, char *host_uri, char *data,
 	}
 
 
-	if (host_uri)
-		strcpy(host, host_uri);
+	if (alias)
+		strcpy(newalias, alias);
 	else {
 		new = json_loads(data, JSON_DECODE_ANY, &error);
 		if (!new) {
 			sprintf(resp, "invalid json syntax");
 			return -EINVAL;
 		}
+
 		value = json_object_get(new, TAG_ALIAS);
 		if (!value) {
 			sprintf(resp, "invalid json syntax");
 			json_decref(new);
 			return -EINVAL;
 		}
-		strcpy(host, (char *) json_string_value(value));
+
+		strcpy(newalias, (char *) json_string_value(value));
+
 		json_decref(new);
 	}
 
-	i = find_array(hosts, TAG_ALIAS, host, NULL);
+	i = find_array(hosts, TAG_ALIAS, newalias, &host);
 	if (i < 0) {
-		sprintf(resp, "%s '%s' not found", TAG_HOST, host);
+		sprintf(resp, "%s '%s' not found", TAG_HOST, newalias);
 		return -ENOENT;
 	}
 
-	if (find_array_string(array, host) >= 0) {
+	if (find_array_string(array, newalias) >= 0) {
 		sprintf(resp, "%s '%s' exists for %s '%s' in %s '%s'",
-			TAG_HOST, host, TAG_SUBSYSTEM, subnqn,
-			TAG_TARGET, alias);
+			TAG_HOST, newalias, TAG_SUBSYSTEM, subnqn,
+			TAG_TARGET, tgt);
 		return -EEXIST;
 	}
 
-	strcpy(hostnqn, host);
+	value = json_object_get(host, TAG_HOSTNQN);
+	if (unlikely(!value)) {
+		sprintf(resp, "%s '%s' has no hostnqn", TAG_HOST, newalias);
+		return -EINVAL;
+	}
 
-	json_array_append_new(array, json_string(host));
+	strcpy(hostnqn, json_string_value(value));
+
+	json_array_append_new(array, json_string(newalias));
 
 	sprintf(resp, "%s '%s' added for %s '%s' in %s '%s'",
-		TAG_HOST, host, TAG_SUBSYSTEM, subnqn, TAG_TARGET, alias);
+		TAG_HOST, newalias, TAG_SUBSYSTEM, subnqn, TAG_TARGET, tgt);
 
 	return 0;
 }
