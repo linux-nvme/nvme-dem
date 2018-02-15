@@ -64,6 +64,7 @@ function clearSession() {
   $("#listPage").hide();
   $("#detailPage").hide();
   $("#menu").hide();
+  $("#first").focus();
 }
 function Capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
@@ -1278,9 +1279,10 @@ function loadDoc(page) {
 function checkAddress() {
     if (typeof(Storage) != "undefined") {
         if (sessionStorage.dem_addr == null ||
-            sessionStorage.dem_addr == "undefined")
+            sessionStorage.dem_addr == "undefined") {
             $("#addrForm").show();
-        else {
+            $("#first").focus();
+        } else {
             $("#loginMessage").html("<p>Connecting</p>");
             showContents("dem");
         }
