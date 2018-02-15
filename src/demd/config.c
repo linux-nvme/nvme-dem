@@ -808,8 +808,16 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 		if (!strcmp(host->alias, alias)) {
 			_unlink_host(subsys, host);
 			list_del(&host->node);
-			break;
+			goto found;
 		}
+	goto out;
+found:
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry(host, &subsys->host_list, node)
+			if (!strcmp(host->alias, alias))
+				goto out;
+
+	_del_host(target, alias);
 out:
 	return ret;
 }
@@ -1211,12 +1219,12 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	if (target->mgmt_mode == LOCAL_MGMT)
 		return 0;
 
-	if ((portid.portid != id) && id) {
-		delportid.portid = id;
-		list_for_each_entry(subsys, &target->subsys_list, node)
-			_unlink_portid(subsys, &delportid);
+	delportid.portid = id;
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		_unlink_portid(subsys, &delportid);
+
+	if ((portid.portid != id) && id)
 		_del_portid(target, &delportid);
-	}
 
 	ret = _config_portid(target, &portid);
 	if (ret) {
