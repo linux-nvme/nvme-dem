@@ -31,11 +31,11 @@ static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 #define BODY_SZ				1024
 
 #define HTTP_OK				200
-#define HTTP_ERR_NOT_FOUND		402
-#define HTTP_ERR_INTERNAL		403
+#define HTTP_ERR_NOT_FOUND		400
 #define HTTP_ERR_PAGE_NOT_FOUND		404
-#define HTTP_ERR_NOT_IMPLEMENTED	405
 #define HTTP_ERR_CONFLICT		409
+#define HTTP_ERR_INTERNAL		500
+#define HTTP_ERR_NOT_IMPLEMENTED	501
 
 #define JSTAG				"\"%s\":"
 #define JSSTR				"\"%s\":\"%s\""
@@ -58,6 +58,23 @@ static inline int http_error(int err)
 		return HTTP_ERR_CONFLICT;
 
 	return HTTP_ERR_INTERNAL;
+}
+
+static inline const char *http_error_str(int err)
+{
+	if (err == HTTP_ERR_NOT_FOUND)
+		return "Bad Request";
+
+	if (err == HTTP_ERR_CONFLICT)
+		return "Conflict";
+
+	if (err == HTTP_ERR_PAGE_NOT_FOUND)
+		return "Not Found";
+
+	if (err == HTTP_ERR_NOT_IMPLEMENTED)
+		return "Not Implemented";
+
+	return "Internal Server Error";
 }
 
 static int bad_request(char *resp)
@@ -723,7 +740,7 @@ out:
 	if (!ret)
 		mg_printf(c, "%s %d OK", HTTP_HDR, HTTP_OK);
 	else
-		mg_printf(c, "%s %d %s", HTTP_HDR, ret, resp);
+		mg_printf(c, "%s %d %s", HTTP_HDR, ret, http_error_str(ret));
 
 	mg_printf(c, "\r\nContent-Length: %ld\r\n\r\n%s\r\n\r\n",
 		  strlen(resp), resp);

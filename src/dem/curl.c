@@ -126,16 +126,18 @@ static int exec_curl(char *url, char **p)
 	CURLcode		 ret;
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
+	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
 	ret = curl_easy_perform(curl);
 
 	if (!ret)
 		*p = ctx->write_data;
-	else {
+	else if (ret == CURLE_COULDNT_CONNECT) {
 		fprintf(stderr, "curl returned error %s (%d) errno %d\n",
 			curl_easy_strerror(ret), ret, errno);
 		ret = -errno;
-	}
+	} else
+		ret = -EINVAL;
 
 	if (ctx->write_sz) {
 		if (ret)
