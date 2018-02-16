@@ -129,16 +129,23 @@ h5 {
   margin: .2em 0 0 2em;
 }
 
-.innerform {
+.innerform, .updateform {
   font-family: Arial;
   border: solid;
   margin-top: 0;
   margin-bottom: 20px;
   padding: 12px 20px 14px 24px;
-  width: 320px;
   border-width: 4px;
   border-color: #004280;
   line-height: 45px;
+}
+
+.innerform {
+  width: 320px;
+}
+
+.updateform {
+  width: 350px;
 }
 
 .bg {
@@ -340,9 +347,13 @@ a.savebtn:hover, a.savebtn:focus {
 input[type=text], input[type=number], input[type=password] {
   width: 12em;
   position: absolute;
-  left: 10em;
+  left: 11em;
   padding-left: .3em;
   margin-top: 11px;
+}
+
+.updateform input[type=text], .updateform input[type=password] {
+  left: 18em;
 }
 
 .overlay input[type=text] {

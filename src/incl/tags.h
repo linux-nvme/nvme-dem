@@ -62,6 +62,8 @@
 /* DEM config specific */
 #define TAG_ID			"ID"
 #define TAG_PORT		"PORT"
+#define TAG_NEW			"NEW"
+#define TAG_OLD			"OLD"
 
 #define URI_GROUP		"group"
 #define URI_TARGET		"target"
@@ -72,6 +74,7 @@
 #define URI_NSID		"nsid"
 #define URI_INTERFACE		"interface"
 #define URI_TRANSPORT		"transport"
+#define URI_SIGNATURE		"signature"
 #define URI_PARM_MODE		"mode="
 #define URI_PARM_FABRIC		"fabric="
 

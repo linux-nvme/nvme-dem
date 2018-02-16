@@ -105,6 +105,8 @@ int del_ns(char *alias,  char *subnqn, int ns, char *resp);
 int link_host(char *alias, char *subnqn, char *host, char *data, char *resp);
 int unlink_host(char *alias,  char *subnqn, char *host, char *resp);
 
+int update_signature(char *data, char *resp);
+
 #define MAX_STRING		128
 
 struct json_context {

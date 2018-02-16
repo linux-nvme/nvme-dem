@@ -28,16 +28,20 @@
               <p style="padding-top:12px">
                 Please select the <b>Distributed Endpoint Manager (DEM)</b>
                 <br> to connect to.</p>
-              <form id="form" action="javascript:console.log('');">
+              <form id="loginForm" action="javascript:OK();">
                 <p class="innerform">
                   IP Address:
-                  <input type="text" name="addr" value="10.23.221.14"><br>
+                  <input type="text" name="addr" value="10.23.221.77"
+                    autocomplete="section-blue login addr"><br>
                   Port Number:
-                  <input type="number" name="port" value="22345"><br>
+                  <input type="number" name="port" value="22345"
+                    autocomplete="section-blue login port"><br>
                   User ID:
-                  <input type="text" name="user" id="first" value=""><br>
+                  <input type="text" name="user" id="first" value=""
+                    autocomplete="section-blue login user"><br>
                   Password:
-                  <input type="password" name="pswd" id="pswd" value=""><br>
+                  <input type="password" name="pswd" id="pswd" value=""
+                    autocomplete="section-blue login pswdi"><br>
                 </p>
                 <input type="submit" value="Submit">
               </form>
@@ -71,6 +75,7 @@
               <div id="Info" class="dropdown-content">
                 <a onclick="showContents('dem')">About</a>
                 <a onclick="showContacts()">Contact</a>
+                <a onclick="showSettings()">Settings</a>
                 <a onclick="clearSession()">Logout</a>
               </div>
             </div>
@@ -132,6 +137,36 @@
            <p class="email"><a href='javascript:email("jay")'>
              <img src="email.png" alt="email" class="email"></a>
              Jay Sternberg &lt;jay.e.sternberg@intel.com&gt;</p>
+          </div>
+        </div>
+        <div id="settingsPage" class="content" style="display:none;">
+         <h1>Settings</h1>
+         <div style="padding-left:1.3em">
+           <p>To change the user id and/or password, Please enter the current
+              values as well as the new ones.</p>
+           <p>Once the user id and password are updated, you will need to
+              re-enter them to log back onto the DEM.</p>
+              <form id="updateForm" action="javascript:updateForm();">
+                <p class="updateform">
+                  Current User ID:
+                  <input type="text" name="olduser" id="second"
+                    autocomplete="section-red update olduser"><br>
+                  Current Password:
+                  <input type="password" name="oldpswd"
+                    autocomplete="section-red update oldpswd"><br>
+                  New User ID:
+                  <input type="text" name="newuser"
+                    autocomplete="section-red update newuser"><br>
+                  New Password:
+                  <input type="password" name="newpswd1"
+                    autocomplete="section-red update newpswd1"><br>
+                  Re-enter New Password:
+                  <input type="password" name="newpswd2"
+                    autocomplete="section-red update newpswd2"><br>
+                </p>
+                <input type="submit" value="Submit">
+              </form>
+              <p id="updateError" class="error"></p>
           </div>
         </div>
       </div>

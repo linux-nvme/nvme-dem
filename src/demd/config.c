@@ -1566,9 +1566,9 @@ int add_target(char *alias, char *resp)
 
 int update_target(char *alias, char *data, char *resp)
 {
-	struct target		 result;
+	struct target		  result;
 	struct target		 *target;
-	int			 ret;
+	int			  ret;
 
 	memset(&result, 0, sizeof(result));
 

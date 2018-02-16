@@ -140,7 +140,8 @@ run_test: archive/run_test.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
-	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz Makefile src/ files/
+	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz .gitignore .git/config \
+		bash_completion.d/  files/  html/  Makefile  src/  usr/
 
 test_cli: dem
 	./dem config

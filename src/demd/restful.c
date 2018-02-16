@@ -22,8 +22,10 @@ static const struct mg_str s_patch_method = MG_MK_STR("PATCH");
 static const struct mg_str s_options_method = MG_MK_STR("OPTIONS");
 static const struct mg_str s_delete_method = MG_MK_STR("DELETE");
 static const struct mg_str s_authorization = MG_MK_STR("Authorization");
-static const struct mg_str s_signature =
+static const struct mg_str s_signature_default =
 	MG_MK_STR("Basic QjU6v9wxOTU4QGBlgPztOCQ6QTsD");
+struct mg_str s_signature_user;
+struct mg_str *s_signature = (struct mg_str *) &s_signature_default;
 
 #define HTTP_HDR			"HTTP/1.1"
 #define SMALL_RSP			128
@@ -123,15 +125,19 @@ static int get_dem_request(char *verb, char *resp)
 	return 0;
 }
 
-static int post_dem_request(char *verb, struct http_message *hm, char *resp)
+static int post_dem_request(char *verb, struct mg_str *body, char *resp)
 {
+	char			 data[LARGE_RSP + 1];
 	int			 ret = 0;
 
-	if (hm->body.len)
-		ret = bad_request(resp);
-	else if (strcmp(verb, METHOD_SHUTDOWN) == 0) {
+	if (strcmp(verb, METHOD_SHUTDOWN) == 0) {
 		shutdown_dem();
 		strcpy(resp, "DEM shutting down");
+	} else if (strcmp(verb, URI_SIGNATURE) == 0) {
+		memset(data, 0, sizeof(data));
+		strncpy(data, body->p, min(LARGE_RSP, body->len));
+
+		ret = update_signature(data, resp);
 	} else {
 		ret = HTTP_ERR_NOT_IMPLEMENTED;
 		strcpy(resp, "Method Not Implemented");
@@ -147,7 +153,7 @@ static int handle_dem_requests(char *verb, struct http_message *hm, char *resp)
 	if (is_equal(&hm->method, &s_get_method))
 		ret = get_dem_request(verb, resp);
 	else if (is_equal(&hm->method, &s_post_method))
-		ret = post_dem_request(verb, hm, resp);
+		ret = post_dem_request(verb, &hm->body, resp);
 	else
 		ret = bad_request(resp);
 
@@ -686,7 +692,7 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 			break;
 
 	if ((i < MG_MAX_HTTP_HEADERS) &&
-	    (!is_equal(&hm->header_values[i], &s_signature))) {
+	    (!is_equal(&hm->header_values[i], s_signature))) {
 		ret = HTTP_ERR_FORBIDDEN;
 		goto out;
 	}
@@ -710,12 +716,9 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	if (n < 0)
 		goto bad_page;
 
-	if (n <= 2 && strncmp(parts[0], URI_DEM, DEM_LEN) == 0) {
+	if (strncmp(parts[0], URI_DEM, DEM_LEN) == 0)
 		ret = handle_dem_requests(parts[1], hm, resp);
-		goto out;
-	}
-
-	if (strncmp(parts[0], URI_GROUP, GROUP_LEN) == 0)
+	else if (strncmp(parts[0], URI_GROUP, GROUP_LEN) == 0)
 		ret = handle_group_requests(parts, n, hm, &resp);
 	else if (strncmp(parts[0], URI_HOST, HOST_LEN) == 0)
 		ret = handle_host_requests(parts, n, hm, &resp);

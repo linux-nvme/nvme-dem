@@ -18,6 +18,7 @@
 #include <errno.h>
 
 #include "common.h"
+#include "mongoose.h"
 
 static struct json_context *ctx;
 
@@ -93,7 +94,6 @@ static int find_array_string(json_t *array, char *val)
 
 	return -ENOENT;
 }
-
 
 static int strlen_array(json_t *array, char *tag)
 {
@@ -287,6 +287,12 @@ static void parse_config_file(void)
 
 	if (dirty)
 		store_json_config_file();
+}
+
+static inline int invalid_json_syntax(char *resp)
+{
+	sprintf(resp, "invalid json syntax");
+	return -EINVAL;
 }
 
 /* walk all subsystem allowed host list for host name changes */
@@ -514,7 +520,7 @@ int update_json_group(char *group, char *data, char *resp)
 	int			 ret = 0;
 
 	if (strlen(data) == 0)
-		return -EINVAL;
+		return invalid_json_syntax(resp);
 
 	groups = json_object_get(ctx->root, TAG_GROUPS);
 	if (!groups) {
@@ -531,15 +537,12 @@ int update_json_group(char *group, char *data, char *resp)
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	value = json_object_get(new, TAG_NAME);
 	if (!value) {
-		sprintf(resp, "invalid json syntax");
-		ret = -EINVAL;
+		ret = invalid_json_syntax(resp);
 		goto out;
 	}
 
@@ -603,19 +606,16 @@ int set_json_group_member(char *group, char *data, char *alias, char *tag,
 
 	if (data) {
 		if (strlen(data) == 0)
-			return -EINVAL;
+			return invalid_json_syntax(resp);
 
 		new = json_loads(data, JSON_DECODE_ANY, &error);
-		if (!new) {
-			sprintf(resp, "invalid json syntax");
-			return -EINVAL;
-		}
+		if (!new)
+			return invalid_json_syntax(resp);
 
 		value = json_object_get(new, TAG_ALIAS);
 		if (!value) {
-			sprintf(resp, "invalid json syntax");
 			json_decref(new);
-			return -EINVAL;
+			return invalid_json_syntax(resp);
 		}
 
 		sprintf(member, "%.*s", (int) sizeof(member) - 1,
@@ -884,7 +884,7 @@ int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 	int			 i;
 
 	if (strlen(data) == 0)
-		return -EINVAL;
+		return invalid_json_syntax(resp);
 
 	hosts = json_object_get(ctx->root, TAG_HOSTS);
 	if (!hosts) {
@@ -901,10 +901,8 @@ int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	value = json_object_get(new, TAG_ALIAS);
 	if (value) {
@@ -1150,7 +1148,7 @@ int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 
 	json_get_array(obj, TAG_SUBSYSTEMS, array);
 	if (!array)
-		return -EINVAL;
+		return invalid_json_syntax(resp);
 
 	if (subnqn) {
 		i = find_array(array, TAG_SUBNQN, subnqn, &iter);
@@ -1173,10 +1171,8 @@ int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	obj = json_object_get(new, TAG_SUBNQN);
 	if (obj) {
@@ -1263,7 +1259,7 @@ int set_json_nsdevs(struct target *target, char *data)
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
-		print_err("invalid json syntax %s '%s'", TAG_TARGET, alias);
+		print_err("invalid json syntax: %s", data);
 		return -EINVAL;
 	}
 
@@ -1291,8 +1287,7 @@ int set_json_nsdevs(struct target *target, char *data)
 
 		obj = json_object_get(iter, TAG_DEVID);
 		if (!obj || !json_is_integer(obj)) {
-			print_err("invalid json syntax");
-			ret = -EINVAL;
+			print_err("invalid json syntax: bad dev id");
 			goto out;
 		}
 
@@ -1303,8 +1298,7 @@ int set_json_nsdevs(struct target *target, char *data)
 		else {
 			obj = json_object_get(iter, TAG_DEVNSID);
 			if (!obj || !json_is_integer(obj)) {
-				print_err("invalid json syntax");
-				ret = -EINVAL;
+				print_err("invalid json syntax: bad dev nsid");
 				goto out;
 			}
 			nsid = json_integer_value(obj);
@@ -1380,7 +1374,7 @@ int set_json_fabric_ifaces(struct target *target, char *data)
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
-		print_err("invalid json syntax %s '%s'", TAG_TARGET, alias);
+		print_err("invalid json syntax: %s", data);
 		return -EINVAL;
 	}
 
@@ -1505,20 +1499,17 @@ int set_json_portid(char *target, int id, char *data, char *resp,
 
 	json_get_array(obj, TAG_PORTIDS, array);
 	if (!array)
-		return -EINVAL;
+		return invalid_json_syntax(resp);
 
 	if (strlen(data) == 0) {
 		sprintf(resp, "no data to update %s '%d' in %s '%s'",
 			TAG_PORTID, id, TAG_TARGET, target);
-
 		return -EINVAL;
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	if (!id) {
 		tmp = json_object_get(new, TAG_PORTID);
@@ -1626,23 +1617,19 @@ int set_json_ns(char *alias, char *subnqn, char *data, char *resp,
 		goto out;
 	}
 
-	ret = -EINVAL;
 
 	json_get_array(obj, TAG_NSIDS, array);
 	if (!array)
-		goto out;
+		return invalid_json_syntax(resp);
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		goto out;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	obj = json_object_get(new, TAG_NSID);
 	if (!obj) {
-		sprintf(resp, "invalid json syntax");
 		json_decref(new);
-		goto out;
+		return invalid_json_syntax(resp);
 	}
 
 	val = json_integer_value(obj);
@@ -1797,15 +1784,13 @@ int set_json_interface(char *alias, char *data, char *resp,
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	newobj = json_object_get(new, TAG_INTERFACES);
 	if (!newobj) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
+		json_decref(new);
+		return invalid_json_syntax(resp);
 	}
 
 	iter = json_object();
@@ -1975,7 +1960,7 @@ int update_json_target(char *alias, char *data, char *resp,
 	int			 ret = 0;
 
 	if (strlen(data) == 0)
-		return -EINVAL;
+		return invalid_json_syntax(resp);
 
 	targets = json_object_get(ctx->root, TAG_TARGETS);
 	if (!targets) {
@@ -1992,10 +1977,8 @@ int update_json_target(char *alias, char *data, char *resp,
 	}
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
-	if (!new) {
-		sprintf(resp, "invalid json syntax");
-		return -EINVAL;
-	}
+	if (!new)
+		return invalid_json_syntax(resp);
 
 	value = json_object_get(new, TAG_ALIAS);
 	if (value) {
@@ -2029,8 +2012,7 @@ int update_json_target(char *alias, char *data, char *resp,
 			}
 		}
 	} else if (!alias) {
-		sprintf(resp, "invalid json syntax");
-		ret = -EINVAL;
+		ret = invalid_json_syntax(resp);
 		goto out;
 	} else
 		strcpy(buf, alias);
@@ -2148,16 +2130,13 @@ int set_json_acl(char *tgt, char *subnqn, char *alias, char *data,
 		strcpy(newalias, alias);
 	else {
 		new = json_loads(data, JSON_DECODE_ANY, &error);
-		if (!new) {
-			sprintf(resp, "invalid json syntax");
-			return -EINVAL;
-		}
+		if (!new)
+			return invalid_json_syntax(resp);
 
 		value = json_object_get(new, TAG_ALIAS);
 		if (!value) {
-			sprintf(resp, "invalid json syntax");
 			json_decref(new);
-			return -EINVAL;
+			return invalid_json_syntax(resp);
 		}
 
 		strcpy(newalias, (char *) json_string_value(value));
@@ -2249,4 +2228,54 @@ int del_json_acl(char *alias, char *subnqn, char *host, char *resp)
 		TAG_HOST, host, TAG_SUBSYSTEM, subnqn, TAG_ALIAS, alias);
 
 	return 0;
+}
+
+/* MISC */
+
+int update_signature(char *data, char *resp)
+{
+	json_t			*request;
+	json_t			*old;
+	json_t			*new;
+	json_error_t		 error;
+	FILE			*fd;
+	char			 buf[256];
+	int			 len;
+
+	if (strlen(data) == 0)
+		goto invalid;
+
+	request = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!request)
+		goto invalid;
+
+	old = json_object_get(request, TAG_OLD);
+	if (!old || !json_is_string(old))
+		goto invalid;
+
+	new = json_object_get(request, TAG_NEW);
+	if (!new || !json_is_string(new))
+		goto invalid;
+
+	sprintf(buf, "Basic %s", json_string_value(old));
+	if (mg_vcmp(s_signature, buf))
+		goto invalid;
+
+	fd = fopen(SIGNATURE_FILE, "w");
+	if (!fd) {
+		sprintf(resp, "unable to update");
+		return -EPERM;
+	}
+
+	fputs((char *) json_string_value(new), fd);
+	fclose(fd);
+
+	len = sprintf(buf, "Basic %s", json_string_value(new));
+	s_signature_user = mg_mk_str_n(buf, len);
+	s_signature = &s_signature_user;
+
+	sprintf(resp, "update successful");
+	return 0;
+invalid:
+	return invalid_json_syntax(resp);
 }

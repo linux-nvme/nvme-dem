@@ -47,6 +47,9 @@
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 #define LOG_PAGE_RETRY	200
 
+#define CONFIG_FILE	".config"
+#define SIGNATURE_FILE	".signature"
+
 #define FI_VER		FI_VERSION(1, 0)
 
 #define print_debug(f, x...) \
@@ -266,6 +269,10 @@ struct target {
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
 
 struct mg_connection;
+struct mg_str;
+
+extern struct mg_str s_signature_user;
+extern struct mg_str *s_signature;
 
 void shutdown_dem(void);
 void handle_http_request(struct mg_connection *c, void *ev_data);

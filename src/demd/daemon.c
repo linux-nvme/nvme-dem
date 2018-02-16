@@ -393,26 +393,17 @@ void init_targets(void)
 
 		ret = connect_target(target, portid->family,
 				     portid->address, portid->port);
-		if (target->mgmt_mode != OUT_OF_BAND_MGMT) {
-			if (ret) {
-				print_err("Could not connect to target %s",
-					  target->alias);
-				continue;
-			}
-
+		if (!ret)
 			target->dq_connected = 1;
-		}
 
 		// TODO Should this be worker thread?
 
 		if (target->mgmt_mode != LOCAL_MGMT)
-			ret = get_config(target);
+			if (get_config(target))
+				config_target(target);
 
 		if (target->dq_connected)
 			fetch_log_pages(target);
-
-		if (!ret && target->mgmt_mode != LOCAL_MGMT)
-			config_target(target);
 
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
@@ -453,6 +444,26 @@ void cleanup_targets(void)
 		free(target);
 	}
 }
+
+static void set_signature(void)
+{
+	FILE			*fd;
+	char			 buf[256];
+	int			 len;
+
+	fd = fopen(SIGNATURE_FILE, "r");
+	if (!fd)
+		return;
+
+	strcpy(buf, "Basic ");
+	fgets(buf + 6, sizeof(buf) - 1, fd);
+	len = strlen(buf) - 1;
+	buf[len] = 0;
+	s_signature_user = mg_mk_str_n(buf, len);
+	s_signature = &s_signature_user;
+	fclose(fd);
+}
+
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -471,8 +482,10 @@ int main(int argc, char *argv[])
 	if (init_curl(CURL_DEBUG))
 		goto out;
 
-	if (init_json("config.json"))
+	if (init_json(CONFIG_FILE))
 		goto out1;
+
+	set_signature();
 
 	num_interfaces = init_interfaces();
 	if (num_interfaces <= 0)

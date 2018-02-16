@@ -7,10 +7,22 @@ function make_basic_auth(user, password) {
 function showContacts() {
   $("#contactPage").show();
   $("#contentPage").hide();
+  $("#settingsPage").hide();
   $("#listPage").hide();
   $("#detailPage").hide();
   $("#objectType").html("");
   $("#objectValue").html("");
+}
+
+function showSettings() {
+  $("#settingsPage").show();
+  $("#contactPage").hide();
+  $("#contentPage").hide();
+  $("#listPage").hide();
+  $("#detailPage").hide();
+  $("#objectType").html("");
+  $("#objectValue").html("");
+  $("#second").focus();
 }
 
 function showContents(page) {
@@ -18,6 +30,7 @@ function showContents(page) {
   $("#detailPage").html("");
   $("#contentPage").html("");
   $("#contactPage").hide();
+  $("#settingsPage").hide();
   $("#listPage").hide();
   $("#detailPage").hide();
   $("#objectType").html(page);
@@ -31,6 +44,7 @@ function showList(page) {
   $("#detailPage").html("");
   $("#listPage").show();
   $("#contactPage").hide();
+  $("#settingsPage").hide();
   $("#contentPage").hide();
   $("#detailPage").hide();
   $("#objectValue").html("");
@@ -42,10 +56,24 @@ function showList(page) {
   }
 }
 
+function showLogPages(page) {
+  $("#detailPage").html("");
+  $("#detailPage").show();
+  $("#contactPage").hide();
+  $("#settingsPage").hide();
+  $("#contentPage").hide();
+  $("#listPage").hide();
+  if (page != undefined) {
+    $("#objectValue").html(page + "/logpages");
+    loadDoc(page + "/logpages");
+  }
+}
+
 function showDetails(page) {
   $("#detailPage").html("");
   $("#detailPage").show();
   $("#contactPage").hide();
+  $("#settingsPage").hide();
   $("#contentPage").hide();
   $("#listPage").hide();
   if (page != undefined) {
@@ -60,6 +88,7 @@ function clearSession() {
   sessionStorage.removeItem("dem_auth");
   $("#addrForm").show();
   $("#contactPage").hide();
+  $("#settingsPage").hide();
   $("#contentPage").hide();
   $("#listPage").hide();
   $("#detailPage").hide();
@@ -965,7 +994,7 @@ function parseNSDevs(obj, itemA, itemB) {
   listC.forEach(function(itemC){
     if (itemC == "NSID")
       id = obj[itemA][itemB][itemC] + ":&nbsp; ";
-    else if (itemC == "DeviceID")      
+    else if (itemC == "DeviceID")
       devid = obj[itemA][itemB][itemC]
     else if (itemC == "DeviceNSID")
       devns = " &nbsp; NSID " + obj[itemA][itemB][itemC]
@@ -1053,7 +1082,7 @@ function parseObject(obj, itemA) {
       name = obj[itemA][itemB];
       str += '<h3>';
       if (typ != "group" || tmp == "group") {
-        str += '<img src="page.png" alt="get" class="icon" onclick="';
+        str += '<img src="view.png" alt="get" class="icon" onclick="';
         str += "showDetails('" + name + "'" + ')">&nbsp; ';
         str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
         str += "'" + name + "'" + ')">&nbsp; ';
@@ -1103,7 +1132,11 @@ function parseName(obj, itemA) {
   var str = "";
   str += "<h1>" + itemA + ": " + obj[itemA] + " &nbsp;";
   str += '<img src="pencil.png" alt="get" class="icon" onclick="loadEdit()">';
-  str += ' &nbsp;';
+  if (itemA == "Alias") {
+    str += ' &nbsp; ';
+    str += '<img src="page.png" alt="get" class="icon" onclick="showLogPage()">';
+  }
+  str += ' &nbsp; ';
   str += '<img src="back.png" alt="get" class="icon" onclick="showList()">';
   str += "</h1>";
   return str;
@@ -1330,7 +1363,7 @@ function openDialog(str, verb, uri) {
   });
   window.setTimeout(function() {
     $("#editForm").html(str);
-    if ($("#alias").length) 
+    if ($("#alias").length)
       $("#alias").focus().select();
     else if ($("#nsid").length)
       $("#nsid").focus().select();
@@ -1555,6 +1588,10 @@ function buildJSON(url) {
            '"TRSVCID":' + $("#svc").val();
   else if ($("#alias").length)
     str += '"Alias":"' + $("#alias").val() + '"';
+  else if ($("input[name='oldpswd']").length) {
+    str += '"OLD":"' + sessionStorage.getItem("dem_auth").substring(6) + '",';
+    str += '"NEW":"' + $("#objectValue").html() + '"';
+  }
 
   str += "}";
 
@@ -1597,7 +1634,11 @@ function sendRequest() {
       $("#objectValue").html(page);
     }
 
-    loadDoc(page);
+    if (page == "reset")
+      clearSession();
+    else
+      loadDoc(page);
+
     return true;
   }
 

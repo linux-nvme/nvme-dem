@@ -174,6 +174,9 @@ static int send_fabric_connect(struct target *target, struct endpoint *ep)
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		cmd->connect.kato = htole16(NVME_DISC_KATO);
 
+	// TODO Need to use hostnqn from allowed hosts list for each subsys
+	//	with different nqn or use the generated one
+
 	uuid_generate(id);
 	memcpy(&data->hostid, id, sizeof(*id));
 	uuid_unparse_lower(id, uuid);
@@ -252,6 +255,9 @@ int send_get_nsdevs(struct endpoint *ep,
 	int				 bytes;
 	int				 key;
 	int				 ret;
+
+	if (!cmd)
+		return -EINVAL;
 
 	bytes = sizeof(*cmd);
 
@@ -357,6 +363,9 @@ int send_set_port_config(struct endpoint *ep, int len,
 	int				 bytes;
 	int				 key;
 	int				 ret;
+
+	if (!cmd)
+		return -EINVAL;
 
 	bytes = sizeof(*cmd);
 

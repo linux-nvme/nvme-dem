@@ -233,6 +233,9 @@ void fetch_log_pages(struct target *target)
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	u32				 num_records = 0;
 
+	// TODO need to check subsys access to see if need to do multiple
+	//	connections or use alternate nqn to get all log pages
+
 	if (get_logpages(target, &log, &num_records)) {
 		print_err("Failed to get logpage for target %s", target->alias);
 		return;
