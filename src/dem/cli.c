@@ -566,7 +566,7 @@ static int usage_target(char *base, int n, char **p)
 
 	UNUSED(n);
 
-	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_USAGE);
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, URI_USAGE);
 
 	ret = exec_get(url, &result);
 	if (ret)

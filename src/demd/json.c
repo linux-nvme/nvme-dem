@@ -2239,7 +2239,7 @@ int update_signature(char *data, char *resp)
 	json_t			*new;
 	json_error_t		 error;
 	FILE			*fd;
-	char			 buf[256];
+	char			*buf;
 	int			 len;
 
 	if (strlen(data) == 0)
@@ -2257,9 +2257,20 @@ int update_signature(char *data, char *resp)
 	if (!new || !json_is_string(new))
 		goto invalid;
 
+	len = 6 + strlen(json_string_value(old));
+	buf = malloc(len + 1);
+	if (!buf) {
+		sprintf(resp, "unable to allocate memory for update");
+		return -ENOMEM;
+	}
+
 	sprintf(buf, "Basic %s", json_string_value(old));
-	if (mg_vcmp(s_signature, buf))
+	if (mg_vcmp(s_signature, buf)) {
+		free(buf);
 		goto invalid;
+	}
+
+	free(buf);
 
 	fd = fopen(SIGNATURE_FILE, "w");
 	if (!fd) {
@@ -2270,7 +2281,18 @@ int update_signature(char *data, char *resp)
 	fputs((char *) json_string_value(new), fd);
 	fclose(fd);
 
-	len = sprintf(buf, "Basic %s", json_string_value(new));
+	len = 6 + strlen(json_string_value(new));
+	buf = malloc(len + 1);
+	if (!buf) {
+		sprintf(resp, "unable to allocate memory for update");
+		return -ENOMEM;
+	}
+
+	if (s_signature == &s_signature_user)
+		free((char *) s_signature->p);
+
+	sprintf(buf, "Basic %s", json_string_value(new));
+
 	s_signature_user = mg_mk_str_n(buf, len);
 	s_signature = &s_signature_user;
 

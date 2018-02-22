@@ -22,35 +22,217 @@
 
 #include "common.h"
 
-int refresh_target(char *alias)
+int target_refresh(char *alias)
 {
 	struct target		*target;
 
 	list_for_each_entry(target, target_list, node)
-		if (!strcmp(target->alias, alias)) {
-			fetch_log_pages(target);
-			return 0;
-		}
+		if (!strcmp(target->alias, alias))
+			goto found;
 
-	return -EINVAL;
+	return -ENOENT;
+found:
+	fetch_log_pages(target);
+	return 0;
 }
 
-int usage_target(char *alias, char *results)
+int target_usage(char *alias, char **results)
 {
 	struct target		*target;
 
 	list_for_each_entry(target, target_list, node)
-		if (!strcmp(target->alias, alias)) {
-			sprintf(results, "TODO return Target Usage info");
-			return 0;
-		}
+		if (!strcmp(target->alias, alias))
+			goto found;
 
-	return -EINVAL;
+	return -ENOENT;
+found:
+	sprintf(*results, "TODO return Target Usage info");
+	return 0;
 }
 
-/* TODO Possible performance improvement, best method to identify valid ACLs
- *	check Hosts againsti the ACL or check the ACL against the Host list
- */
+static const char *arg_str(const char * const *strings, size_t array_size,
+			   size_t idx)
+{
+	if (idx < array_size && strings[idx])
+		return strings[idx];
+
+	return "unrecognized";
+}
+
+static const char * const trtypes[] = {
+	[NVMF_TRTYPE_RDMA]	= "rdma",
+	[NVMF_TRTYPE_FC]	= "fibre-channel",
+	[NVMF_TRTYPE_LOOP]	= "loop",
+};
+
+static const char *trtype_str(u8 trtype)
+{
+	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
+}
+
+static const char * const adrfams[] = {
+	[NVMF_ADDR_FAMILY_PCI]	= "pci",
+	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
+	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
+	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
+	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
+};
+
+static inline const char *adrfam_str(u8 adrfam)
+{
+	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
+}
+
+static const char * const subtypes[] = {
+	[NVME_NQN_DISC]		= "discovery subsystem",
+	[NVME_NQN_NVME]		= "nvme subsystem",
+};
+
+static inline const char *subtype_str(u8 subtype)
+{
+	return arg_str(subtypes, ARRAY_SIZE(subtypes),
+		       subtype);
+}
+
+static const char * const treqs[] = {
+	[NVMF_TREQ_NOT_SPECIFIED]	= "not specified",
+	[NVMF_TREQ_REQUIRED]		= "required",
+	[NVMF_TREQ_NOT_REQUIRED]	= "not required",
+};
+
+static inline const char *treq_str(u8 treq)
+{
+	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
+}
+
+static const char * const prtypes[] = {
+	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]	= "not specified",
+	[NVMF_RDMA_PRTYPE_IB]			= "infiniband",
+	[NVMF_RDMA_PRTYPE_ROCE]			= "roce",
+	[NVMF_RDMA_PRTYPE_ROCEV2]		= "roce-v2",
+	[NVMF_RDMA_PRTYPE_IWARP]		= "iwarp",
+};
+
+static inline const char *prtype_str(u8 prtype)
+{
+	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
+}
+
+static const char * const qptypes[] = {
+	[NVMF_RDMA_QPTYPE_CONNECTED]	= "connected",
+	[NVMF_RDMA_QPTYPE_DATAGRAM]	= "datagram",
+};
+
+static inline const char *qptype_str(u8 qptype)
+{
+	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);	}
+
+static const char * const cms[] = {
+	[NVMF_RDMA_CMS_RDMA_CM] = "rdma-cm",
+};
+
+static const char *cms_str(u8 cm)
+{
+	return arg_str(cms, ARRAY_SIZE(cms), cm);
+}
+
+static void format_logpage(char *buf, struct nvmf_disc_rsp_page_entry *e)
+{
+	int			 n;
+	char			*p = buf;
+
+	n = sprintf(p, "<p>trtype <b>%s</b> ", trtype_str(e->trtype));
+	p += n;
+	n = sprintf(p, "adrfam <b>%s</b> ", adrfam_str(e->adrfam));
+	p += n;
+	n = sprintf(p, "subtype <b>%s</b> ", subtype_str(e->subtype));
+	p += n;
+	n = sprintf(p, "treq <b>%s</b> ", treq_str(e->treq));
+	p += n;
+	n = sprintf(p, "portid <b>%d</b> ", e->portid);
+	p += n;
+	n = sprintf(p, "trsvcid <b>%s</b> ", e->trsvcid);
+	p += n;
+	n = sprintf(p, "subnqn <b>%s</b> ", e->subnqn);
+	p += n;
+	n = sprintf(p, "traddr <b>%s</b><br>", e->traddr);
+	p += n;
+
+	switch (e->trtype) {
+	case NVMF_TRTYPE_RDMA:
+		n = sprintf(p, " &nbsp; rdma: ");
+		p += n;
+		n = sprintf(p, "prtype <b>%s</b> ",
+			    prtype_str(e->tsas.rdma.prtype));
+		p += n;
+		n = sprintf(p, "qptype <b>%s</b> ",
+			    qptype_str(e->tsas.rdma.qptype));
+		p += n;
+		n = sprintf(p, "cms <b>%s</b> ", cms_str(e->tsas.rdma.cms));
+		p += n;
+		n = sprintf(p, "pkey <b>0x%04x</b>", e->tsas.rdma.pkey);
+		p += n;
+		break;
+	}
+	n = sprintf(p, "</p>");
+	p += n;
+}
+
+int target_logpage(char *alias, char **resp)
+{
+	struct target		*target;
+	struct subsystem	*subsys;
+	char			 buf[MAX_BODY_SIZE + 1];
+	char			*p = *resp;
+	u64			 n, len = 0;
+	u64			 bytes = MAX_BODY_SIZE;
+
+	list_for_each_entry(target, target_list, node)
+		if (!strcmp(target->alias, alias))
+			goto found;
+
+	return -ENOENT;
+found:
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		if (!subsys->log_page_valid)
+			continue;
+
+		format_logpage(buf, &subsys->log_page);
+
+		if ((len + strlen(buf)) > bytes) {
+			bytes += MAX_BODY_SIZE;
+			p = realloc(*resp, bytes);
+			if (!p) {
+				strcpy(*resp, "no memory");
+				return -ENOMEM;
+			}
+			p += len;
+		}
+		strcpy(p, buf);
+		n = strlen(buf);
+		p += n;
+		len += n;
+	}
+
+	if (!len)
+		sprintf(*resp, "No valid Log Pages");
+
+	return 0;
+}
+
+int host_logpage(char *alias, char **resp)
+{
+	struct host		*host = NULL;
+
+	if (alias && host)
+		goto found;
+
+	return -ENOENT;
+found:
+	sprintf(*resp, "TODO return Target Log Page");
+	return 0;
+}
+
 static void check_host(struct subsystem *subsys, json_t *acl,
 		       const char *alias, const char *nqn)
 {

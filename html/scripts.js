@@ -22,7 +22,7 @@ function showSettings() {
   $("#detailPage").hide();
   $("#objectType").html("");
   $("#objectValue").html("");
-  $("#second").focus();
+  $("#olduser").focus();
 }
 
 function showContents(page) {
@@ -56,17 +56,30 @@ function showList(page) {
   }
 }
 
-function showLogPages(page) {
-  $("#detailPage").html("");
+function showLogPage() {
+  var typ = $("#objectType").html();
+  var obj = $("#objectValue").html();
+  var str = "";
+
+  str += "<h1>";
+  if (typ == "target")
+    str += "Target";
+  else
+    str += "Host";
+  str += ": " + obj + " &nbsp;";
+  str += '<img src="back.png" alt="get" class="icon" onclick="showDetails(';
+  str += "'" + obj + "'" + ')">';
+  str += '</h1><h3>Log Pages</h3>';
+
+  $("#detailPage").html(str);
+
   $("#detailPage").show();
   $("#contactPage").hide();
   $("#settingsPage").hide();
   $("#contentPage").hide();
   $("#listPage").hide();
-  if (page != undefined) {
-    $("#objectValue").html(page + "/logpages");
-    loadDoc(page + "/logpages");
-  }
+
+  loadDoc(obj + "/logpage");
 }
 
 function showDetails(page) {
@@ -1029,7 +1042,7 @@ function parseObject(obj, itemA) {
 
   if (itemA == "Interfaces" && typ == "dem") {
     str += "<h1>About</h1>";
-    str += '<div style="padding-left:1.6em">';
+    str += '<div class="comments">';
     str += "<p>Use the menus to the right to view the defined objects ";
     str += "managed by this DEM.</p>";
     str += "<p>Currently active DEM fabric interfaces for NVMe-oF Hosts ";
@@ -1266,6 +1279,9 @@ function loadDoc(page) {
 
       if (this.responseText[0] == '{')
         parseJSON(this.responseText, cur_page);
+      else if (page.substring(page.length - 7) == "logpage")
+        cur_page.innerHTML += "<div class='logpages'>"
+                           + this.responseText + "</div>";
       else
         cur_page.innerHTML = this.responseText;
 
@@ -1588,7 +1604,7 @@ function buildJSON(url) {
            '"TRSVCID":' + $("#svc").val();
   else if ($("#alias").length)
     str += '"Alias":"' + $("#alias").val() + '"';
-  else if ($("input[name='oldpswd']").length) {
+  else if ($("#oldpswd").val().length) {
     str += '"OLD":"' + sessionStorage.getItem("dem_auth").substring(6) + '",';
     str += '"NEW":"' + $("#objectValue").html() + '"';
   }

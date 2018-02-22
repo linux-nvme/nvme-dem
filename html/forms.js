@@ -10,33 +10,61 @@ $("#loginForm").submit(function(event) {
 });
 
 function updateForm() {
-  var fields = $( ":input" ).serializeArray();
+  var newuser, newpswd1, newpswd2;
+  var olduser, oldpswd;
 
   $("#updateError").html("");
 
-  for(i = 4; i < 9; i++) {
-    if (fields[i].value.trim() == "") {
-      $("#updateError").html("All fields are manditory");
-      $("input[name='" + fields[i].name + "']").focus();
-      return 1;
-    }
-  }
-
-  if (fields[7].value != fields[8].value) {
-    $("#updateError").html("New Passwords does not match");
-    $("input[name='newpswd1']").html("");
-    $("input[name='newpswd2']").html("");
-    $("input[name='newpswd1']").focus();
+  olduser = $("#olduser").val().trim();
+  if (olduser == "") {
+    $("#updateError").html("All fields are manditory");
+    $(":input#olduser").focus();
     return 1;
   }
 
-  var oldauth = make_basic_auth(fields[4].value, fields[5].value);
-  var newauth = make_basic_auth(fields[6].value, fields[7].value);
+  oldpswd = $("#oldpswd").val().trim();
+  if (oldpswd == "") {
+    $("#updateError").html("All fields are manditory");
+    $("#oldpswd").focus();
+    return 1;
+  }
+
+  newuser = $("#newuser").val().trim();
+  if (newuser == "") {
+    $("#updateError").html("All fields are manditory");
+    $("#newuser").focus();
+    return 1;
+  }
+
+  newpswd1 = $("#newpswd1").val().trim();
+  if (newpswd1 == "") {
+    $("#updateError").html("All fields are manditory");
+    $("#newpswd1").focus();
+    return 1;
+  }
+
+  newpswd2 = $("#newpswd2").val().trim();
+  if (newpswd2 == "") {
+    $("#updateError").html("All fields are manditory");
+    $("#newpswd2").focus();
+    return 1;
+  }
+
+  if (newpswd1 != newpswd2) {
+    $("#updateError").html("New Passwords does not match");
+    $("#newpswd1").val("");
+    $("#newpswd2").val("");
+    $("#newpswd1").focus();
+    return 1;
+  }
+
+  var oldauth = make_basic_auth(olduser, oldpswd);
+  var newauth = make_basic_auth(newuser, newpswd1);
 
   if (sessionStorage.getItem("dem_auth") != oldauth) {
     $("#updateError").html("Invalid user or password");
-    $("input[name='oldpswd']").html("");
-    $("input[name='olduser']").focus();
+    $("#oldpswd").val("");
+    $("#olduser").focus();
     return 1;
   }
 
@@ -51,10 +79,11 @@ function updateForm() {
     return 1;
   }
 
-  $("input[name='oldpswd']").html("");
-  $("input[name='newuser']").html("");
-  $("input[name='newpswd1']").html("");
-  $("input[name='newpswd1']").html("");
+  $("#olduser").val("");
+  $("#oldpswd").val("");
+  $("#newuser").val("");
+  $("#newpswd1").val("");
+  $("#newpswd2").val("");
 
   return 0;
 }

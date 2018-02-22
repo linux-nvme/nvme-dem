@@ -23,6 +23,7 @@
 
 // #define DEBUG_LOG_PAGES
 
+#ifdef DEBUG_LOG_PAGES
 static const char *arg_str(const char * const *strings, size_t array_size,
 			   size_t idx)
 {
@@ -108,6 +109,7 @@ static const char *cms_str(u8 cm)
 {
 	return arg_str(cms, ARRAY_SIZE(cms), cm);
 }
+#endif
 
 static int get_logpages(struct target *target,
 			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)

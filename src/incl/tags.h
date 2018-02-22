@@ -75,6 +75,8 @@
 #define URI_INTERFACE		"interface"
 #define URI_TRANSPORT		"transport"
 #define URI_SIGNATURE		"signature"
+#define URI_LOG_PAGE		"logpage"
+#define URI_USAGE		"usage"
 #define URI_PARM_MODE		"mode="
 #define URI_PARM_FABRIC		"fabric="
 
@@ -87,7 +89,6 @@
 
 #define METHOD_SHUTDOWN		"shutdown"
 #define METHOD_REFRESH		"refresh"
-#define METHOD_USAGE		"usage"
 
 #define DEFAULT_ADDR		"127.0.0.1"
 #define DEFAULT_PORT		"22345"

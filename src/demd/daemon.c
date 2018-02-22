@@ -449,6 +449,7 @@ static void set_signature(void)
 {
 	FILE			*fd;
 	char			 buf[256];
+	char			*sig;
 	int			 len;
 
 	fd = fopen(SIGNATURE_FILE, "r");
@@ -457,10 +458,18 @@ static void set_signature(void)
 
 	strcpy(buf, "Basic ");
 	fgets(buf + 6, sizeof(buf) - 1, fd);
-	len = strlen(buf) - 1;
-	buf[len] = 0;
-	s_signature_user = mg_mk_str_n(buf, len);
+	len = strlen(buf);
+	if (buf[len - 1] == '\n')
+		buf[len--] = 0;
+
+	sig = malloc(len + 1);
+	if (!sig)
+		return;
+	strcpy(sig, buf);
+
+	s_signature_user = mg_mk_str_n(sig, len);
 	s_signature = &s_signature_user;
+
 	fclose(fd);
 }
 
@@ -513,6 +522,9 @@ out3:
 	free(interfaces);
 	cleanup_targets();
 out2:
+	if (s_signature == &s_signature_user)
+		free((char *) s_signature->p);
+
 	cleanup_json();
 out1:
 	cleanup_curl();

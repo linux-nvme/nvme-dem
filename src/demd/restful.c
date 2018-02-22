@@ -176,8 +176,12 @@ static int get_target_request(char *target, char **p, int n, char *query,
 			ret = list_json_target(NULL, resp);
 	} else if (n == 0)
 		ret = show_json_target(target, resp);
-	else if (n == 1 && !strcmp(*p, METHOD_USAGE)) {
-		ret = usage_target(target, *resp);
+	else if (n == 1 && !strcmp(*p, URI_USAGE)) {
+		ret = target_usage(target, resp);
+		if (ret)
+			sprintf(*resp, "%s '%s' not found", TAG_TARGET, target);
+	} else if (n == 1 && !strcmp(*p, URI_LOG_PAGE)) {
+		ret = target_logpage(target, resp);
 		if (ret)
 			sprintf(*resp, "%s '%s' not found", TAG_TARGET, target);
 	} else
@@ -300,7 +304,7 @@ static int post_target_request(char *target, char **p, int n,
 		ret = add_target(target, resp);
 
 	else if (!strcmp(*p, METHOD_REFRESH)) {
-		ret = refresh_target(target);
+		ret = target_refresh(target);
 		if (ret) {
 			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
 			ret = HTTP_ERR_INTERNAL;
@@ -386,14 +390,19 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 	return ret;
 }
 
-static int get_host_request(char *host, char **resp)
+static int get_host_request(char *host, char **p, int n, char **resp)
 {
 	int			 ret;
 
 	if (!host)
 		ret = list_json_host(resp);
-	else
+	else if (n == 0)
 		ret = show_json_host(host, resp);
+	else if (n == 1 && !strcmp(*p, URI_LOG_PAGE)) {
+		ret = host_logpage(host, resp);
+		if (ret)
+			sprintf(*resp, "%s '%s' not found", TAG_HOST, host);
+	}
 
 	return http_error(ret);
 }
@@ -635,7 +644,7 @@ static int handle_host_requests(char *p[], int n, struct http_message *hm,
 	n = (n > 2) ? n - 2 : 0;
 
 	if (is_equal(&hm->method, &s_get_method))
-		ret = get_host_request(host, resp);
+		ret = get_host_request(host, p, n, resp);
 	else if (is_equal(&hm->method, &s_put_method))
 		ret = put_host_request(host, n, &hm->body, *resp);
 	else if (is_equal(&hm->method, &s_delete_method))
