@@ -379,21 +379,21 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 
 	chdir(str);
 
-	if (!ret) {
-		write_str(CFS_TR_ADRFAM, fam);
-		write_str(CFS_TR_TYPE, typ);
-		write_str(CFS_TR_ADDR, addr);
-		if (req == NVMF_TREQ_REQUIRED)
-			write_str(CFS_TREQ, REQUIRED);
-		else if (req == NVMF_TREQ_NOT_REQUIRED)
-			write_str(CFS_TREQ, NOT_REQUIRED);
-		else
-			write_str(CFS_TREQ, NOT_SPECIFIED);
+	write_str(CFS_TR_ADRFAM, fam);
+	write_str(CFS_TR_TYPE, typ);
+	write_str(CFS_TR_ADDR, addr);
+	if (req == NVMF_TREQ_REQUIRED)
+		write_str(CFS_TREQ, REQUIRED);
+	else if (req == NVMF_TREQ_NOT_REQUIRED)
+		write_str(CFS_TREQ, NOT_REQUIRED);
+	else
+		write_str(CFS_TREQ, NOT_SPECIFIED);
 
-		snprintf(str, sizeof(str) - 1, "%d", svcid);
-		write_str(CFS_TR_SVCID, str);
+	snprintf(str, sizeof(str) - 1, "%d", svcid);
+	write_str(CFS_TR_SVCID, str);
+
+	if (!ret)
 		goto out;
-	}
 
 	ret = -EBUSY;
 
