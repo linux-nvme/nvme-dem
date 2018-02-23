@@ -637,7 +637,10 @@ static int delete_request(char *p[], int n, char *resp)
 {
 	int			 ret = 0;
 
-	if (n == 2) {
+	if (n == 1 && strcmp(p[0], URI_TARGET) == 0) {
+		delete_target();
+		strcpy(resp, "Target configuration deleted");
+	} else if (n == 2) {
 		if (strcmp(p[0], URI_SUBSYSTEM) == 0)
 			ret = del_subsys(p[1], resp);
 		else if (strcmp(p[0], URI_PORTID) == 0)

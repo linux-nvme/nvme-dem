@@ -22,6 +22,24 @@
 
 #include "common.h"
 
+int target_reconfig(char *alias)
+{
+	struct target		*target;
+	int			 ret;
+
+	list_for_each_entry(target, target_list, node)
+		if (!strcmp(target->alias, alias))
+			goto found;
+
+	return -ENOENT;
+found:
+	ret = send_del_target(target);
+	if (ret)
+		return ret;
+
+	return config_target(target);
+}
+
 int target_refresh(char *alias)
 {
 	struct target		*target;

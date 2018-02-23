@@ -4,7 +4,17 @@ function make_basic_auth(user, password) {
   return "Basic " + hash;
 }
 
+function clearLogin() {
+  $("#user").val("");
+  $("#pswd").val("");
+  $("#olduser").val("");
+  $("#oldpswd").val("");
+  $("#newuser").val("");
+  $("#newpswd1").val("");
+  $("#newpswd2").val("");
+}
 function showContacts() {
+  clearLogin();
   $("#contactPage").show();
   $("#contentPage").hide();
   $("#settingsPage").hide();
@@ -13,8 +23,8 @@ function showContacts() {
   $("#objectType").html("");
   $("#objectValue").html("");
 }
-
 function showSettings() {
+  clearLogin();
   $("#settingsPage").show();
   $("#contactPage").hide();
   $("#contentPage").hide();
@@ -24,8 +34,8 @@ function showSettings() {
   $("#objectValue").html("");
   $("#olduser").focus();
 }
-
 function showContents(page) {
+  clearLogin();
   $("#listPage").html("");
   $("#detailPage").html("");
   $("#contentPage").html("");
@@ -37,8 +47,8 @@ function showContents(page) {
   $("#objectValue").html("");
   loadDoc(page);
 }
-
 function showList(page) {
+  clearLogin();
   if (page != undefined)
     $("#listPage").html("");
   $("#detailPage").html("");
@@ -55,7 +65,6 @@ function showList(page) {
     loadDoc(page);
   }
 }
-
 function showLogPage() {
   var typ = $("#objectType").html();
   var obj = $("#objectValue").html();
@@ -67,7 +76,7 @@ function showLogPage() {
   else
     str += "Host";
   str += ": " + obj + " &nbsp;";
-  str += '<img src="back.png" alt="get" class="icon" onclick="showDetails(';
+  str += '<img src="back.png" alt="back" title="back" class="icon" onclick="showDetails(';
   str += "'" + obj + "'" + ')">';
   str += '</h1><h3>Log Pages</h3>';
 
@@ -81,7 +90,6 @@ function showLogPage() {
 
   loadDoc(obj + "/logpage");
 }
-
 function showDetails(page) {
   $("#detailPage").html("");
   $("#detailPage").show();
@@ -94,7 +102,6 @@ function showDetails(page) {
     loadDoc(page);
   }
 }
-
 function clearSession() {
   sessionStorage.removeItem("dem_addr");
   sessionStorage.removeItem("dem_port");
@@ -106,11 +113,13 @@ function clearSession() {
   $("#listPage").hide();
   $("#detailPage").hide();
   $("#menu").hide();
-  $("#first").focus();
+  $("#user").focus();
 }
+
 function Capitalize(str) {
   return str.charAt(0).toUpperCase() + str.slice(1);
 }
+
 function loadDel(sub, item, val) {
   var typ = $("#objectType").html();
   var obj = $("#objectValue").html();
@@ -166,6 +175,17 @@ function loadDel(sub, item, val) {
   openDialog("Are you sure you want to " + str, "DELETE", uri);
 }
 
+function showConfig() {
+  var typ = $("#objectType").html();
+  var obj = $("#objectValue").html();
+  var str = "reconfigure " + Capitalize(typ);
+  var uri = typ + "/"  + obj + "/reconfig";
+
+  str += " " + obj;
+
+  openDialog("Are you sure you want to " + str, "POST", uri);
+}
+
 function loadAltDel(alias, nqn, host) {
   var str;
   var uri = "target/" + alias + "/subsystem/" + nqn + "/host/" + host;
@@ -186,6 +206,9 @@ function toggleMode() {
   $("#event_note").hide();
   $("#poll_note").hide();
   if ($("#mode").val() == "polled") {
+    $("#adr").val("");
+    $("#fam").val("");
+    $("#svc").val("");
     $("#poll_note").show();
     $("#log_refresh").show();
   } else if ($("#mode").val() == "oob") {
@@ -193,6 +216,9 @@ function toggleMode() {
     $("#oob_note").show();
     $("#res_refresh").show();
   } else if ($("#mode").val() == "ib") {
+    $("#adr").val("");
+    $("#fam").val("");
+    $("#svc").val("");
     $("#ib_note").show();
     $("#res_refresh").show();
   }
@@ -226,7 +252,7 @@ function formTargetAlias(obj) {
   str += "<p>Management Mode<select id='mode' onchange='toggleMode()'>";
   str += "<option value='polled'";
   if (mode == "LocalMgmt") str += selected;
-  str += ">Locally</option>"
+  str += ">Local</option>"
   str += "<option value='oob'";
   if (mode == "OutOfBandMgmt") str += selected;
   str += ">Out of Band</option>"
@@ -530,10 +556,10 @@ function buildFilterMenu() {
   else if (cur.indexOf("=Loc") != -1) filter = 6;
 
   str += "<span style='float:right'>";
-  str += '<img src="filtered.png" alt="filter" class="dropbtn"';
+  str += '<img src="filtered.png" alt="filter" title="apply filter" class="dropbtn"';
   if (filter == 0) str += ' style="display:none"';
   str += ' id="filteredmenu" onclick="showDropdown(' + "'Filter'" + ');">';
-  str += '<img src="unfiltered.png" alt="filter" class="dropbtn"';
+  str += '<img src="unfiltered.png" alt="filter" title="apply filter" class="dropbtn"';
   if (filter != 0) str += ' style="display:none"';
   str += ' id="unfilteredmenu" onclick="showDropdown(' + "'Filter'" + ');">';
   str += '<div id="Filter" class="dropdown-content">';
@@ -758,10 +784,10 @@ function parseTransports(obj, itemA, itemB) {
 
   str += '<p class="data">';
   str += itemB + ": " + typ + fam + adr + " &nbsp; ";
-  str += '<img src="pencil.png" alt="get" class="icon" onclick="saveVal(';
+  str += '<img src="pencil.png" alt="edit" title="edit" class="icon" onclick="saveVal(';
   str += "'" + typ + fam + adr + "'" + "); loadEdit(";
   str += "'/interface'," + ref + ')">&nbsp; ';
-  str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
+  str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
   str += "'/interface'," + ref + ')"></p>';
 
   return str;
@@ -773,11 +799,16 @@ function parseMgmtMode(obj, itemA) {
   var mode = obj[itemA];
 
   str += '<p class="data">Management Mode: ';
-  if (mode == "OutOfBandMgmt")
+  if (mode == "OutOfBandMgmt") {
     str += "Out-of-Band";
-  else if (mode == "InBandMgmt")
+    str += ' &nbsp; <img src="config.png" alt="cfg" title="reconfigure"';
+    str += ' class="icon" onclick="showConfig()">';
+  }
+  else if (mode == "InBandMgmt") {
     str += "In-Band";
-  else if (mode == "LocalMgmt")
+    str += ' &nbsp; <img src="config.png" alt="cfg" title="reconfigure"';
+    str += ' class="icon" onclick="showConfig()">';
+  } else if (mode == "LocalMgmt")
     str += "Local";
   else
     str += mode;
@@ -876,14 +907,14 @@ function parseSubsystems(obj, itemA, itemB) {
       str += "(Allow Any Host) &nbsp; " ;
   else
       str += "(Restricted to 'Allowed Hosts') &nbsp; " ;
-  str += '<img src="pencil.png" alt="get" class="icon" onclick="saveVal(';
+  str += '<img src="pencil.png" alt="edit" title="edit" class="icon" onclick="saveVal(';
   str += "'" + allowany + "'" + '); loadEdit(' + ref + ')">&nbsp; ';
-  str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
+  str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
   str += ref + ')">';
   str += '</span></h5>' ;
 
   str += '<div class="details"><br><h5>NSIDs &nbsp;';
-  str += '<img src="plus.png" alt="add" class="icon" onclick="loadAdd('
+  str += '<img src="plus.png" alt="add" title="add" class="icon" onclick="loadAdd('
   str += ref + ",'/nsid')" + '"></h5>';
   if (nsids != undefined) {
     str += '<div class="subdetails">';
@@ -903,10 +934,10 @@ function parseSubsystems(obj, itemA, itemB) {
       str += '<p>' + id + ":&nbsp; Device: ID " + devid + " &nbsp;";
       if (devid != -1)
 	 str += "NSID " + devns + " &nbsp;";
-      str += ' <img src="pencil.png" alt="get" class="icon" ';
+      str += ' <img src="pencil.png" alt="edit" title="edit" class="icon" ';
       str += 'onclick="saveVal(' + "'" + devid + ',' + devns + "'" + ');';
       str += 'loadEdit(' + ref + ",'/nsid'," + id  + ')">&nbsp; ';
-      str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
+      str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
       str += ref + ",'/nsid'," + id + ')">';
       str += '</p>';
     });
@@ -916,13 +947,13 @@ function parseSubsystems(obj, itemA, itemB) {
 
   if (!allowany) {
     str += "<h5>Allowed Hosts &nbsp;";
-    str += '<img src="plus.png" alt="add" class="icon" onclick="loadAdd('
+    str += '<img src="plus.png" alt="add" title="add" class="icon" onclick="loadAdd('
     str += ref + ",'/host')" + '"></h5>';
     if (hosts != undefined) {
       str += '<div class="subdetails">';
       hosts.forEach(function(host){
         str += "<p>" + host + "&nbsp; ";
-        str += '<img src="trash.png" alt="del" class="icon" ';
+        str += '<img src="trash.png" alt="del" title="delete" class="icon" ';
         str += 'onclick="loadDel(' + ref + ",'/host','" + host + "'" + ')">';
         str += "</p>";
       });
@@ -952,7 +983,7 @@ function parseACL(obj, itemA, itemB) {
 
   if (itemA == "Restricted") {
     ref = "'" + alias + "','" + nqn + "','" + $("#objectValue").html() + "'";
-    str += ' &nbsp; <img src="trash.png" alt="del" class="icon"'
+    str += ' &nbsp; <img src="trash.png" alt="del" title="delete" class="icon"'
     str += ' onclick="loadAltDel(' + ref + ')">&nbsp; ';
   }
 
@@ -989,10 +1020,10 @@ function parsePortIDs(obj, itemA, itemB) {
     str += " " + adr + " service id " + svc;
   else
     str += " " + fam + " " + adr + ":" + svc;
-  str += '&nbsp; <img src="pencil.png" alt="get" class="icon" ';
+  str += '&nbsp; <img src="pencil.png" alt="edit" title="edit" class="icon" ';
   str += 'onclick="saveVal(' + "'" + typ + " " + fam + " ";
   str += adr + " " + svc + "'" + ');loadEdit(' + ref + ')">';
-  str += '&nbsp; <img src="trash.png" alt="del" class="icon" ';
+  str += '&nbsp; <img src="trash.png" alt="del" title="delete" class="icon" ';
   str += 'onclick="loadDel(' + ref + ')"></p>';
   return str;
 }
@@ -1065,7 +1096,7 @@ function parseObject(obj, itemA) {
   else {
     closeDiv = true;
     str += " &nbsp;";
-    str += '<img src="plus.png" alt="add" class="icon" onclick="loadAdd(';
+    str += '<img src="plus.png" alt="add" title="add" class="icon" onclick="loadAdd(';
     if (itemA == "Targets" || itemA == "Hosts" || itemA == "Groups" ) {
       if (typ == "group" && tmp != "group")
         str += "'" + tmp + "'";
@@ -1095,12 +1126,12 @@ function parseObject(obj, itemA) {
       name = obj[itemA][itemB];
       str += '<h3>';
       if (typ != "group" || tmp == "group") {
-        str += '<img src="view.png" alt="get" class="icon" onclick="';
+        str += '<img src="view.png" alt="get" title="view" class="icon" onclick="';
         str += "showDetails('" + name + "'" + ')">&nbsp; ';
-        str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
+        str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
         str += "'" + name + "'" + ')">&nbsp; ';
       } else {
-        str += '<img src="trash.png" alt="del" class="icon" onclick="loadDel(';
+        str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
         str += "'" + tmp + "','" + name + "'" + ')">&nbsp; ';
       }
       if (name.length > 50)
@@ -1143,14 +1174,15 @@ function parseObject(obj, itemA) {
 
 function parseName(obj, itemA) {
   var str = "";
+  var typ = $("#objectType").html();
   str += "<h1>" + itemA + ": " + obj[itemA] + " &nbsp;";
-  str += '<img src="pencil.png" alt="get" class="icon" onclick="loadEdit()">';
+  str += '<img src="pencil.png" alt="edit" title="edit" class="icon" onclick="loadEdit()">';
   if (itemA == "Alias") {
     str += ' &nbsp; ';
-    str += '<img src="page.png" alt="get" class="icon" onclick="showLogPage()">';
+    str += '<img src="page.png" alt="log" title="view log pages" class="icon" onclick="showLogPage()">';
   }
   str += ' &nbsp; ';
-  str += '<img src="back.png" alt="get" class="icon" onclick="showList()">';
+  str += '<img src="back.png" alt="back" title="back" class="icon" onclick="showList()">';
   str += "</h1>";
   return str;
 }
@@ -1330,7 +1362,7 @@ function checkAddress() {
         if (sessionStorage.dem_addr == null ||
             sessionStorage.dem_addr == "undefined") {
             $("#addrForm").show();
-            $("#first").focus();
+            $("#user").focus();
         } else {
             $("#loginMessage").html("<p>Connecting</p>");
             showContents("dem");
@@ -1549,6 +1581,8 @@ function closeDialog(execute) {
 
       if (!sendRequest())
         return;
+
+      $("#parentargs").html("");
     }
 
     document.getElementById("editPage").style.width = "0%";
@@ -1638,6 +1672,8 @@ function sendRequest() {
   xhttp.setRequestHeader("Access-Control-Allow-Origin", "*");
   xhttp.setRequestHeader('Authorization', auth);
   if (verb == "DELETE")
+    xhttp.send();
+  else if (verb == "POST" && page.substring(page.length-9) == "/reconfig")
     xhttp.send();
   else
     xhttp.send(buildJSON(page));

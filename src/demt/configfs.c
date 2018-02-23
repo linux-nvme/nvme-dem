@@ -90,40 +90,56 @@
 		}					\
 	} while (0)
 
-/*
- * # cd /sys/kernel/config/nvmet/subsystems/
- * # echo creating ${SUBSYSTEM} NSID ${NSID} for device ${DEV}
- * # [ -e ${SUBSYSTEM} ] || mkdir ${SUBSYSTEM}
- * # echo -n 1 > ${SUBSYSTEM}/attr_allow_any_host
+/* replace ~ with * in bash
+ * # cd /sys/kernel/config/nvmet
+ * # rm -f subsystems/~/hosts/~
+ * # for i in subsystems/~/namespaces/~/enable ; do echo 0 > $i ; done
+ * # rm -f ports/~/subsystems/~
+ * # rmdir subsystems/~/namespaces/~
+ * # rmdir subsystems/~
+ * # rmdir ports/~
+ * # rmdir hosts/~
  */
-int create_subsys(char *subsys, int allowany)
+void delete_target(void)
 {
-	char			dir[MAXPATHLEN];
-	FILE			*fd;
-	int			ret;
+	char			 dir[MAXPATHLEN];
+	DIR			*subdir;
+	struct dirent		*entry;
+	int			 ret;
 
 	getcwd(dir, sizeof(dir));
 
-	ret = chdir(CFS_PATH CFS_SUBSYS);
+	ret = chdir(CFS_PATH);
 	if (ret)
-		return -errno;
+		goto out;
 
-	ret = mkdir(subsys, 0x755);
-	if (ret && errno == EEXIST)
-		ret = 0;
-	else if (ret)
-		goto err;
+	subdir = opendir(CFS_PATH CFS_SUBSYS);
+	if (!subdir)
+		goto ports;
 
-	chdir(subsys);
+	for_each_dir(entry, subdir)
+		delete_subsys(entry->d_name);
+	closedir(subdir);
 
-	write_chr(CFS_ALLOW_ANY, allowany ? TRUE : FALSE);
+ports:
+	subdir = opendir(CFS_PATH CFS_PORTS);
+	if (!subdir)
+		goto hosts;
 
-	goto out;
-err:
-	ret = -errno;
+	for_each_dir(entry, subdir)
+		delete_portid(atoi(entry->d_name));
+	closedir(subdir);
+
+hosts:
+	subdir = opendir(CFS_PATH CFS_HOSTS);
+	if (!subdir)
+		goto out;
+
+	for_each_dir(entry, subdir)
+		delete_host(entry->d_name);
+	closedir(subdir);
 out:
 	chdir(dir);
-	return ret;
 }
 
 static void delete_all_allowed_hosts(void)
@@ -221,6 +237,42 @@ int delete_subsys(char *subsys)
 
 	chdir(dir);
 	return 0;
+}
+
+/*
+ * # cd /sys/kernel/config/nvmet/subsystems/
+ * # echo creating ${SUBSYSTEM} NSID ${NSID} for device ${DEV}
+ * # [ -e ${SUBSYSTEM} ] || mkdir ${SUBSYSTEM}
+ * # echo -n 1 > ${SUBSYSTEM}/attr_allow_any_host
+ */
+int create_subsys(char *subsys, int allowany)
+{
+	char			dir[MAXPATHLEN];
+	FILE			*fd;
+	int			ret;
+
+	getcwd(dir, sizeof(dir));
+
+	ret = chdir(CFS_PATH CFS_SUBSYS);
+	if (ret)
+		return -errno;
+
+	ret = mkdir(subsys, 0x755);
+	if (ret && errno == EEXIST)
+		ret = 0;
+	else if (ret)
+		goto err;
+
+	chdir(subsys);
+
+	write_chr(CFS_ALLOW_ANY, allowany ? TRUE : FALSE);
+
+	goto out;
+err:
+	ret = -errno;
+out:
+	chdir(dir);
+	return ret;
 }
 
 /*

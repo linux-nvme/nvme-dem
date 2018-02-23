@@ -200,7 +200,8 @@ static int send_fabric_connect(struct target *target, struct endpoint *ep)
 	if (!ret || (target->mgmt_mode != IN_BAND_MGMT))
 		return ret;
 
-	print_err("misconfigured target, retry as locally managed");
+	print_err("misconfigured target %s, retry as locally managed",
+		  target->alias);
 
 	cmd->connect.kato = 0;
 

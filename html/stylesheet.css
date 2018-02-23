@@ -90,7 +90,7 @@ h2 {
   color: white;
   min-height: 38px;
   padding: 14px 0 0 14px;
-  margin-top: 20px;
+  margin-top: 15px;
 }
 
 h3 {
@@ -149,8 +149,7 @@ h5 {
 }
 
 .bg {
-  margin: -8px -7px -15px -7px;
-  padding: 1px 20px;
+  padding: 1px 15px;
   background-color: #004280;
   min-width:800px;
 }

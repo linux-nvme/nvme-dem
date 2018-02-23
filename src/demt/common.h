@@ -154,6 +154,7 @@ void dump(__u8 *buf, int len);
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
+void delete_target(void);
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);
 int create_ns(char *subsys, int nsid, int devid, int devnsid);

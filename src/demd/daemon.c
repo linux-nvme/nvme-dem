@@ -399,7 +399,7 @@ void init_targets(void)
 		// TODO Should this be worker thread?
 
 		if (target->mgmt_mode != LOCAL_MGMT)
-			if (get_config(target))
+			if (!get_config(target))
 				config_target(target);
 
 		if (target->dq_connected)

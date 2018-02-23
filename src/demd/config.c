@@ -22,12 +22,11 @@
 #include "ops.h"
 #include "curl.h"
 
-/* TODO: Consider changing these to const chars */
-#define CONFIG_ERR	" - unable to configure remote target"
-#define INTERNAL_ERR	" - unable to comply, internal error"
-#define TARGET_ERR	" - target not found"
-#define NSDEV_ERR	" - invalid ns device"
-#define MGMT_MODE_ERR	" - invalid mgmt mode for setting interface"
+const char *CONFIG_ERR    = " - unable to configure remote target";
+const char *INTERNAL_ERR  = " - unable to comply, internal error";
+const char *TARGET_ERR    = " - target not found";
+const char *NSDEV_ERR     = " - invalid ns device";
+const char *MGMT_MODE_ERR = " - invalid mgmt mode for setting interface";
 
 /* helper functions */
 
@@ -1493,6 +1492,38 @@ int config_target(struct target *target)
 		config_target_inb(target);
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		config_target_oob(target);
+
+	return ret;
+}
+
+static int send_del_target_inb(struct target *target)
+{
+	UNUSED(target);
+	return 0;
+}
+
+static int send_del_target_oob(struct target *target)
+{
+	char			 uri[MAX_URI_SIZE];
+	char			*p = uri;
+	int			 len;
+
+	len = get_uri(target, uri);
+	p += len;
+
+	strcpy(p, URI_TARGET);
+
+	return exec_delete(uri);
+}
+
+int send_del_target(struct target *target)
+{
+	int			ret = 0;
+
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		send_del_target_inb(target);
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		send_del_target_oob(target);
 
 	return ret;
 }

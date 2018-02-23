@@ -1,3 +1,5 @@
+$(function() { $(document).tooltip(); });
+
 $("#loginForm").submit(function(event) {
   var fields = $( ":input" ).serializeArray();
   sessionStorage.setItem("dem_addr", fields[0].value);
@@ -85,10 +87,6 @@ function updateForm() {
   $("#newpswd1").val("");
   $("#newpswd2").val("");
 
-  return 0;
-}
-
-function OK() {
   return 0;
 }
 

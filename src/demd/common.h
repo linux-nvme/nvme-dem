@@ -314,9 +314,12 @@ int send_get_xports(struct endpoint *ep,
 		    struct nvmf_transports_rsp_page_hdr **hdr);
 int send_get_subsys_usage(struct endpoint *ep, int len,
 			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
+int send_del_target(struct target *target);
+
 struct subsystem *new_subsys(struct target *target, char *nqn);
 void fetch_log_pages(struct target *target);
 
+int target_reconfig(char *alias);
 int target_refresh(char *alias);
 int target_usage(char *alias, char **results);
 int target_logpage(char *alias, char **results);

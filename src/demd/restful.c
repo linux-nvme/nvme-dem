@@ -302,8 +302,15 @@ static int post_target_request(char *target, char **p, int n,
 			ret = update_target(target, target, resp);
 	} else if (!n)
 		ret = add_target(target, resp);
-
-	else if (!strcmp(*p, METHOD_REFRESH)) {
+	else if (!strcmp(*p, METHOD_RECONFIG)) {
+		ret = target_reconfig(target);
+		if (ret) {
+			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+			ret = HTTP_ERR_INTERNAL;
+		} else
+			sprintf(resp, "%s '%s' reconfigured",
+				TAG_TARGET, target);
+	} else if (!strcmp(*p, METHOD_REFRESH)) {
 		ret = target_refresh(target);
 		if (ret) {
 			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);

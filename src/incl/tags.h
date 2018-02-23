@@ -89,6 +89,7 @@
 
 #define METHOD_SHUTDOWN		"shutdown"
 #define METHOD_REFRESH		"refresh"
+#define METHOD_RECONFIG		"reconfig"
 
 #define DEFAULT_ADDR		"127.0.0.1"
 #define DEFAULT_PORT		"22345"

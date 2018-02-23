@@ -6,6 +6,9 @@
     <script
       src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js">
     </script>
+    <script src="https://code.jquery.com/ui/1.12.1/jquery-ui.js"></script>
+    <link rel="stylesheet"
+          href="//code.jquery.com/ui/1.12.1/themes/base/jquery-ui.css">
     <script src="encode.js"></script>
     <script src="scripts.js"></script>
     <link rel="stylesheet" type="text/css" href="stylesheet.css">
@@ -28,7 +31,7 @@
               <p style="padding-top:12px">
                 Please select the <b>Distributed Endpoint Manager (DEM)</b>
                 <br> to connect to.</p>
-              <form id="loginForm" action="javascript:OK();">
+              <form id="loginForm" action="javascript:console.log('');">
                 <p class="innerform">
                   IP Address:
                   <input type="text" name="addr" value="10.23.221.77"
@@ -37,11 +40,11 @@
                   <input type="number" name="port" value="22345"
                     autocomplete="section-blue login port"><br>
                   User ID:
-                  <input type="text" name="user" id="first" value=""
+                  <input type="text" name="user" id="user" value=""
                     autocomplete="section-blue login user"><br>
                   Password:
                   <input type="password" name="pswd" id="pswd" value=""
-                    autocomplete="section-blue login pswdi"><br>
+                    autocomplete="section-blue login pswd"><br>
                 </p>
                 <input type="submit" value="Submit">
               </form>
@@ -90,7 +93,6 @@
             </div>
           </div>
         </div>
-        <script src="forms.js"></script>
         <br>
         <div id="addrCancelled" class="content" style="display:none;">
           Unable to connect to the DEM
@@ -128,7 +130,7 @@
 	</div>
         <div id="contactPage" class="content" style="display:none;">
          <h1>Contacts</h1>
-         <div style="padding-left:1.3em">
+         <div class="subdetails">
            <p>If you have any questions regarding this implementation of this
               NVMe-oF Discovery Manager, please contact either</p>
            <p class="email"><a href='javascript:email("cayton")'>
@@ -141,7 +143,7 @@
         </div>
         <div id="settingsPage" class="content" style="display:none;">
          <h1>Settings</h1>
-         <div style="padding-left:1.3em">
+         <div class="subdetails">
            <p>To change the user id and/or password, Please enter the current
               values as well as the new ones.</p>
            <p>Once the user id and password are updated, you will need to
@@ -174,5 +176,6 @@
         Copyright &copy; Intel Corporation
       </div>
     </div>
+    <script src="forms.js"></script>
   </body>
 </html>
