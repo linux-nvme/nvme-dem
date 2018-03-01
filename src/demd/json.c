@@ -1757,8 +1757,62 @@ int list_json_target(char *query, char **resp)
 	return 0;
 }
 
-int set_json_interface(char *alias, char *data, char *resp,
-		       struct oob_iface *iface)
+int set_json_inb_interface(char *alias, char *data, char *resp,
+			   union sc_iface *iface)
+{
+	json_t			*targets;
+	json_t			*new;
+	json_t			*obj;
+	json_t			*newobj;
+	json_t			*iter;
+	json_t			*value;
+	json_t			*tmp;
+	int			 i;
+	json_error_t		 error;
+
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	if (!targets) {
+		sprintf(resp, "%s '%s' not found", TAG_TARGETS, alias);
+		return -ENOENT;
+	}
+
+	i = find_array(targets, TAG_ALIAS, alias, &obj);
+	if (i < 0) {
+		sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
+		return -ENOENT;
+	}
+
+	new = json_loads(data, JSON_DECODE_ANY, &error);
+	if (!new)
+		return invalid_json_syntax(resp);
+
+	newobj = json_object_get(new, TAG_INTERFACES);
+	if (!newobj) {
+		json_decref(new);
+		return invalid_json_syntax(resp);
+	}
+
+	iter = json_object();
+	json_update_string_ex(iter, newobj, TAG_TYPE, value,
+			      iface->inb.portid.type);
+	json_update_string_ex(iter, newobj, TAG_FAMILY, value,
+			      iface->inb.portid.family);
+	json_update_string_ex(iter, newobj, TAG_ADDRESS, value,
+			      iface->inb.portid.address);
+	json_update_int_ex(iter, newobj, TAG_TRSVCID, value,
+			   iface->inb.portid.port_num);
+
+	print_debug("Added %s:%d", iface->inb.portid.address,
+		    iface->inb.portid.port_num);
+
+	json_object_set(obj, TAG_INTERFACES, iter);
+
+	json_decref(new);
+
+	return 0;
+}
+int set_json_oob_interface(char *alias, char *data, char *resp,
+			   union sc_iface *iface)
 {
 	json_t			*targets;
 	json_t			*new;
@@ -1796,12 +1850,12 @@ int set_json_interface(char *alias, char *data, char *resp,
 	iter = json_object();
 	json_update_string(iter, newobj, TAG_IFFAMILY, value);
 	json_update_string_ex(iter, newobj, TAG_IFADDRESS, value,
-			      iface->address);
+			      iface->oob.address);
 	json_update_string_ex(iter, newobj, TAG_IFPORT, value, port);
 
-	iface->port = atoi(port);
+	iface->oob.port = atoi(port);
 
-	print_debug("Added %s:%d", iface->address, iface->port);
+	print_debug("Added %s:%d", iface->oob.address, iface->oob.port);
 
 	json_object_set(obj, TAG_INTERFACES, iter);
 
@@ -2023,7 +2077,9 @@ int update_json_target(char *alias, char *data, char *resp,
 	json_update_string_ex(iter, new, TAG_MGMT_MODE, value, mode);
 	target->mgmt_mode = get_mgmt_mode(mode);
 
-	if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
+	if (target->mgmt_mode != LOCAL_MGMT) {
+		union sc_iface	*iface = &target->sc_iface;
+
 		newobj = json_object_get(new, TAG_INTERFACE);
 		if (!newobj)
 			goto out2;
@@ -2034,10 +2090,21 @@ int update_json_target(char *alias, char *data, char *resp,
 			json_object_set_new(iter, TAG_INTERFACE, obj);
 		}
 
-		json_update_string_ex(obj, newobj, TAG_IFADDRESS, value,
-				      target->oob_iface.address);
-		json_update_int_ex(obj, newobj, TAG_IFPORT, value,
-				   target->oob_iface.port);
+		if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
+			json_update_string_ex(obj, newobj, TAG_IFADDRESS,
+					      value, iface->oob.address);
+			json_update_int_ex(obj, newobj, TAG_IFPORT,
+					   value, iface->oob.port);
+		} else {
+			json_update_string_ex(obj, newobj, TAG_TYPE,
+					      value, iface->inb.portid.type);
+			json_update_string_ex(obj, newobj, TAG_FAMILY,
+					      value, iface->inb.portid.family);
+			json_update_string_ex(obj, newobj, TAG_ADDRESS,
+					      value, iface->inb.portid.address);
+			json_update_int_ex(obj, newobj, TAG_TRSVCID, value,
+					   iface->inb.portid.port_num);
+		}
 	}
 out2:
 	sprintf(resp, "%s '%s' %s ", TAG_TARGET, buf,

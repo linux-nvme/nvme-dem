@@ -33,8 +33,6 @@
 
 #define MSG_TIMEOUT     100
 
-#define NVMF_UUID_FMT	"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
-
 void dump(u8 *buf, int len)
 {
 	int			i, j, n = 0;
@@ -148,13 +146,13 @@ static int process_nvme_rsp(struct endpoint *ep)
 	return ret;
 }
 
-static int send_fabric_connect(struct target *target, struct endpoint *ep)
+static int send_fabric_connect(struct discovery_queue *dq)
 {
+	struct target			*target = dq->target;
+	struct endpoint			*ep = &dq->ep;
 	struct nvmf_connect_data	*data;
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
-	uuid_t				 id;
-	char				 uuid[40];
 	int				 bytes;
 	int				 key;
 	int				 ret;
@@ -174,16 +172,9 @@ static int send_fabric_connect(struct target *target, struct endpoint *ep)
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		cmd->connect.kato = htole16(NVME_DISC_KATO);
 
-	// TODO Need to use hostnqn from allowed hosts list for each subsys
-	//	with different nqn or use the generated one
-
-	uuid_generate(id);
-	memcpy(&data->hostid, id, sizeof(*id));
-	uuid_unparse_lower(id, uuid);
-
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	snprintf(data->hostnqn, NVMF_NQN_SIZE, NVMF_UUID_FMT, uuid);
+	strncpy(data->hostnqn, dq->hostnqn, NVMF_NQN_SIZE);
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -648,12 +639,10 @@ void disconnect_target(struct endpoint *ep, int shutdown)
 		free(ep->cmd);
 }
 
-static int build_connect_data(struct nvme_rdma_cm_req **req)
+static int build_connect_data(struct nvme_rdma_cm_req **req, char *hostnqn)
 {
 	struct nvme_rdma_cm_req	*priv;
 	struct nvmf_connect_data *data;
-	uuid_t			id;
-	char			uuid[40];
 	int			bytes = sizeof(*priv) + sizeof(*data);
 
 	if (posix_memalign((void **) &priv, PAGE_SIZE, bytes)) {
@@ -669,53 +658,52 @@ static int build_connect_data(struct nvme_rdma_cm_req **req)
 
 	data = (void *) &priv[1];
 
-	uuid_generate(id);
-	memcpy(&data->hostid, id, sizeof(*id));
-	uuid_unparse_lower(id, uuid);
-
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	snprintf(data->hostnqn, NVMF_NQN_SIZE, NVMF_UUID_FMT, uuid);
+	strncpy(data->hostnqn, hostnqn, NVMF_NQN_SIZE);
 
 	*req = priv;
 
 	return bytes;
 }
 
-int connect_target(struct target *target, char *family, char *addr, char *port)
+int connect_target(struct discovery_queue *dq)
 {
+	struct portid		*portid = dq->portid;
+	struct endpoint		*ep = &dq->ep;
+	struct sockaddr		 dest = { 0 };
+	struct sockaddr_in	*dest_in = (struct sockaddr_in *) &dest;
+	struct sockaddr_in6	*dest_in6 = (struct sockaddr_in6 *) &dest;
+	struct nvme_rdma_cm_req	*req;
 	void			*cmd;
 	void			*data;
-	struct endpoint		*ep = &target->dq;
-	struct nvme_rdma_cm_req	*req;
-	struct sockaddr		 dest = { 0 };
-	struct sockaddr_in	 *dest_in = (struct sockaddr_in *) &dest;
-	struct sockaddr_in6	 *dest_in6 = (struct sockaddr_in6 *) &dest;
 	int			 bytes;
 	int			 ret = 0;
 
-	ep->depth = NVMF_DQ_DEPTH;
-
-	if (strcmp(family, "ipv4") == 0) {
+	if (strcmp(portid->family, "ipv4") == 0) {
 		dest_in->sin_family = AF_INET;
-		dest_in->sin_port = htons(atoi(port));
-		ret = inet_pton(AF_INET, addr, &dest_in->sin_addr);
-	} else if (strcmp(family, "ipv6") == 0) {
+		dest_in->sin_port = htons(portid->port_num);
+		ret = inet_pton(AF_INET, portid->address, &dest_in->sin_addr);
+	} else if (strcmp(portid->family, "ipv6") == 0) {
 		dest_in6->sin6_family = AF_INET6;
-		dest_in6->sin6_port = htons(atoi(port));
-		ret = inet_pton(AF_INET6, addr, &dest_in6->sin6_addr);
+		dest_in6->sin6_port = htons(portid->port_num);
+		ret = inet_pton(AF_INET6, portid->address,
+				&dest_in6->sin6_addr);
 	}
+
 	if (!ret)
 		return -EINVAL;
 	if (ret < 0)
 		return errno;
 
+	ep->depth = NVMF_DQ_DEPTH;
+
 	ret = ep->ops->init_endpoint(&ep->ep, NVMF_DQ_DEPTH);
 	if (ret)
 		return ret;
 
-	bytes = build_connect_data(&req);
+	bytes = build_connect_data(&req, dq->hostnqn);
 
 	ret = ep->ops->client_connect(ep->ep, &dest, req, bytes);
 
@@ -746,7 +734,7 @@ int connect_target(struct target *target, char *family, char *addr, char *port)
 
 	ep->data = data;
 
-	ret = send_fabric_connect(target, ep);
+	ret = send_fabric_connect(dq);
 	if (ret)
 		return ret;
 

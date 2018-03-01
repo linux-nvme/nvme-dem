@@ -76,16 +76,23 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static int keep_alive_work(struct target *target)
 {
+	struct discovery_queue	*dq;
 	int			 ret;
 
 	if (target->kato_countdown == 0) {
-		ret = send_keep_alive(&target->dq);
-		if (ret) {
-			print_err("keep alive failed %s", target->alias);
-			disconnect_target(&target->dq, 0);
-			target->dq_connected = 0;
-			target->log_page_retry_count = LOG_PAGE_RETRY;
-			return ret;
+		list_for_each_entry(dq, &target->discovery_queue_list, node) {
+			if (!dq->connected)
+				continue;
+
+			ret = send_keep_alive(&dq->ep);
+			if (ret) {
+				print_err("keep alive failed %s",
+					  target->alias);
+				disconnect_target(&dq->ep, 0);
+				dq->connected = 0;
+				target->log_page_retry_count = LOG_PAGE_RETRY;
+				return ret;
+			}
 		}
 
 		target->kato_countdown = KEEP_ALIVE_TIMER / IDLE_TIMEOUT;
@@ -98,12 +105,10 @@ static int keep_alive_work(struct target *target)
 static void periodic_work(void)
 {
 	struct target		*target;
-	struct portid		*portid;
-	int			 ret;
+	struct discovery_queue	*dq;
 
 	list_for_each_entry(target, target_list, node) {
-		if ((target->mgmt_mode == IN_BAND_MGMT) &&
-		    target->dq_connected)
+		if (target->mgmt_mode == IN_BAND_MGMT)
 			if (keep_alive_work(target))
 				continue;
 
@@ -115,31 +120,25 @@ static void periodic_work(void)
 		if (target->refresh_countdown)
 			continue;
 
-		list_for_each_entry(portid, &target->portid_list, node) {
-			ret = connect_target(target, portid->family,
-					     portid->address, portid->port);
-			if (ret) {
+		if (target->mgmt_mode != LOCAL_MGMT)
+			get_config(target);
+
+		list_for_each_entry(dq, &target->discovery_queue_list, node) {
+			if (connect_target(dq)) {
 				print_err("Could not connect to target %s",
 					  target->alias);
 				target->log_page_retry_count = LOG_PAGE_RETRY;
 				continue;
 			}
 
-			if (target->mgmt_mode != LOCAL_MGMT)
-				ret = get_config(target);
+			fetch_log_pages(dq);
 
-// TODO need separate aq for getting log pages on each fabric
-			if (target->dq_connected)
-				fetch_log_pages(target);
-
-			target->refresh_countdown =
-				target->refresh * MINUTES / IDLE_TIMEOUT;
-
-			if (target->mgmt_mode != IN_BAND_MGMT) {
-				disconnect_target(&target->dq, 0);
-				target->dq_connected = 0;
-			}
+			if (target->mgmt_mode != IN_BAND_MGMT)
+				disconnect_target(&dq->ep, 0);
 		}
+
+		target->refresh_countdown =
+			target->refresh * MINUTES / IDLE_TIMEOUT;
 	}
 }
 
@@ -372,47 +371,94 @@ static int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
+static inline int check_logpage_portid(struct subsystem *subsys,
+				       struct portid *portid)
+{
+	struct logpage		*logpage;
+
+	list_for_each_entry(logpage, &subsys->logpage_list, node)
+		if (logpage->portid == portid)
+			return 1;
+	return 0;
+}
+
+static void init_discovery_queue(struct target *target, struct portid *portid)
+{
+	struct discovery_queue	*dq;
+	struct subsystem	*subsys;
+	struct host		*host;
+	uuid_t			 id;
+	char			 uuid[40];
+
+	while (1) {
+		list_for_each_entry(subsys, &target->subsys_list, node) {
+			if (check_logpage_portid(subsys, portid))
+				continue;
+			dq = malloc(sizeof(*dq));
+			if (!dq) {
+				print_err("failed to malloc dq");
+				return;
+			}
+
+			memset(dq, 0, sizeof(*dq));
+
+			dq->portid = portid;
+			dq->target = target;
+
+			if (strcmp(dq->portid->type, "rdma") == 0)
+				dq->ep.ops = rdma_register_ops();
+			else {
+				free(dq);
+				continue;
+			}
+
+			list_add_tail(&dq->node, &target->discovery_queue_list);
+
+			if (subsys->access == ALLOW_ANY) {
+				uuid_generate(id);
+				uuid_unparse_lower(id, uuid);
+				sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
+			} else {
+				host = list_first_entry(&subsys->host_list,
+							struct host, node);
+				sprintf(dq->hostnqn, host->nqn);
+			}
+
+			if (connect_target(dq))
+				continue;
+
+			fetch_log_pages(dq);
+
+			if (target->mgmt_mode != IN_BAND_MGMT)
+				disconnect_target(&dq->ep, 0);
+			else
+				dq->connected = 1;
+
+			continue;
+		}
+		break;
+	}
+}
+
 void init_targets(void)
 {
 	struct target		*target;
 	struct portid		*portid;
-	int			 ret;
 
 	build_target_list();
 
 	list_for_each_entry(target, target_list, node) {
-		// TODO need separate aq for getting log pages on each fabric
-
-		portid = list_first_entry(&target->portid_list,
-					  struct portid, node);
-
-		if (strcmp(portid->type, "rdma") == 0)
-			target->dq.ops = rdma_register_ops();
-		else
-			continue;
-
-		ret = connect_target(target, portid->family,
-				     portid->address, portid->port);
-		if (!ret)
-			target->dq_connected = 1;
-
-		// TODO Should this be worker thread?
-
-		if (target->mgmt_mode != LOCAL_MGMT)
-			if (!get_config(target))
-				config_target(target);
-
-		if (target->dq_connected)
-			fetch_log_pages(target);
-
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
 
 		target->log_page_retry_count = LOG_PAGE_RETRY;
 
-		if (target->mgmt_mode != IN_BAND_MGMT && target->dq_connected) {
-			disconnect_target(&target->dq, 0);
-			target->dq_connected = 0;
+		if (target->mgmt_mode != LOCAL_MGMT)
+			if (!get_config(target))
+				config_target(target);
+
+		list_for_each_entry(portid, &target->portid_list, node) {
+			init_discovery_queue(target, portid);
 		}
 	}
 }
@@ -425,6 +471,8 @@ void cleanup_targets(void)
 	struct subsystem	*next_subsys;
 	struct host		*host;
 	struct host		*next_host;
+	struct discovery_queue	*dq;
+	struct discovery_queue	*next_dq;
 
 	list_for_each_entry_safe(target, next_target, target_list, node) {
 		list_for_each_entry_safe(subsys, next_subsys,
@@ -438,8 +486,16 @@ void cleanup_targets(void)
 
 		list_del(&target->node);
 
-		if (target->dq_connected)
-			disconnect_target(&target->dq, 0);
+		list_for_each_entry_safe(dq, next_dq,
+					 &target->discovery_queue_list, node) {
+			if (dq->connected)
+				disconnect_target(&dq->ep, 0);
+			free(dq);
+		}
+
+		if (target->mgmt_mode == IN_BAND_MGMT &&
+		    target->sc_iface.inb.connected)
+			disconnect_target(&target->sc_iface.inb.ep, 0);
 
 		free(target);
 	}

@@ -111,7 +111,7 @@ static const char *cms_str(u8 cm)
 }
 #endif
 
-static int get_logpages(struct target *target,
+static int get_logpages(struct discovery_queue *dq,
 			struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
@@ -124,7 +124,7 @@ static int get_logpages(struct target *target,
 	log_size = offset + sizeof(log->numrec);
 	log_size = round_up(log_size, sizeof(u32));
 
-	ret = send_get_log_page(&target->dq, log_size, &log);
+	ret = send_get_log_page(&dq->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch number of discovery log entries");
 		return -ENODATA;
@@ -136,7 +136,7 @@ static int get_logpages(struct target *target,
 	free(log);
 
 	if (*numrec == 0) {
-		print_err("No discovery log on target %s", target->alias);
+		print_err("No discovery log on target %s", dq->target->alias);
 		return -ENODATA;
 	}
 
@@ -147,7 +147,7 @@ static int get_logpages(struct target *target,
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		   sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	ret = send_get_log_page(&target->dq, log_size, &log);
+	ret = send_get_log_page(&dq->ep, log_size, &log);
 	if (ret) {
 		print_err("Failed to fetch discovery log entries");
 		return -ENODATA;
@@ -206,12 +206,24 @@ static void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 #endif
 }
 
-static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
+static inline void invalidate_log_pages(struct target *target)
+{
+	struct subsystem		*subsys;
+	struct logpage			*logpage;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry(logpage, &subsys->logpage_list, node)
+			logpage->valid = 0;
+}
+
+static void save_log_pages(struct discovery_queue *dq,
+			   struct nvmf_disc_rsp_page_hdr *log, int numrec,
 			   struct target *target)
 {
 	int				 i;
 	int				 found;
 	struct subsystem		*subsys;
+	struct logpage			*logpage;
 	struct nvmf_disc_rsp_page_entry *e;
 
 	for (i = 0; i < numrec; i++) {
@@ -219,31 +231,60 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 		found = 0;
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
-				subsys->log_page = *e;
-				subsys->log_page_valid = 1;
 				found = 1;
+				list_for_each_entry(logpage,
+						    &subsys->logpage_list,
+						    node) {
+					/* TODO: Make this inline */
+					if (strcmp(e->traddr,
+						   logpage->e.traddr) ||
+					    strcmp(e->trsvcid,
+						   logpage->e.trsvcid) ||
+					    e->trtype != logpage->e.trtype ||
+					    e->adrfam != logpage->e.adrfam)
+						continue;
+
+					logpage->e = *e;
+					logpage->valid = 1;
+					logpage->portid = dq->portid;
+					goto next;
+				}
+
+				logpage = malloc(sizeof(*logpage));
+				if (!logpage)
+					return;
+
+				logpage->e = *e;
+				logpage->valid = 1;
+				logpage->portid = dq->portid;
+
+				list_add_tail(&logpage->node,
+					      &subsys->logpage_list);
+next:
 				break;
 			}
-		if (!found)
-			print_err("unknown subsystem %s on target %s",
-				  e->subnqn, target->alias);
+			if (!found)
+				print_err("unknown subsystem %s on target %s",
+					  e->subnqn, target->alias);
 	}
 }
 
-void fetch_log_pages(struct target *target)
+void fetch_log_pages(struct discovery_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
+	struct target			*target = dq->target;
 	u32				 num_records = 0;
 
 	// TODO need to check subsys access to see if need to do multiple
 	//	connections or use alternate nqn to get all log pages
 
-	if (get_logpages(target, &log, &num_records)) {
+	if (get_logpages(dq, &log, &num_records)) {
 		print_err("Failed to get logpage for target %s", target->alias);
 		return;
 	}
 
-	save_log_pages(log, num_records, target);
+	invalidate_log_pages(target);
+	save_log_pages(dq, log, num_records, target);
 
 	/* TODO	Compare 'log' againt JSON config file.
 	 *	should this happen here of in caller

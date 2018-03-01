@@ -43,6 +43,7 @@ found:
 int target_refresh(char *alias)
 {
 	struct target		*target;
+	struct discovery_queue	*dq;
 
 	list_for_each_entry(target, target_list, node)
 		if (!strcmp(target->alias, alias))
@@ -50,7 +51,16 @@ int target_refresh(char *alias)
 
 	return -ENOENT;
 found:
-	fetch_log_pages(target);
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (target->mgmt_mode != IN_BAND_MGMT) {
+			if (!connect_target(dq)) {
+				fetch_log_pages(dq);
+				disconnect_target(&dq->ep, 0);
+			}
+		} else if (dq->connected)
+			fetch_log_pages(dq);
+	}
+
 	return 0;
 }
 
@@ -200,6 +210,7 @@ int target_logpage(char *alias, char **resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
+	struct logpage		*logpage;
 	char			 buf[MAX_BODY_SIZE + 1];
 	char			*p = *resp;
 	u64			 n, len = 0;
@@ -211,26 +222,27 @@ int target_logpage(char *alias, char **resp)
 
 	return -ENOENT;
 found:
-	list_for_each_entry(subsys, &target->subsys_list, node) {
-		if (!subsys->log_page_valid)
-			continue;
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry(logpage, &subsys->logpage_list, node) {
+			if (!logpage->valid)
+				continue;
 
-		format_logpage(buf, &subsys->log_page);
+			format_logpage(buf, &logpage->e);
 
-		if ((len + strlen(buf)) > bytes) {
-			bytes += MAX_BODY_SIZE;
-			p = realloc(*resp, bytes);
-			if (!p) {
-				strcpy(*resp, "no memory");
-				return -ENOMEM;
+			if ((len + strlen(buf)) > bytes) {
+				bytes += MAX_BODY_SIZE;
+				p = realloc(*resp, bytes);
+				if (!p) {
+					strcpy(*resp, "no memory");
+					return -ENOMEM;
+				}
+				p += len;
 			}
-			p += len;
+			strcpy(p, buf);
+			n = strlen(buf);
+			p += n;
+			len += n;
 		}
-		strcpy(p, buf);
-		n = strlen(buf);
-		p += n;
-		len += n;
-	}
 
 	if (!len)
 		sprintf(*resp, "No valid Log Pages");
@@ -240,14 +252,51 @@ found:
 
 int host_logpage(char *alias, char **resp)
 {
-	struct host		*host = NULL;
+	struct host		*host;
+	struct target		*target;
+	struct subsystem	*subsys;
+	struct logpage		*logpage;
+	char			 buf[MAX_BODY_SIZE + 1];
+	char			*p = *resp;
+	u64			 n, len = 0;
+	u64			 bytes = MAX_BODY_SIZE;
 
-	if (alias && host)
-		goto found;
+	list_for_each_entry(target, target_list, node)
+		list_for_each_entry(subsys, &target->subsys_list, node) {
+			if (subsys->access == ALLOW_ANY)
+				goto found;
 
-	return -ENOENT;
+			list_for_each_entry(host, &subsys->host_list, node)
+				if (!strcmp(alias, host->alias))
+					goto found;
+			continue;
 found:
-	sprintf(*resp, "TODO return Target Log Page");
+			list_for_each_entry(logpage, &subsys->logpage_list,
+					    node) {
+				if (!logpage->valid)
+					continue;
+
+				format_logpage(buf, &logpage->e);
+
+				if ((len + strlen(buf)) > bytes) {
+					bytes += MAX_BODY_SIZE;
+					p = realloc(*resp, bytes);
+					if (!p) {
+						strcpy(*resp, "no memory");
+						return -ENOMEM;
+					}
+					p += len;
+				}
+				strcpy(p, buf);
+				n = strlen(buf);
+				p += n;
+				len += n;
+			}
+		}
+
+	if (!len)
+		sprintf(*resp, "No valid Log Pages");
+
 	return 0;
 }
 
@@ -360,6 +409,7 @@ struct subsystem *new_subsys(struct target *target, char *nqn)
 
 	INIT_LIST_HEAD(&subsys->host_list);
 	INIT_LIST_HEAD(&subsys->ns_list);
+	INIT_LIST_HEAD(&subsys->logpage_list);
 
 	list_add_tail(&subsys->node, &target->subsys_list);
 
@@ -483,6 +533,7 @@ struct target *alloc_target(char *alias)
 	INIT_LIST_HEAD(&target->portid_list);
 	INIT_LIST_HEAD(&target->fabric_iface_list);
 	INIT_LIST_HEAD(&target->device_list);
+	INIT_LIST_HEAD(&target->discovery_queue_list);
 
 	list_add_tail(&target->node, target_list);
 
@@ -528,14 +579,50 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 		if (!obj || !json_is_string(obj))
 			goto err;
 
-		strcpy(target->oob_iface.address,
+		strcpy(target->sc_iface.oob.address,
 		       (char *) json_string_value(obj));
 
 		obj = json_object_get(iface, TAG_IFPORT);
 		if (!obj || !json_is_integer(obj))
 			goto err;
 
-		target->oob_iface.port = json_integer_value(obj);
+		target->sc_iface.oob.port = json_integer_value(obj);
+	} else if (mgmt_mode == IN_BAND_MGMT) {
+		iface = json_object_get(parent, TAG_INTERFACE);
+		if (!iface)
+			goto common_inb_iface;
+
+		obj = json_object_get(iface, TAG_TYPE);
+		if (!obj || !json_is_string(obj))
+			goto common_inb_iface;
+
+		strcpy(target->sc_iface.inb.portid.type,
+		       (char *) json_string_value(obj));
+
+		obj = json_object_get(iface, TAG_FAMILY);
+		if (!obj || !json_is_string(obj))
+			goto common_inb_iface;
+
+		strcpy(target->sc_iface.inb.portid.family,
+		       (char *) json_string_value(obj));
+
+		obj = json_object_get(iface, TAG_ADDRESS);
+		if (!obj || !json_is_string(obj))
+			goto common_inb_iface;
+
+		strcpy(target->sc_iface.inb.portid.address,
+		       (char *) json_string_value(obj));
+
+		obj = json_object_get(iface, TAG_TRSVCID);
+		if (obj && json_is_integer(obj))
+			target->sc_iface.inb.portid.port_num =
+				json_integer_value(obj);
+		else {
+common_inb_iface:
+			memset(&target->sc_iface.inb.portid, 0,
+			       sizeof(target->sc_iface.inb.portid));
+		}
+
 	}
 
 	target->json = parent;

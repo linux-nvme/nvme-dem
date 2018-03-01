@@ -39,6 +39,8 @@
 #include "json.h"
 #include "tags.h"
 
+#define NVMF_UUID_FMT   "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
+
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
 #define BODY_SIZE	1024
@@ -152,7 +154,23 @@ static inline int msec_delta(struct timeval t0)
 #define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
 #define SYS_NVME		"/sys/class/nvme"
 
-enum {RESTRICTED = 0, ALLOW_ALL = 1};
+enum {RESTRICTED = 0, ALLOW_ANY};
+
+struct target;
+
+struct portid {
+	struct list_head	 node;
+	int			 portid;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	char			 port[CONFIG_PORT_SIZE + 1];
+	int			 port_num;
+	int			 addr[ADDR_LEN];
+	int			 adrfam;
+	int			 trtype;
+	int			 valid;
+};
 
 struct host_iface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
@@ -162,38 +180,6 @@ struct host_iface {
 	char			 pseudo_target_port[CONFIG_PORT_SIZE + 1];
 	struct xp_pep		*listener;
 	struct xp_ops		*ops;
-};
-
-struct oob_iface {
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	int			 port;
-};
-
-struct host {
-	struct list_head	 node;
-	struct subsystem	*subsystem;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	char			 nqn[MAX_NQN_SIZE + 1];
-};
-
-struct ns {
-	struct list_head	 node;
-	int			 nsid;
-	int			 devid;
-	int			 devns;
-	// TODO add bits for multipath and partitions
-};
-
-struct subsystem {
-	struct list_head	 node;
-	struct list_head	 host_list;
-	struct list_head	 ns_list;
-	struct target		*target;
-	char			 nqn[MAX_NQN_SIZE + 1];
-	int			 access;
-	int			 log_page_valid;
-	struct nvmf_disc_rsp_page_entry
-				 log_page;
 };
 
 struct qe {
@@ -215,6 +201,50 @@ struct endpoint {
 	int			 csts;
 };
 
+struct oob_iface {
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 port;
+};
+
+struct inb_iface {
+	struct target		*target;
+	struct portid		 portid;
+	struct endpoint		 ep;
+	int			 connected;
+};
+
+struct host {
+	struct list_head	 node;
+	struct subsystem	*subsystem;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	char			 nqn[MAX_NQN_SIZE + 1];
+};
+
+struct ns {
+	struct list_head	 node;
+	int			 nsid;
+	int			 devid;
+	int			 devns;
+	// TODO add bits for multipath and partitions
+};
+
+struct logpage {
+	struct list_head	 node;
+	struct portid		*portid;
+	struct nvmf_disc_rsp_page_entry e;
+	int			 valid;
+};
+
+struct subsystem {
+	struct list_head	 node;
+	struct list_head	 host_list;
+	struct list_head	 ns_list;
+	struct list_head	 logpage_list;
+	struct target		*target;
+	char			 nqn[MAX_NQN_SIZE + 1];
+	int			 access;
+};
+
 struct nsdev {
 	struct list_head	 node;
 	int			 nsdev;
@@ -231,18 +261,18 @@ struct fabric_iface {
 	int			 valid;
 };
 
-struct portid {
+struct discovery_queue {
 	struct list_head	 node;
-	int			 portid;
-	char			 type[CONFIG_TYPE_SIZE + 1];
-	char			 family[CONFIG_FAMILY_SIZE + 1];
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	char			 port[CONFIG_PORT_SIZE + 1];
-	int			 port_num;
-	int			 addr[ADDR_LEN];
-	int			 adrfam;
-	int			 trtype;
-	int			 valid;
+	struct portid		*portid;
+	struct target		*target;
+	struct endpoint		 ep;
+	int			 connected;
+	char			 hostnqn[MAX_NQN_SIZE + 1];
+};
+
+union sc_iface {
+	struct oob_iface oob;
+	struct inb_iface inb;
 };
 
 struct target {
@@ -250,19 +280,17 @@ struct target {
 	struct list_head	 subsys_list;
 	struct list_head	 portid_list;
 	struct list_head	 device_list;
+	struct list_head	 discovery_queue_list;
 	struct list_head	 fabric_iface_list;
 	struct host_iface	*iface;
-	struct endpoint		 dq;
 	json_t			*json;
-	struct oob_iface	 oob_iface;
+	union sc_iface		 sc_iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
-	int			 dq_connected;
 	int			 mgmt_mode;
 	int			 refresh;
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
-	int			 num_subsystems;
 	int			 dirty;
 };
 
@@ -297,7 +325,7 @@ void cleanup_targets(void);
 void get_host_nqn(void *context, void *haddr, char *nqn);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
-int connect_target(struct target *target, char *family, char *addr, char *port);
+int connect_target(struct discovery_queue *dq);
 void disconnect_target(struct endpoint *ep, int shutdown);
 int client_connect(struct endpoint *ep, void *data, int bytes);
 
@@ -317,7 +345,7 @@ int send_get_subsys_usage(struct endpoint *ep, int len,
 int send_del_target(struct target *target);
 
 struct subsystem *new_subsys(struct target *target, char *nqn);
-void fetch_log_pages(struct target *target);
+void fetch_log_pages(struct discovery_queue *dq);
 
 int target_reconfig(char *alias);
 int target_refresh(char *alias);

@@ -19,7 +19,7 @@ struct subsystem;
 struct ns;
 struct portid;
 struct host;
-struct oob_iface;
+union sc_iface;
 
 struct json_context *get_json_context(void);
 void store_json_config_file(void);
@@ -54,8 +54,10 @@ int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 		    struct subsystem *subsys);
 int del_json_subsys(char *alias, char *subnqn, char *resp);
 
-int set_json_interface(char *target, char *data, char *resp,
-		       struct oob_iface *face);
+int set_json_inb_interface(char *target, char *data, char *resp,
+			   union sc_iface *face);
+int set_json_oob_interface(char *target, char *data, char *resp,
+			   union sc_iface *face);
 int set_json_portid(char *target, int id, char *data, char *resp,
 		    struct portid *portid);
 int del_json_portid(char *alias, int id, char *resp);

@@ -268,8 +268,8 @@ static int build_set_subsys_inb(struct target *target,
 
 static inline int get_uri(struct target *target, char *uri)
 {
-	char			*addr = target->oob_iface.address;
-	int			 port = target->oob_iface.port;
+	char			*addr = target->sc_iface.oob.address;
+	int			 port = target->sc_iface.oob.port;
 
 	return sprintf(uri, "http://%s:%d/", addr, port);
 }
@@ -370,11 +370,12 @@ static inline int get_inb_nsdevs(struct target *target)
 	struct nvmf_ns_devices_rsp_page_hdr *hdr;
 	struct nvmf_ns_devices_rsp_page_entry *entry;
 	struct nsdev		*nsdev;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
 	char			*alias = target->alias;
 	int			 i;
 	int			 ret;
 
-	ret = send_get_nsdevs(&target->dq, &hdr);
+	ret = send_get_nsdevs(ep, &hdr);
 	if (ret) {
 		print_err("send get nsdevs INB failed for %s", alias);
 		goto out1;
@@ -424,11 +425,12 @@ static inline int get_inb_xports(struct target *target)
 {
 	struct nvmf_transports_rsp_page_hdr *xports_hdr;
 	struct nvmf_transports_rsp_page_entry *xport;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
 	struct portid		*portid;
 	int			 i, rdma_found;
 	int			 ret;
 
-	ret = send_get_xports(&target->dq, &xports_hdr);
+	ret = send_get_xports(ep, &xports_hdr);
 	if (ret) {
 		print_err("send get xports INB failed for %s", target->alias);
 		goto out1;
@@ -502,6 +504,7 @@ static int config_target_inb(struct target *target)
 {
 	struct nvmf_port_config_page_hdr   *port_hdr = NULL;
 	struct nvmf_subsys_config_page_hdr *subsys_hdr = NULL;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
 	int			 len;
 	int			 ret = 0;
 
@@ -509,7 +512,7 @@ static int config_target_inb(struct target *target)
 	if (!len)
 		print_err("build set port INB failed for %s", target->alias);
 	else {
-		ret = send_set_port_config(&target->dq, len, port_hdr);
+		ret = send_set_port_config(ep, len, port_hdr);
 		if (ret) {
 			print_err("send set port INB failed for %s",
 				  target->alias);
@@ -521,7 +524,7 @@ static int config_target_inb(struct target *target)
 	if (!len)
 		print_err("build set subsys INB failed for %s", target->alias);
 	else {
-		ret = send_set_subsys_config(&target->dq, len, subsys_hdr);
+		ret = send_set_subsys_config(ep, len, subsys_hdr);
 		if (ret)
 			print_err("send set subsys INB failed for %s",
 				  target->alias);
@@ -710,7 +713,7 @@ int del_host(char *alias, char *resp)
 	list_for_each_entry(target, target_list, node) {
 		dirty = 0;
 		list_for_each_entry(subsys, &target->subsys_list, node) {
-			if (subsys->access == ALLOW_ALL)
+			if (subsys->access == ALLOW_ANY)
 				continue;
 			dirty = 1;
 			list_for_each_entry(host, &subsys->host_list, node)
@@ -1560,17 +1563,30 @@ out:
 	return ret;
 }
 
+static inline void set_oob_interface(union sc_iface *iface,
+				     union sc_iface *result)
+{
+	iface->oob.port = result->oob.port;
+	strcpy(iface->oob.address, result->oob.address);
+}
+
+static inline void set_inb_interface(union sc_iface *iface,
+				     union sc_iface *result)
+{
+	struct portid	*portid = &iface->inb.portid;
+
+	strcpy(portid->port, result->inb.portid.port);
+	strcpy(portid->type, result->inb.portid.type);
+	strcpy(portid->address, result->inb.portid.address);
+}
+
 int set_interface(char *alias, char *data, char *resp)
 {
 	int			 ret;
-	struct oob_iface	 result;
 	struct target		*target;
-
-	ret = set_json_interface(alias, data, resp, &result);
-	if (ret)
-		goto out;
-
-	resp += strlen(resp);
+	union sc_iface		*iface;
+	union sc_iface		 result;
+	int			 mode;
 
 	target = find_target(alias);
 	if (!target) {
@@ -1579,13 +1595,28 @@ int set_interface(char *alias, char *data, char *resp)
 		goto out;
 	}
 
-	if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
-		target->oob_iface.port = result.port;
-		strcpy(target->oob_iface.address, result.address);
-	} else {
+	mode = target->mgmt_mode;
+
+	if (mode == OUT_OF_BAND_MGMT)
+		ret = set_json_oob_interface(alias, data, resp, &result);
+	else if (mode == IN_BAND_MGMT)
+		ret = set_json_inb_interface(alias, data, resp, &result);
+	else {
 		strcpy(resp, MGMT_MODE_ERR);
 		ret = -EINVAL;
 	}
+
+	if (ret)
+		goto out;
+
+	resp += strlen(resp);
+
+	iface = &target->sc_iface;
+
+	if (mode == OUT_OF_BAND_MGMT)
+		set_oob_interface(iface, &result);
+	else if (mode == IN_BAND_MGMT)
+		set_inb_interface(iface, &result);
 out:
 	return ret;
 }
@@ -1619,11 +1650,10 @@ int update_target(char *alias, char *data, char *resp)
 			strcpy(target->alias, result.alias);
 		target->mgmt_mode = result.mgmt_mode;
 		target->refresh = result.refresh;
-		if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
-			target->oob_iface.port = result.oob_iface.port;
-			strcpy(target->oob_iface.address,
-			       result.oob_iface.address);
-		}
+		if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+			set_oob_interface(&target->sc_iface, &result.sc_iface);
+		else if (target->mgmt_mode == IN_BAND_MGMT)
+			set_inb_interface(&target->sc_iface, &result.sc_iface);
 	}
 
 	return ret;
