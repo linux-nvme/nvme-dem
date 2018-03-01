@@ -77,7 +77,11 @@ function showContents(page) {
   loadDoc(page);
 }
 function showList(page) {
-  clearLogin();
+  clearLogin(); 
+  if (page == undefined && $("#renamed").html() != "") {
+    page = $("#objectType").html()
+    $("#renamed").html("");
+  }
   if (page != undefined)
     $("#listPage").html("");
   $("#detailPage").html("");
@@ -1730,6 +1734,7 @@ function sendRequest() {
       page = $("#parentUri").html();
     else {
       page = $("#renamedUri").html();
+      $("#renamed").html("1");
       $("#objectValue").html(page);
     }
 
