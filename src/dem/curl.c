@@ -31,6 +31,12 @@ struct curl_context {
 static struct curl_context	*ctx;
 static int			 debug_curl;
 
+#ifdef CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
+#define CURLINFO_CONTENT_LENGTH CURLINFO_CONTENT_LENGTH_DOWNLOAD_T
+#else
+#define CURLINFO_CONTENT_LENGTH CURLINFO_CONTENT_LENGTH_DOWNLOAD
+#endif
+
 static size_t read_cb(char *p, size_t size, size_t n, void *stream)
 {
 	int			 len = size * n;
@@ -132,8 +138,7 @@ static int exec_curl(char *url, char **p)
 	ret = curl_easy_perform(curl);
 
 	if (ret == CURLE_OK) {
-		curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
-				  &bytes);
+		curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH, &bytes);
 		*p = strndup(ctx->write_data, bytes);
 	} else if (ret == CURLE_COULDNT_CONNECT) {
 		fprintf(stderr, "curl returned error %s (%d) errno %d\n",

@@ -22,11 +22,11 @@
 #include "ops.h"
 #include "curl.h"
 
-const char *CONFIG_ERR    = " - unable to configure remote target";
-const char *INTERNAL_ERR  = " - unable to comply, internal error";
-const char *TARGET_ERR    = " - target not found";
-const char *NSDEV_ERR     = " - invalid ns device";
-const char *MGMT_MODE_ERR = " - invalid mgmt mode for setting interface";
+static const char *CONFIG_ERR    = " - unable to configure remote target";
+static const char *INTERNAL_ERR  = " - unable to comply, internal error";
+static const char *TARGET_ERR    = " - target not found";
+static const char *NSDEV_ERR     = " - invalid ns device";
+static const char *MGMT_MODE_ERR = " - invalid mgmt mode for setting interface";
 
 /* helper functions */
 
@@ -1454,7 +1454,7 @@ static int get_oob_config(struct target *target)
 	return get_oob_xports(target);
 }
 
-int config_target_oob(struct target *target)
+static int config_target_oob(struct target *target)
 {
 	struct portid		*portid;
 	struct subsystem	*subsys;

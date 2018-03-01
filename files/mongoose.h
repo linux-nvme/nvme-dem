@@ -77,6 +77,9 @@ int mg_printf(struct mg_connection *, const char *fmt, ...);
 
 struct mg_connection;
 
+struct mg_str mg_mk_str_n(const char *s, size_t len);
+int mg_vcmp(const struct mg_str *str2, const char *str1);
+
 /*
  * Callback function (event handler) prototype. Must be defined by the user.
  * Mongoose calls the event handler, passing the events defined below.
