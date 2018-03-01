@@ -745,8 +745,10 @@ out:
 	else
 		mg_printf(c, "%s %d %s", HTTP_HDR, ret, http_error_str(ret));
 
-	mg_printf(c, "\r\nContent-Length: %ld\r\n\r\n%s\r\n\r\n",
-		  strlen(resp), resp);
+	mg_printf(c, "\r\nContent-Type: plain/text");
+	mg_printf(c, "\r\nContent-Length: %ld\r\n", strlen(resp));
+	mg_printf(c, "\r\n%s\r\n\r\n", resp);
+
 	if (uri)
 		free(uri);
 	if (resp)

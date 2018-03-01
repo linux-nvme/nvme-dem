@@ -124,15 +124,18 @@ static int exec_curl(char *url, char **p)
 {
 	CURL			*curl = ctx->curl;
 	CURLcode		 ret;
+	curl_off_t		 bytes;
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
 	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
 
 	ret = curl_easy_perform(curl);
 
-	if (!ret)
-		*p = ctx->write_data;
-	else if (ret == CURLE_COULDNT_CONNECT) {
+	if (ret == CURLE_OK) {
+		curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T,
+				  &bytes);
+		*p = strndup(ctx->write_data, bytes);
+	} else if (ret == CURLE_COULDNT_CONNECT) {
 		fprintf(stderr, "curl returned error %s (%d) errno %d\n",
 			curl_easy_strerror(ret), ret, errno);
 		ret = -errno;
@@ -140,8 +143,7 @@ static int exec_curl(char *url, char **p)
 		ret = -EINVAL;
 
 	if (ctx->write_sz) {
-		if (ret)
-			free(ctx->write_data);
+		free(ctx->write_data);
 		ctx->write_data = malloc(1);
 		ctx->write_sz = 0;
 		ctx->write_data[0] = 0;
