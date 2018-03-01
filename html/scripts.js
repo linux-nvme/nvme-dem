@@ -7,14 +7,10 @@ function make_basic_auth(user, password) {
 function clearLogin() {
   $("#user").val("");
   $("#pswd").val("");
-  $("#olduser").val("");
-  $("#oldpswd").val("");
-  $("#newuser").val("");
-  $("#newpswd1").val("");
-  $("#newpswd2").val("");
 }
 function showContacts() {
   clearLogin();
+  $("#settingsPage").html("");
   $("#contactPage").show();
   $("#contentPage").hide();
   $("#settingsPage").hide();
@@ -24,14 +20,46 @@ function showContacts() {
   $("#objectValue").html("");
 }
 function showSettings() {
+  var str = "";
+
+  str += '<h1>Settings</h1>';
+  str += '<div class="subdetails">';
+  str += '<p>To change the user id and/or password, Please enter the current';
+  str += 'values as well as the new ones.</p>';
+  str += '<p>Once the user id and password are updated, you will need to';
+  str += 're-enter them to log back onto the DEM.</p>';
+  str += '<form id="updateForm" action="javascript:updateForm();">';
+  str += '<p class="updateform">';
+  str += 'Current User ID:';
+  str += '<input type="text" id="olduser" value=""';
+  str += 'autocomplete="off section-red new"><br>';
+  str += 'Current Password:';
+  str += '<input type="password" id="oldpswd" value=""';
+  str += 'autocomplete="off section-red new-password"><br>';
+  str += 'New User ID:';
+  str += '<input type="text" id="newuser" value=""';
+  str += 'autocomplete="off section-red new"><br>';
+  str += 'New Password:';
+  str += '<input type="password" id="newpswd1" value=""';
+  str += 'autocomplete="off section-red new"><br>';
+  str += 'Re-enter New Password:';
+  str += '<input type="password" id="newpswd2" value=""';
+  str += 'autocomplete="off section-red new"><br>';
+  str += '</p>';
+  str += '<input type="submit" value="Submit">';
+  str += '</form>';
+  str += '<p id="updateError" class="error"></p>';
+  str += '</div>';
+
   clearLogin();
-  $("#settingsPage").show();
   $("#contactPage").hide();
   $("#contentPage").hide();
   $("#listPage").hide();
   $("#detailPage").hide();
   $("#objectType").html("");
   $("#objectValue").html("");
+  $("#settingsPage").html(str);
+  $("#settingsPage").show();
   $("#olduser").focus();
 }
 function showContents(page) {
@@ -39,6 +67,7 @@ function showContents(page) {
   $("#listPage").html("");
   $("#detailPage").html("");
   $("#contentPage").html("");
+  $("#settingsPage").html("");
   $("#contactPage").hide();
   $("#settingsPage").hide();
   $("#listPage").hide();
@@ -52,6 +81,7 @@ function showList(page) {
   if (page != undefined)
     $("#listPage").html("");
   $("#detailPage").html("");
+  $("#settingsPage").html("");
   $("#listPage").show();
   $("#contactPage").hide();
   $("#settingsPage").hide();
@@ -76,26 +106,24 @@ function showLogPage() {
   else
     str += "Host";
   str += ": " + obj + " &nbsp;";
-  str += '<img src="back.png" alt="back" title="back" class="icon" onclick="showDetails(';
-  str += "'" + obj + "'" + ')">';
-  str += '</h1><h3>Log Pages</h3>';
+  str += '<img src="back.png" alt="back" title="back" class="icon"';
+  str += ' onclick="showDetails(' + "'" + obj + "'" + ')">';
+  str += '</h1><h3>Log Pages'
+  if (typ == "target") {
+    str += ' &nbsp;<img src="refresh.png" alt="refresh" title="refresh"';
+    str += ' class="icon" onclick="sendRefresh()">';
+  }
+  str += '</h3>';
 
   $("#detailPage").html(str);
-
   $("#detailPage").show();
-  $("#contactPage").hide();
-  $("#settingsPage").hide();
   $("#contentPage").hide();
-  $("#listPage").hide();
 
   loadDoc(obj + "/logpage");
 }
 function showDetails(page) {
   $("#detailPage").html("");
   $("#detailPage").show();
-  $("#contactPage").hide();
-  $("#settingsPage").hide();
-  $("#contentPage").hide();
   $("#listPage").hide();
   if (page != undefined) {
     $("#objectValue").html(page);
@@ -106,6 +134,9 @@ function clearSession() {
   sessionStorage.removeItem("dem_addr");
   sessionStorage.removeItem("dem_port");
   sessionStorage.removeItem("dem_auth");
+  $("#settingsPage").html("");
+  $("#listPage").html("");
+  $("#detailPage").html("");
   $("#addrForm").show();
   $("#contactPage").hide();
   $("#settingsPage").hide();
@@ -180,6 +211,17 @@ function showConfig() {
   var obj = $("#objectValue").html();
   var str = "reconfigure " + Capitalize(typ);
   var uri = typ + "/"  + obj + "/reconfig";
+
+  str += " " + obj;
+
+  openDialog("Are you sure you want to " + str, "POST", uri);
+}
+
+function sendRefresh() {
+  var typ = $("#objectType").html();
+  var obj = $("#objectValue").html();
+  var str = "refresh log pages for " + Capitalize(typ);
+  var uri = typ + "/"  + obj + "/refresh";
 
   str += " " + obj;
 
@@ -1573,22 +1615,27 @@ function validateForm() {
 }
 
 function closeDialog(execute) {
-    $("#err").html("");
+  var page = $("#editUri").html();
 
-    if (execute) {
-      if (!validateForm())
-        return;
+  $("#err").html("");
 
-      if (!sendRequest())
-        return;
+  if (execute) {
+    if (!validateForm())
+      return;
 
-      $("#parentargs").html("");
-    }
+    if (!sendRequest())
+      return;
 
-    document.getElementById("editPage").style.width = "0%";
-    $("#editVerb").html("");
-    $("#editUri").html("");
-    window.setTimeout(function() { $("#editForm").html(""); }, 80);
+    if (page.substring(page.length-8) == "/refresh")
+      $(".logpages").remove();
+
+    $("#parentargs").html("");
+  }
+
+  document.getElementById("editPage").style.width = "0%";
+  $("#editVerb").html("");
+  $("#editUri").html("");
+  window.setTimeout(function() { $("#editForm").html(""); }, 80);
 }
 
 function buildJSON(url) {
@@ -1671,9 +1718,9 @@ function sendRequest() {
   xhttp.setRequestHeader("Content-type", "text/plain; charset=UTF-8");
   xhttp.setRequestHeader("Access-Control-Allow-Origin", "*");
   xhttp.setRequestHeader('Authorization', auth);
-  if (verb == "DELETE")
-    xhttp.send();
-  else if (verb == "POST" && page.substring(page.length-9) == "/reconfig")
+  if ((verb == "DELETE") || ((verb == "POST") &&
+       ((page.substring(page.length-9) == "/reconfig") ||
+        (page.substring(page.length-8) == "/refresh"))))
     xhttp.send();
   else
     xhttp.send(buildJSON(page));
