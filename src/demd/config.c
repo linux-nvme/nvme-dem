@@ -672,6 +672,9 @@ int update_host(char *alias, char *data, char *resp)
 	if (ret)
 		return ret;
 
+	if (!alias)
+		alias = newalias;
+
 	list_for_each_entry(target, target_list, node)
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			list_for_each_entry(host, &subsys->host_list, node)

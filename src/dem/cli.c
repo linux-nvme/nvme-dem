@@ -1366,9 +1366,15 @@ int main(int argc, char *argv[])
 
 	ret = p->function(url, argc, opts);
 	if (ret < 0) {
-		n = (strcmp(p->verb, _RENA) == 0 && ret == -EEXIST) ? 4 : 3;
-		printf("Error: %s: %s '%s' %s\n",
-		       argv[0], args[1], args[n], error_str(ret));
+		if (ret == -ECONNREFUSED)
+			printf("Error: DEM server is not running\n");
+		else {
+			n = 3;
+			if ((strcmp(p->verb, _RENA) == 0 && ret == -EEXIST))
+				n++; 
+			printf("Error: %s: %s '%s' %s\n",
+			       argv[0], args[1], args[n], error_str(ret));
+		}
 	}
 
 	cleanup_curl();
