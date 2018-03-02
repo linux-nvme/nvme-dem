@@ -99,7 +99,7 @@ int init_curl(int debug)
 		return -EINVAL;
 	}
 
-	/* will be grown as needed by the realloc in wrtie_cb */
+	/* will be grown as needed by the realloc in write_cb */
 	ctx->write_data = malloc(1);
 	ctx->write_sz = 0;    /* no data at this point */
 	ctx->write_data[0] = 0;

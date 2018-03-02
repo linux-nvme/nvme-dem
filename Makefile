@@ -71,6 +71,31 @@ clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog
 	echo Done.
 
+must_be_root:
+	[ `whoami` == "root" ]
+
+install: must_be_root
+	cp bash_completion.d/* /etc/bash_completion.d/
+	#cp ${BIN_DIR}/* /bin
+	ln -sf `pwd`/${BIN_DIR}/dem /bin/dem
+	ln -sf `pwd`/${BIN_DIR}/demd /bin/demd
+	ln -sf `pwd`/${BIN_DIR}/demt /bin/demt
+	cp usr/nvmeof.conf /etc/nvme
+	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
+	cp usr/nvmeof /usr/libexec/
+	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
+	echo Done.
+
+uninstall: must_be_root
+	[ `whoami` == "root" ]
+	rm -f /etc/bash_completion.d/dem
+	rm -f /bin/dem /bin/demd /bin/demt
+	rm -f /etc/nvme/nvmeof.conf
+	rm -rf /etc/nvme/nvmeof-dem
+	rm -f /usr/libexec/nvmeof
+	rm -f /usr/lib/systemd/system/nvmeof.service
+	echo Done.
+
 mongoose/:
 	echo cloning github.com/cesanta/mongoose.git
 	git clone https://github.com/cesanta/mongoose.git

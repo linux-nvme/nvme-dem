@@ -1,0 +1,340 @@
+{
+  "$schema": "http://redfish.dmtf.org/schemas/v1/redfish-schema.v1_2_0.json",
+  "title": "#NVMe_of.DEM",
+  "definitions": {
+    "MgmtMode": {
+      "enum": [
+        "localmgmt",
+        "LocalMgmt",
+        "LOCALMGMT",
+        "outofbandmgmt",
+        "OutOfBandMgmt",
+        "OUTOFBANDMGMT",
+        "inbandmgmt",
+        "InBandMgmt",
+        "INBANDMGMT"
+      ]
+    },
+    "TransportType": {
+      "enum": [
+        "rdma",
+        "Rdma",
+        "RDMA",
+        "fc",
+        "FC",
+        "tcp",
+        "TCP"
+      ]
+    },
+    "AddressType": {
+      "enum": [
+        "IPv4",
+        "ipv4",
+        "IPV4",
+        "IPv6",
+        "ipv6",
+        "IPV6",
+        "FC",
+        "fc"
+      ]
+    },
+    "Address": {
+      "type": "string",
+      "pattern": "^(((([0-9]{1,2}|[0-1][0-9]{2}|2[0-4][0-9]|25[0-5])[.]){3}(([0-9]{1,2}|[0-1][0-9]{2}|2[0-4][0-9]|25[0-5])))|(([0-9a-fA-F]{0,4}[:]){5}[0-9a-fA-F]{0,4})|(([0-9a-fA-F]{2}[:]){7}[0-9a-fA-F]{2}))$",
+      "description": "pattern only allows proper IPv4, IPv6, FC addresses"
+    },
+    "PortID": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "PORTID": {
+          "type": "integer"
+        },
+        "TRTYPE": {
+          "$ref": "#/definitions/TransportType"
+        },
+        "ADRFAM": {
+          "$ref": "#/definitions/AddressType"
+        },
+        "TREQ": {
+          "type": "integer"
+        },
+        "TRADDR": {
+          "$ref": "#/definitions/Address"
+        },
+        "TRSVCID": {
+          "type": "integer"
+        }
+      }
+    },
+    "InBandInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "TRTYPE": {
+          "$ref": "#/definitions/TransportType"
+        },
+        "ADRFAM": {
+          "$ref": "#/definitions/AddressType"
+        },
+        "TRADDR": {
+          "$ref": "#/definitions/Address"
+        },
+        "TRSVCID": {
+          "type": "integer"
+        }
+      }
+    },
+    "OutOfBandInterface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "FAMILY": {
+          "$ref": "#/definitions/AddressType"
+        },
+        "ADDRESS": {
+          "$ref": "#/definitions/Address"
+        },
+        "PORT": {
+          "type": "integer"
+        }
+      }
+    },
+    "Interface": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "TRTYPE": {
+          "$ref": "#/definitions/TransportType"
+        },
+        "ADRFAM": {
+          "$ref": "#/definitions/AddressType"
+        },
+        "TRADDR": {
+          "$ref": "#/definitions/Address"
+        }
+      }
+    },
+    "NVMeDrive": {
+      "additionalProperties": false,
+      "properties": {
+        "DeviceID": {
+          "type": "integer"
+        },
+        "NSID": {
+          "type": "integer"
+        },
+        "DeviceNSID": {
+          "type": "integer"
+        }
+      }
+    },
+    "NQN": {
+      "type": "string",
+      "pattern": "^[-.0-9a-zA-Z_:@+]{6,128}$"
+    },
+    "Interfaces": {
+      "type": "array",
+      "additionalItems": {
+        "$ref": "#/definitions/Interface"
+      },
+      "items": [
+        {
+          "$ref": "#/definitions/Interface"
+        }
+      ]
+    },
+    "Host": {
+      "additionalProperties": false,
+      "properties": {
+        "Alias": {
+          "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+        },
+        "HOSTNQN": {
+          "$ref": "#/definitions/NQN"
+        }
+      }
+    },
+    "Subsystem": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "SUBNQN": {
+          "$ref": "#/definitions/NQN"
+        },
+        "AllowAnyHost": {
+          "type": "integer"
+        },
+        "NSIDs": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/NVMeDrive"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/NVMeDrive"
+            }
+          ]
+        },
+        "Interfaces": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/Interface"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/Interface"
+            }
+          ]
+        },
+        "Hosts": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+          },
+          "items": [
+            {
+              "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+            }
+          ]
+        }
+      }
+    },
+    "Target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Alias": {
+          "type": "string"
+        },
+        "Refresh": {
+          "type": "integer"
+        },
+        "PortIDs": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/PortID"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/PortID"
+            }
+          ]
+        },
+        "Subsystems": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/Subsystem"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/Subsystem"
+            }
+          ]
+        },
+        "NSDevices": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/NVMeDrive"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/NVMeDrive"
+            }
+          ]
+        },
+        "Interfaces": {
+          "type": "array",
+          "additionalItems": {
+            "$ref": "#/definitions/Interface"
+          },
+          "items": [
+            {
+              "$ref": "#/definitions/Interface"
+            }
+          ]
+        },
+        "MgmtMode": {
+          "$ref": "#/definitions/MgmtMode"
+        },
+        "Interface": {
+          "oneOf": [
+            {
+              "$ref": "#/definitions/OutOfBandInterface"
+            },
+            {
+              "$ref": "#/definitions/InBandInterface"
+            }
+          ]
+        }
+      }
+    },
+    "Group": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "Name": {
+          "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+        },
+        "Hosts": {
+          "type": "array",
+          "items": {
+            "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+          }
+        },
+        "Targets": {
+          "type": "array",
+          "items": {
+            "$ref": "http://redfish.dmtf.org/schemas/v1/Resource.json#/definitions/Name"
+          }
+        }
+      }
+    },
+    "Hosts": {
+      "type": "array",
+      "additionalItems": {
+        "$ref": "#/definitions/Host"
+      },
+      "items": [
+        {
+          "$ref": "#/definitions/Host"
+        }
+      ]
+    },
+    "Targets": {
+      "type": "array",
+      "additionalItems": {
+        "$ref": "#/definitions/Target"
+      },
+      "items": [
+        {
+          "$ref": "#/definitions/Target"
+        }
+      ]
+    },
+    "Groups": {
+      "type": "array",
+      "additionalItems": {
+        "$ref": "#/definitions/Group"
+      },
+      "items": [
+        {
+          "$ref": "#/definitions/Group"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "Groups": {
+      "$ref": "#/definitions/Groups"
+    },
+    "Hosts": {
+      "$ref": "#/definitions/Hosts"
+    },
+    "Targets": {
+      "$ref": "#/definitions/Targets"
+    }
+  },
+  "copyright": "Copyright 2017-2018 Intel Corporation Dual BSD/GPLv2"
+}
