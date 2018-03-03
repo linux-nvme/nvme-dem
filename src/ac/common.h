@@ -36,21 +36,15 @@
 #include "linux/kernel.h"
 
 #include "ops.h"
-#include "json.h"
-#include "tags.h"
 
 #define NVMF_UUID_FMT   "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
 
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
-#define BODY_SIZE	1024
 #define NVMF_DQ_DEPTH	1
 #define IDLE_TIMEOUT	100
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 #define LOG_PAGE_RETRY	200
-
-#define CONFIG_FILE	".config"
-#define SIGNATURE_FILE	".signature"
 
 #define FI_VER		FI_VERSION(1, 0)
 
@@ -84,13 +78,6 @@
 #define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
-#define JSARRAY		"\"%s\":["
-#define JSEMPTYARRAY	"\"%s\":[]"
-#define JSSTR		"\"%s\":\"%s\""
-#define JSINT		"\"%s\":%lld"
-#define JSINDX		"\"%s\":%d"
-#define JSENTRY		"%s\"%s\""
-
 extern int			 debug;
 extern int			 stopped;
 extern int			 num_interfaces;
@@ -121,20 +108,14 @@ static inline int msec_delta(struct timeval t0)
 }
 
 /*HACK*/
-#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
-#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 #define NUM_CONFIG_ITEMS	3
 #define CONFIG_TYPE_SIZE	8
 #define CONFIG_FAMILY_SIZE	8
 #define CONFIG_ADDRESS_SIZE	40
 #define CONFIG_PORT_SIZE	8
 #define CONFIG_DEVICE_SIZE	256
-#define LARGEST_TAG		8
-#define LARGEST_VAL		40
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
-#define MAX_BODY_SIZE		1024
-#define MAX_URI_SIZE		128
 #define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
 
@@ -150,11 +131,10 @@ static inline int msec_delta(struct timeval t0)
 /* HACK - Figure out which of these we need */
 #define DISC_BUF_SIZE		4096
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
+#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 #define PATH_NVMF_DISC		"/etc/nvme/discovery.conf"
 #define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
 #define SYS_NVME		"/sys/class/nvme"
-
-enum {RESTRICTED = 0, ALLOW_ANY};
 
 struct target;
 
@@ -201,11 +181,6 @@ struct endpoint {
 	int			 csts;
 };
 
-struct oob_iface {
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	int			 port;
-};
-
 struct inb_iface {
 	struct target		*target;
 	struct portid		 portid;
@@ -213,44 +188,14 @@ struct inb_iface {
 	int			 connected;
 };
 
-struct host {
-	struct list_head	 node;
-	struct subsystem	*subsystem;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	char			 nqn[MAX_NQN_SIZE + 1];
+struct oob_iface {
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 port;
 };
 
-struct ns {
-	struct list_head	 node;
-	int			 nsid;
-	int			 devid;
-	int			 devns;
-	// TODO add bits for multipath and partitions
-};
-
-struct logpage {
-	struct list_head	 node;
-	struct portid		*portid;
-	struct nvmf_disc_rsp_page_entry e;
-	int			 valid;
-};
-
-struct subsystem {
-	struct list_head	 node;
-	struct list_head	 host_list;
-	struct list_head	 ns_list;
-	struct list_head	 logpage_list;
-	struct target		*target;
-	char			 nqn[MAX_NQN_SIZE + 1];
-	int			 access;
-};
-
-struct nsdev {
-	struct list_head	 node;
-	int			 nsdev;
-	int			 nsid;
-	int			 valid;
-	// TODO add bits for multipath and partitions
+union sc_iface {
+	struct oob_iface	 oob;
+	struct inb_iface	 inb;
 };
 
 struct fabric_iface {
@@ -270,45 +215,22 @@ struct discovery_queue {
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 };
 
-union sc_iface {
-	struct oob_iface oob;
-	struct inb_iface inb;
-};
-
 struct target {
 	struct list_head	 node;
-	struct list_head	 subsys_list;
-	struct list_head	 portid_list;
-	struct list_head	 device_list;
 	struct list_head	 discovery_queue_list;
 	struct list_head	 fabric_iface_list;
-	struct host_iface	*iface;
-	json_t			*json;
-	union sc_iface		 sc_iface;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 mgmt_mode;
+	union sc_iface		 sc_iface;
 	int			 refresh;
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
-	int			 dirty;
 };
 
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
 
-struct mg_connection;
-struct mg_str;
-
-extern struct mg_str s_signature_user;
-extern struct mg_str *s_signature;
-
 void shutdown_dem(void);
-void handle_http_request(struct mg_connection *c, void *ev_data);
-
-int init_json(char *filename);
-void cleanup_json(void);
-void json_spinlock(void);
-void json_spinunlock(void);
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 
@@ -323,8 +245,6 @@ void build_target_list(void);
 void init_targets(void);
 void cleanup_targets(void);
 void get_host_nqn(void *context, void *haddr, char *nqn);
-int start_pseudo_target(struct host_iface *iface);
-int run_pseudo_target(struct endpoint *ep, void *id);
 int connect_target(struct discovery_queue *dq);
 void disconnect_target(struct endpoint *ep, int shutdown);
 int client_connect(struct endpoint *ep, void *data, int bytes);
@@ -332,37 +252,9 @@ int client_connect(struct endpoint *ep, void *data, int bytes);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
-int send_set_port_config(struct endpoint *ep, int len,
-			 struct nvmf_port_config_page_hdr *hdr);
-int send_set_subsys_config(struct endpoint *ep, int len,
-			   struct nvmf_subsys_config_page_hdr *hdr);
-int send_get_nsdevs(struct endpoint *ep,
-		    struct nvmf_ns_devices_rsp_page_hdr **hdr);
-int send_get_xports(struct endpoint *ep,
-		    struct nvmf_transports_rsp_page_hdr **hdr);
-int send_get_subsys_usage(struct endpoint *ep, int len,
-			  struct nvmf_subsys_usage_rsp_page_hdr *hdr);
-int send_del_target(struct target *target);
 
-struct subsystem *new_subsys(struct target *target, char *nqn);
 void fetch_log_pages(struct discovery_queue *dq);
 
-int target_reconfig(char *alias);
-int target_refresh(char *alias);
-int target_usage(char *alias, char **results);
-int target_logpage(char *alias, char **results);
-int host_logpage(char *alias, char **results);
-
 void dump(u8 *buf, int len);
-
-int set_json_nsdevs(struct target *target, char *data);
-int set_json_fabric_ifaces(struct target *target, char *data);
-
-int get_config(struct target *target);
-int config_target(struct target *target);
-
-struct target *alloc_target(char *alias);
-
-int get_mgmt_mode(char *mode);
 
 #endif

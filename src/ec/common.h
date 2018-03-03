@@ -83,6 +83,7 @@ extern struct list_head		*interfaces;
 #define ADDR_LEN		16 /* IPV6 is current longest address */
 
 #define MAX_ALIAS_SIZE		64
+#define PAGE_SIZE		4096
 
 #ifndef AF_IPV4
 #define AF_IPV4			1
@@ -92,7 +93,6 @@ extern struct list_head		*interfaces;
 #ifndef AF_FC
 #define AF_FC			3
 #endif
-
 
 #define IPV4_LEN		4
 #define IPV4_OFFSET		4
@@ -108,6 +108,8 @@ extern struct list_head		*interfaces;
 
 #define NULLB_DEVID		-1
 
+enum { DISCONNECTED = 0, CONNECTED };
+
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
@@ -120,11 +122,47 @@ struct nsdev {
 	int			 nsid;
 };
 
-struct interface {
-	struct list_head	 node;
+struct qe {
+	struct xp_qe		*qe;
+	u8			*buf;
+};
+
+struct endpoint {
+	struct xp_ep		*ep;
+	struct xp_mr		*mr;
+	struct xp_mr		*data_mr;
+	struct xp_ops		*ops;
+	struct nvme_command	*cmd;
+	struct qe		*qe;
+	void			*data;
+	int			depth;
+	int			state;
+	int			csts;
+};
+
+struct oob_iface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
+};
+
+struct inb_iface {
+	char			type[CONFIG_TYPE_SIZE + 1];
+	char			family[CONFIG_FAMILY_SIZE + 1];
+	char			address[CONFIG_ADDRESS_SIZE + 1];
+	char			port[CONFIG_PORT_SIZE + 1];
+	int			port_num;
+	struct endpoint		ep;
+	int			connected;
+};
+
+struct interface {
+	struct list_head	 node;
+	int			 is_oob;
+	union {
+		struct oob_iface oob;
+		struct inb_iface inb;
+	} u;
 };
 
 struct port_id {

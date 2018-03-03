@@ -28,15 +28,15 @@
 
 #define IPV4_LEN	4
 #define IPV4_WIDTH	3
-#define IPV4_DELIM	'.'
+#define IPV4_CHAR	'.'
 
 #define IPV6_LEN	8
 #define IPV6_WIDTH	4
-#define IPV6_DELIM	':'
+#define IPV6_CHAR	':'
 
 #define FC_LEN		8
 #define FC_WIDTH	2
-#define FC_DELIM	':'
+#define FC_CHAR		':'
 
 static int consume_line(FILE *fd)
 {
@@ -203,15 +203,15 @@ static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 
 int ipv4_to_addr(char *p, int *addr)
 {
-	return string_to_addr(p, addr, IPV4_LEN, IPV4_WIDTH, IPV4_DELIM);
+	return string_to_addr(p, addr, IPV4_LEN, IPV4_WIDTH, IPV4_CHAR);
 }
 
 int ipv6_to_addr(char *p, int *addr)
 {
-	return string_to_addr(p, addr, IPV6_LEN, IPV6_WIDTH, IPV6_DELIM);
+	return string_to_addr(p, addr, IPV6_LEN, IPV6_WIDTH, IPV6_CHAR);
 }
 
 int fc_to_addr(char *p, int *addr)
 {
-	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_DELIM);
+	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_CHAR);
 }

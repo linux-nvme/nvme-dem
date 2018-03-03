@@ -1,0 +1,82 @@
+.\" dem-dc.8 --
+.\" Copyright 2018 Intel Corporation, Inc.
+.\" May be distributed under the GNU General Public License
+.TH DEM-DC 8 "March 2018" "nvmeof-dem" "System Administration"
+.SH NAME
+dem-dc \-
+Distributed Endpoint Management - Discovery Controller
+.SH SYNOPSIS
+.B dem-dc
+is the Discovery controller used to manage and configure NVMe-oF networks
+using Distributed Endpoint Management
+.SH DESCRIPTION
+.B dem-dc
+is a program that can run as a daemon or standalone to interact with NVMe-oF
+Hosts and Endpoints to configure Enpoint Subsystems and Port IDs; collect log
+pages; and diseminate them to Hosts.
+
+This command doesn't manipulate enclosure components or network configurations.
+
+.SH PARAMETERS
+.TP
+.I -d
+enable debug prints in log files
+.TP
+.I -s
+run as a standalone process (default is do run as a daemon)
+.TP
+.I -p <port>
+port from RESTful interface (see help for default)
+.TP
+.I -r <root>
+root for RESTful interface (default is /)
+.TP
+.I -c <cert_file>
+cert file for RESTful interface use with ssl
+
+.SH CONFIGURATION
+Configuration files defining the individual interfaces the Discover controller
+will use are located in
+.B /etc/nvme/nvmeof-dem
+and are similar to the ifcfg files.  Lines may be commented out using bash
+comment syntax of starting the line with a pound sign (#).  The parameters in
+these files are:
+.RS
+.TP
+.I TRTYPE=[rdma|tcp|fc]
+the transport type of the fabric for this interface
+.TP
+.I ADRFAM=[ipv4|ipv6|fc]
+the address family for this interface
+.TP
+.I TRADDR=<address>
+the transport address of this interface
+.TP
+.I TRSVCID=<service id>
+the transport service id of this interface
+.RE
+
+The web interface login is stored in the file
+.B signature
+and is stored encrypted so neither the user id nor password are ever 
+maintained or used in plain text.
+
+The Endpoint configuration is kept in JSON format in the file
+.B config
+and the schema for this file can be found in the gitlab repository.
+.SH LOG FILES
+When running as a daemon, log files are stored in the
+.B /var/log
+directory.  Error messages are logged in 
+.B dem-dc_debug.log
+file and debug messages are logged in
+.B dem-dc.log
+file.
+
+.SH SEE ALSO
+.BR dem (1),
+.BR dem-ac (8),
+.BR dem-ec (8),
+.SH AVAILABILITY
+The dem-dc command is part of the nvmeof-dem package and is available from
+git://gitlab.org/.

@@ -28,10 +28,6 @@
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
 #define KEEP_ALIVE_TIMER	100000 /* ms */
 
-#define NVME_VER		((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
-
-#define DEV_DEBUG
-
 static LIST_HEAD(target_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
@@ -209,7 +205,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 #else
 	const char		*opt_list = "?dsp:r:c:";
 	const char		*arg_list =
-		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
+		"{-d} {-s} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
 		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
@@ -242,10 +238,10 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 			break;
 #else
 		case 'd':
-			debug = 0;
+			debug = 1;
 			break;
 		case 's':
-			run_as_daemon = 1;
+			run_as_daemon = 0;
 			break;
 #endif
 		case 'r':

@@ -1,8 +1,10 @@
 .SILENT:
 
-DEM_DIR=src/dem
-DEMD_DIR=src/demd
-DEMT_DIR=src/demt
+COMMON_DIR=src/common
+CLI_DIR=src/cli
+AC_DIR=src/ac
+DC_DIR=src/dc
+EC_DIR=src/ec
 INCL_DIR=src/incl
 BIN_DIR=.bin
 
@@ -22,50 +24,57 @@ SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
-DEMD_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
-DEMT_LIBS = -lpthread -luuid jansson/libjansson.a
+DC_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
+EC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
+AC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
 
-DEM_LIBS = -lcurl jansson/libjansson.a
+CLI_LIBS = -lcurl jansson/libjansson.a
 
 GDB_OPTS = -g -O0
 
-DEM_SRC = ${DEM_DIR}/cli.c ${DEM_DIR}/curl.c ${DEM_DIR}/show.c
-DEM_INC = ${INCL_DIR}/curl.h ${DEM_DIR}/show.h ${INCL_DIR}/tags.h
-DEMD_SRC = ${DEMD_DIR}/daemon.c ${DEMD_DIR}/json.c ${DEMD_DIR}/restful.c \
-	   ${DEMD_DIR}/parse.c ${DEMD_DIR}/logpages.c \
-	   ${DEMD_DIR}/interfaces.c ${DEMD_DIR}/pseudo_target.c \
-	   ${DEMD_DIR}/config.c ${DEMD_DIR}/nvmeof.c ${DEM_DIR}/curl.c \
-	   ${DEMD_DIR}/rdma.c mongoose/mongoose.c
-DEMD_INC = ${DEMD_DIR}/json.h ${DEMD_DIR}/common.h ${DEMD_DIR}/ops.h \
-	   ${INCL_DIR}/curl.h mongoose/mongoose.h ${INCL_DIR}/tags.h
-DEMT_SRC = ${DEMT_DIR}/daemon.c ${DEMT_DIR}/restful.c ${DEMT_DIR}/configfs.c \
-	   ${DEMD_DIR}/parse.c mongoose/mongoose.c
-DEMT_INC = ${DEMT_DIR}/common.h mongoose/mongoose.h ${INCL_DIR}/tags.h
+CLI_SRC = ${CLI_DIR}/cli.c ${COMMON_DIR}/curl.c ${CLI_DIR}/show.c
+CLI_INC = ${INCL_DIR}/curl.h ${CLI_DIR}/show.h ${INCL_DIR}/tags.h
+AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c
+DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
+	   ${DC_DIR}/logpages.c ${DC_DIR}/interfaces.c \
+	   ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
+	   ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c \
+	   ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+AC_INC = ${AC_DIR}/common.h ${INCL_DIR}/ops.h
+DC_INC = ${DC_DIR}/json.h ${DC_DIR}/common.h ${INCL_DIR}/ops.h \
+	   ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h mongoose/mongoose.h
+EC_SRC = ${EC_DIR}/daemon.c ${EC_DIR}/restful.c ${EC_DIR}/configfs.c \
+	   ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+EC_INC = ${EC_DIR}/common.h ${INCL_DIR}/tags.h ${INCL_DIR}/ops.h \
+	   mongoose/mongoose.h
 
 all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
-     ${BIN_DIR}/demd ${BIN_DIR}/dem ${BIN_DIR}/demt
+     ${BIN_DIR}/dem ${BIN_DIR}/dem-ac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-ec
 	echo Done.
 
 ${BIN_DIR}:
 	mkdir ${BIN_DIR}
 
 dem: ${BIN_DIR}/dem
-demd: ${BIN_DIR}/demd
-demt: ${BIN_DIR}/demt
+dem-ac: ${BIN_DIR}/dem-ac
+dem-dc: ${BIN_DIR}/dem-dc
+dem-ec: ${BIN_DIR}/dem-ec
 
-${BIN_DIR}/dem: ${DEM_SRC} ${DEM_INC} Makefile jansson/libjansson.a
+${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC dem
-	gcc ${DEM_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${DEM_LIBS} -Isrc/dem
+	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR}
 
-${BIN_DIR}/demd: ${DEMD_SRC} ${DEMD_INC} Makefile jansson/libjansson.a
-	echo CC demd
-	gcc ${DEMD_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
-		${DEMD_LIBS} -Isrc/demd
+${BIN_DIR}/dem-ac: ${AC_SRC} ${AC_INC} Makefile
+	echo CC dem-ac
+	gcc ${AC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${AC_LIBS} -I${AC_DIR}
 
-${BIN_DIR}/demt: ${DEMT_SRC} ${DEMT_INC} Makefile jansson/libjansson.a
-	echo CC demt
-	gcc ${DEMT_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
-		${DEMT_LIBS} -Isrc/demt
+${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
+	echo CC dem-dc
+	gcc ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DC_LIBS} -I${DC_DIR}
+
+${BIN_DIR}/dem-ec: ${EC_SRC} ${EC_INC} Makefile jansson/libjansson.a
+	echo CC dem-ec
+	gcc ${EC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${EC_LIBS} -I${EC_DIR}
 
 clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog
@@ -75,25 +84,29 @@ must_be_root:
 	[ `whoami` == "root" ]
 
 install: must_be_root
-	cp bash_completion.d/* /etc/bash_completion.d/
 	#cp ${BIN_DIR}/* /bin
 	ln -sf `pwd`/${BIN_DIR}/dem /bin/dem
-	ln -sf `pwd`/${BIN_DIR}/demd /bin/demd
-	ln -sf `pwd`/${BIN_DIR}/demt /bin/demt
+	ln -sf `pwd`/${BIN_DIR}/dem-ac /bin/dem-ac
+	ln -sf `pwd`/${BIN_DIR}/dem-dc /bin/dem-dc
+	ln -sf `pwd`/${BIN_DIR}/dem-ec /bin/dem-ec
 	cp usr/nvmeof.conf /etc/nvme
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
 	cp usr/nvmeof /usr/libexec/
 	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
+	cp usr/bash_completion.d/* /etc/bash_completion.d/
+	cp usr/man/*.1 /usr/share/man/man1/
+	cp usr/man/*.8 /usr/share/man/man8/
 	echo Done.
 
 uninstall: must_be_root
 	[ `whoami` == "root" ]
 	rm -f /etc/bash_completion.d/dem
-	rm -f /bin/dem /bin/demd /bin/demt
+	rm -f /bin/dem /bin/dem-dc /bin/dem-ec
 	rm -f /etc/nvme/nvmeof.conf
 	rm -rf /etc/nvme/nvmeof-dem
 	rm -f /usr/libexec/nvmeof
 	rm -f /usr/lib/systemd/system/nvmeof.service
+	mr -f /usr/share/man/man1/dem.1 /usr/share/man/man8/dem-[ade]c.8
 	echo Done.
 
 mongoose/:
@@ -166,7 +179,7 @@ run_test: archive/run_test.sh
 archive: clean
 	[ -d archive ] || mkdir archive
 	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz .gitignore .git/config \
-		bash_completion.d/  files/  html/  Makefile  src/  usr/
+		files/ html/ Makefile src/ usr/ 
 
 test_cli: dem
 	./dem config
@@ -257,10 +270,10 @@ get16:
 
 test: put get16 post get del
 
-memcheck: demd
+memcheck: dem-dc
 	reset
-	valgrind ${VALGRIND_OPTS} --log-file=demd.vglog demd
-	echo "valgrind output in 'demd.vglog'"
+	valgrind ${VALGRIND_OPTS} --log-file=dem-dc.vglog dem-dc
+	echo "valgrind output in 'dem-dc.vglog'"
 
 sparse:
 	echo running sparse of each .c file with options

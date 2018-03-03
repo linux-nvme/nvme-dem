@@ -767,11 +767,11 @@ static void read_dem_config(FILE *fd, struct interface *iface)
 		return;
 
 	if (strcasecmp(tag, TAG_TYPE) == 0)
-		strncpy(iface->type, val, CONFIG_TYPE_SIZE);
+		strncpy(iface->u.oob.type, val, CONFIG_TYPE_SIZE);
 	else if (strcasecmp(tag, TAG_FAMILY) == 0)
-		strncpy(iface->family, val, CONFIG_FAMILY_SIZE);
+		strncpy(iface->u.oob.family, val, CONFIG_FAMILY_SIZE);
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
-		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
+		strncpy(iface->u.oob.address, val, CONFIG_ADDRESS_SIZE);
 }
 
 int enumerate_interfaces(void)
@@ -806,7 +806,8 @@ int enumerate_interfaces(void)
 		fclose(fd);
 
 		print_debug("adding interface for %s %s %s",
-			    iface->type, iface->family, iface->address);
+			    iface->u.oob.type, iface->u.oob.family,
+			    iface->u.oob.address);
 
 		list_add_tail(&iface->node, interfaces);
 		cnt++;

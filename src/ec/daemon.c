@@ -32,9 +32,10 @@
 #define DEFAULT_ROOT	"/"
 #define DEMT_PORT	"22334"
 
+// TODO disable DEV_DEBUG before pushing to gitlab
+#if 1
 #define DEV_DEBUG
-
-#define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
+#endif
 
 static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
@@ -135,7 +136,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 #else
 	const char		*opt_list = "?dsp:r:c:";
 	const char		*arg_list =
-		"{-d} {-s} {-r <root>} {-r <root>} {-c <cert_file>}\n"
+		"{-d} {-s} {-p <port>} {-r <root>} {-c <cert_file>}\n"
 		"-d - enable debug prints in log files\n"
 		"-s - run as a standalone process (default is daemon)\n"
 		"-p - port from RESTful interface (default " DEMT_PORT ")\n"
@@ -168,10 +169,10 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 			break;
 #else
 		case 'd':
-			debug = 0;
+			debug = 1;
 			break;
 		case 's':
-			run_as_daemon = 1;
+			run_as_daemon = 0;
 			break;
 #endif
 		case 'r':
