@@ -1371,7 +1371,7 @@ int main(int argc, char *argv[])
 		else {
 			n = 3;
 			if ((strcmp(p->verb, _RENA) == 0 && ret == -EEXIST))
-				n++; 
+				n++;
 			printf("Error: %s: %s '%s' %s\n",
 			       argv[0], args[1], args[n], error_str(ret));
 		}

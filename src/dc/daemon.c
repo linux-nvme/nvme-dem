@@ -226,7 +226,6 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	run_as_daemon = 1;
 #endif
 
-	/* Process CLI options for HTTP server */
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
 #ifdef DEV_DEBUG
@@ -461,14 +460,11 @@ void init_targets(void)
 
 void cleanup_targets(void)
 {
-	struct target		*target;
-	struct target		*next_target;
-	struct subsystem	*subsys;
-	struct subsystem	*next_subsys;
-	struct host		*host;
-	struct host		*next_host;
-	struct discovery_queue	*dq;
-	struct discovery_queue	*next_dq;
+	struct target		*target, *next_target;
+	struct subsystem	*subsys, *next_subsys;
+	struct host		*host, *next_host;
+	struct logpage		*logpage, *next_logpage;
+	struct discovery_queue	*dq, *next_dq;
 
 	list_for_each_entry_safe(target, next_target, target_list, node) {
 		list_for_each_entry_safe(subsys, next_subsys,
@@ -476,6 +472,9 @@ void cleanup_targets(void)
 			list_for_each_entry_safe(host, next_host,
 						 &subsys->host_list, node)
 				free(host);
+			list_for_each_entry_safe(logpage, next_logpage,
+						 &subsys->logpage_list, node)
+				free(logpage);
 
 			free(subsys);
 		}

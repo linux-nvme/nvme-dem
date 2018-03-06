@@ -34,19 +34,19 @@ GDB_OPTS = -g -O0
 
 CLI_SRC = ${CLI_DIR}/cli.c ${COMMON_DIR}/curl.c ${CLI_DIR}/show.c
 CLI_INC = ${INCL_DIR}/curl.h ${CLI_DIR}/show.h ${INCL_DIR}/tags.h
-AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c
+AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
+	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
 DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
-	   ${DC_DIR}/logpages.c ${DC_DIR}/interfaces.c \
-	   ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
-	   ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c \
-	   ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+	 ${DC_DIR}/interfaces.c ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
+	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
+	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
 AC_INC = ${AC_DIR}/common.h ${INCL_DIR}/ops.h
 DC_INC = ${DC_DIR}/json.h ${DC_DIR}/common.h ${INCL_DIR}/ops.h \
-	   ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h mongoose/mongoose.h
+	 ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h mongoose/mongoose.h
 EC_SRC = ${EC_DIR}/daemon.c ${EC_DIR}/restful.c ${EC_DIR}/configfs.c \
-	   ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+	 ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
 EC_INC = ${EC_DIR}/common.h ${INCL_DIR}/tags.h ${INCL_DIR}/ops.h \
-	   mongoose/mongoose.h
+	 mongoose/mongoose.h
 
 all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
      ${BIN_DIR}/dem ${BIN_DIR}/dem-ac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-ec

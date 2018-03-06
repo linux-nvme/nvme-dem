@@ -40,6 +40,100 @@ found:
 	return config_target(target);
 }
 
+static inline void invalidate_log_pages(struct target *target)
+{
+	struct subsystem		*subsys;
+	struct logpage			*logpage;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry(logpage, &subsys->logpage_list, node)
+			logpage->valid = 0;
+}
+
+static inline int match_logpage(struct logpage *logpage,
+				struct nvmf_disc_rsp_page_entry *e)
+{
+	if (strcmp(e->traddr, logpage->e.traddr) ||
+	    strcmp(e->trsvcid, logpage->e.trsvcid) ||
+	    e->trtype != logpage->e.trtype ||
+	    e->adrfam != logpage->e.adrfam)
+		return 0;
+	return 1;
+}
+
+static inline void store_logpage(struct logpage *logpage,
+				 struct nvmf_disc_rsp_page_entry *e,
+				 struct discovery_queue *dq)
+{
+	logpage->e = *e;
+	logpage->valid = 1;
+	logpage->portid = dq->portid;
+}
+
+static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
+			   struct target *target, struct discovery_queue *dq)
+{
+	int				 i;
+	int				 found;
+	struct subsystem		*subsys;
+	struct logpage			*logpage;
+	struct nvmf_disc_rsp_page_entry *e;
+
+	for (i = 0; i < numrec; i++) {
+		e = &log->entries[i];
+		found = 0;
+		list_for_each_entry(subsys, &target->subsys_list, node)
+			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
+				found = 1;
+				list_for_each_entry(logpage,
+						    &subsys->logpage_list,
+						    node) {
+					if (match_logpage(logpage, e)) {
+						store_logpage(logpage, e, dq);
+						goto next;
+					}
+				}
+
+				logpage = malloc(sizeof(*logpage));
+				if (!logpage) {
+					print_err("alloc new logpage failed");
+					return;
+				}
+
+				store_logpage(logpage, e, dq);
+
+				list_add_tail(&logpage->node,
+					      &subsys->logpage_list);
+next:
+				break;
+			}
+
+			if (!found)
+				print_err("unknown subsystem %s on target %s",
+					  e->subnqn, target->alias);
+	}
+}
+
+void fetch_log_pages(struct discovery_queue *dq)
+{
+	struct nvmf_disc_rsp_page_hdr	*log = NULL;
+	struct target			*target = dq->target;
+	u32				 num_records = 0;
+
+	if (get_logpages(dq, &log, &num_records)) {
+		print_err("get logpages for target %s failed", target->alias);
+		return;
+	}
+
+	invalidate_log_pages(target);
+
+	save_log_pages(log, num_records, target, dq);
+
+	print_discovery_log(log, num_records);
+
+	free(log);
+}
+
 int target_refresh(char *alias)
 {
 	struct target		*target;

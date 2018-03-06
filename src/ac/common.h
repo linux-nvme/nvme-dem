@@ -80,9 +80,7 @@
 
 extern int			 debug;
 extern int			 stopped;
-extern int			 num_interfaces;
-extern struct host_iface	*interfaces;
-extern struct list_head		*target_list;
+extern struct discovery_queue	*dq;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -215,17 +213,26 @@ struct discovery_queue {
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 };
 
+struct logpage {
+	struct list_head	 node;
+	struct portid		*portid;
+	struct nvmf_disc_rsp_page_entry e;
+	int			 valid;
+};
+
+struct subsystem {
+	struct list_head	 node;
+	struct list_head	 logpage_list;
+	struct target		*target;
+	char			 nqn[MAX_NQN_SIZE + 1];
+};
+
 struct target {
 	struct list_head	 node;
-	struct list_head	 discovery_queue_list;
-	struct list_head	 fabric_iface_list;
+	struct list_head	 subsys_list;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 mgmt_mode;
 	union sc_iface		 sc_iface;
-	int			 refresh;
-	int			 log_page_retry_count;
-	int			 refresh_countdown;
-	int			 kato_countdown;
 };
 
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
@@ -253,7 +260,9 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
 
-void fetch_log_pages(struct discovery_queue *dq);
+void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec);
+int get_logpages(struct discovery_queue *dq,
+		 struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec);
 
 void dump(u8 *buf, int len);
 

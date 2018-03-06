@@ -19,9 +19,11 @@
 #include <sys/stat.h>
 
 #include "common.h"
+#include "tags.h"
 
+#define DELAY			480 /* ms */
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
-#define KEEP_ALIVE_TIMER	100000 /* ms */
+#define KEEP_ALIVE_COUNTER	4 /* x DELAY */
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -31,6 +33,8 @@
 int				 stopped;
 int				 signalled;
 int				 debug;
+struct discovery_queue		 discovery_queue;
+struct discovery_queue		*dq = &discovery_queue;
 
 void shutdown_dem(void)
 {
@@ -83,18 +87,35 @@ static int daemonize(void)
 
 static int init_dem(int argc, char *argv[])
 {
+	struct portid		*portid;
+	struct target		*target;
 	int			 opt;
+	int			 ret;
 	int			 run_as_daemon;
 #ifdef DEV_DEBUG
-	const char		*opt_list = "?qd";
-	const char		*arg_list = "{-q} {-d}\n"
+	const char		*opt_list = "?qdt:f:a:p:h:";
+	const char		*arg_list =
+		"{-q} {-d} {-t <trtype>} {-f <adrfam>} {-a <traddr>}\n"
+		"{-p <trsvcid>} {-h <hostnqn>}\n"
 		"-q - quite mode, no debug prints\n"
-		"-d - run as a daemon process (default is standalone)\n";
+		"-d - run as a daemon process (default is standalone)\n"
+		"-t - trtype of interface to Discovery controller\n"
+		"-f - family of the address to Discovery controller\n"
+		"-a - address of Discovery controller\n"
+		"-p - service id (i.e. port) of Discovery controller\n"
+		"-h - HostNQN to use to connect to the Discovery controller\n";
 #else
-	const char		*opt_list = "?ds";
-	const char		*arg_list = "{-d} {-s}\n"
+	const char		*opt_list = "?dst:f:a:p:h:";
+	const char		*arg_list =
+		"{-d} {-s} {-t <trtype>} {-f <adrfam>} {-a <traddr>}\n"
+		"{-p <trsvcid>} {-h <hostnqn>}\n"
 		"-d - enable debug prints in log files\n"
-		"-s - run as a standalone process (default is daemon)\n";
+		"-s - run as a standalone process (default is daemon)\n"
+		"-t - transport type of interface to Discovery controller\n"
+		"-f - family of the address to Discovery controller\n"
+		"-a - address of Discovery controller\n"
+		"-p - service id (i.e. port) of Discovery controller\n"
+		"-h - HostNQN to use to connect to the Discovery controller\n";
 #endif
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
@@ -108,7 +129,26 @@ static int init_dem(int argc, char *argv[])
 	run_as_daemon = 1;
 #endif
 
-	/* Process CLI options for HTTP server */
+	memset(dq, 0, sizeof(*dq));
+
+	portid = malloc(sizeof(struct portid));
+	if (!portid) {
+		print_info("No memory to init");
+		return 1;
+	}
+
+	target = malloc(sizeof(*target));
+	if (!target) {
+		print_info("No memory to init");
+		return 1;
+	}
+
+	target->mgmt_mode = IN_BAND_MGMT;
+	INIT_LIST_HEAD(&target->subsys_list);
+
+	dq->portid = portid;
+	dq->target = target;
+
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
 #ifdef DEV_DEBUG
@@ -126,6 +166,46 @@ static int init_dem(int argc, char *argv[])
 			run_as_daemon = 1;
 			break;
 #endif
+		case 't':
+			if (!optarg) {
+				print_info("Invalid trtype");
+				goto help;
+			}
+
+			strncpy(portid->type, optarg, CONFIG_TYPE_SIZE);
+			break;
+		case 'f':
+			if (!optarg) {
+				print_info("Invalid adrfam");
+				goto help;
+			}
+
+			strncpy(portid->family, optarg, CONFIG_FAMILY_SIZE);
+			break;
+		case 'a':
+			if (!optarg) {
+				print_info("Invalid traddr");
+				goto help;
+			}
+
+			strncpy(portid->address, optarg, CONFIG_ADDRESS_SIZE);
+			break;
+		case 'p':
+			if (!optarg) {
+				print_info("Invalid trsvcid");
+				goto help;
+			}
+
+			strncpy(portid->port, optarg, CONFIG_PORT_SIZE);
+			break;
+		case 'h':
+			if (!optarg) {
+				print_info("Invalid hostnqn");
+				goto help;
+			}
+
+			strncpy(dq->hostnqn, optarg, MAX_NQN_SIZE);
+			break;
 		case '?':
 		default:
 help:
@@ -134,30 +214,244 @@ help:
 		}
 	}
 
-	if (run_as_daemon) {
-		if (daemonize())
-			return 1;
+	if (portid->type) {
+		if (strcmp(portid->type, TRTYPE_STR_RDMA) == 0)
+			dq->ep.ops = rdma_register_ops();
 	}
 
+	if (!dq->ep.ops) {
+		print_info("Invalid trtype: valid options %s",
+			   TRTYPE_STR_RDMA);
+		goto help;
+	}
+
+	if (!portid->family) {
+		print_info("Missing adrfam");
+		goto help;
+	}
+
+	if (strcmp(portid->family, ADRFAM_STR_IPV4) == 0)
+		portid->adrfam = NVMF_ADDR_FAMILY_IP4;
+	else if (strcmp(portid->family, ADRFAM_STR_IPV6) == 0)
+		portid->adrfam = NVMF_ADDR_FAMILY_IP6;
+	else if (strcmp(portid->family, ADRFAM_STR_FC) == 0)
+		portid->adrfam = NVMF_ADDR_FAMILY_FC;
+
+	if (!portid->adrfam) {
+		print_info("Invalid adrfam: valid options %s, %s, %s",
+			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+		goto help;
+	}
+
+	if (!portid->address) {
+		print_info("Missing traddr");
+		goto help;
+	}
+
+	switch (portid->adrfam) {
+	case NVMF_ADDR_FAMILY_IP4:
+		ret = ipv4_to_addr(portid->address, portid->addr);
+		break;
+	case NVMF_ADDR_FAMILY_IP6:
+		ret = ipv6_to_addr(portid->address, portid->addr);
+		break;
+	case NVMF_ADDR_FAMILY_FC:
+		ret = fc_to_addr(portid->address, portid->addr);
+		break;
+	}
+
+	if (ret) {
+		print_info("Invalid traddr");
+		goto help;
+	}
+
+	if (portid->port)
+		portid->port_num = atoi(portid->port);
+
+	if (!portid->port_num) {
+		print_info("Invalid trsvcid");
+		goto help;
+	}
+
+	if (strlen(dq->hostnqn) == 0) {
+		uuid_t		id;
+		char		uuid[40];
+
+		uuid_generate(id);
+		uuid_unparse_lower(id, uuid);
+		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
+	}
+
+	if (run_as_daemon)
+		if (daemonize())
+			return 1;
+
 	return 0;
+}
+
+static inline void invalidate_log_pages(struct target *target)
+{
+	struct subsystem		*subsys;
+	struct logpage			*logpage;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry(logpage, &subsys->logpage_list, node)
+			logpage->valid = 0;
+}
+
+static inline int match_logpage(struct logpage *logpage,
+				struct nvmf_disc_rsp_page_entry *e)
+{
+	if (strcmp(e->traddr, logpage->e.traddr) ||
+	    strcmp(e->trsvcid, logpage->e.trsvcid) ||
+	    e->trtype != logpage->e.trtype ||
+	    e->adrfam != logpage->e.adrfam)
+		return 0;
+	return 1;
+}
+
+static inline void store_logpage(struct logpage *logpage,
+				 struct nvmf_disc_rsp_page_entry *e,
+				 struct discovery_queue *dq)
+{
+	logpage->e = *e;
+	logpage->valid = 1;
+	logpage->portid = dq->portid;
+}
+
+static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
+			   struct target *target, struct discovery_queue *dq)
+{
+	int				 i;
+	int				 found;
+	struct subsystem		*subsys;
+	struct logpage			*logpage;
+	struct nvmf_disc_rsp_page_entry *e;
+
+	for (i = 0; i < numrec; i++) {
+		e = &log->entries[i];
+		found = 0;
+		list_for_each_entry(subsys, &target->subsys_list, node)
+			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
+				found = 1;
+				list_for_each_entry(logpage,
+						    &subsys->logpage_list,
+						    node) {
+					if (match_logpage(logpage, e)) {
+						store_logpage(logpage, e, dq);
+						goto next;
+					}
+				}
+
+next:
+				break;
+			}
+
+		if (!found) {
+			subsys = malloc(sizeof(*subsys));
+			if (!subsys) {
+				print_err("alloc new subsys failed");
+				return;
+			}
+
+			INIT_LIST_HEAD(&subsys->logpage_list);
+
+			strcpy(subsys->nqn, e->subnqn);
+
+			print_debug("added subsystem %s to target %s",
+				    e->subnqn, target->alias);
+		}
+
+		logpage = malloc(sizeof(*logpage));
+		if (!logpage) {
+			print_err("alloc new logpage failed");
+			return;
+		}
+
+		store_logpage(logpage, e, dq);
+
+		list_add_tail(&logpage->node, &subsys->logpage_list);
+	}
+}
+
+void fetch_log_pages(struct discovery_queue *dq)
+{
+	struct nvmf_disc_rsp_page_hdr	*log = NULL;
+	struct target			*target = dq->target;
+	u32				 num_records = 0;
+
+	if (get_logpages(dq, &log, &num_records)) {
+		print_err("get logpages for target %s failed", target->alias);
+		return;
+	}
+
+	invalidate_log_pages(target);
+
+	save_log_pages(log, num_records, target, dq);
+
+	print_discovery_log(log, num_records);
+
+	free(log);
+}
+
+static void cleanup_dq(void)
+{
+	struct subsystem	*subsys, *next_subsys;
+	struct logpage		*logpage, *next_logpage;
+
+	if (dq->connected)
+		disconnect_target(&dq->ep, 0);
+
+	free(dq->portid);
+
+	list_for_each_entry_safe(subsys, next_subsys,
+				 &dq->target->subsys_list, node) {
+		list_for_each_entry_safe(logpage, next_logpage,
+					 &subsys->logpage_list, node)
+			free(logpage);
+
+		free(subsys);
+	}
 }
 
 int main(int argc, char *argv[])
 {
 	int			 ret = 1;
+	int			 cnt = 0;
 
 	if (init_dem(argc, argv))
 		goto out;
+
+	if (connect_target(dq))
+		print_info("Unable to connect to Discovery controller");
+	else {
+		fetch_log_pages(dq);
+		dq->connected = CONNECTED;
+	}
 
 	signalled = stopped = 0;
 
 	print_info("Starting server");
 
-	while (!stopped)
-		usleep(500);
+	while (!stopped) {
+		usleep(DELAY);
+		if (!dq->connected) {
+			if (!connect_target(dq)) {
+				fetch_log_pages(dq);
+				dq->connected = CONNECTED;
+				cnt = 0;
+			}
+		}
+		if (dq->connected && (++cnt > KEEP_ALIVE_COUNTER)) {
+			send_keep_alive(&dq->ep);
+			cnt = 0;
+		}
+	}
 
 	if (signalled)
 		printf("\n");
+
+	cleanup_dq();
 
 	ret = 0;
 out:

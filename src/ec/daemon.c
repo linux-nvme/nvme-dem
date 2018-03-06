@@ -157,7 +157,6 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	run_as_daemon = 1;
 #endif
 
-	/* Process CLI options for HTTP server */
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
 #ifdef DEV_DEBUG
