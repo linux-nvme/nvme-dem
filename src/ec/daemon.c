@@ -29,8 +29,9 @@
 #include "tags.h"
 
 #define RETRY_COUNT	200
-#define DEFAULT_ROOT	"/"
-#define DEMT_PORT	"22334"
+#define DEFAULT_HTTP_ROOT	"/"
+#define DEFAULT_OOB_PORT	"22334"
+#define DEFAULT_INB_PORT	"4422"
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -41,7 +42,7 @@ static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
-static char				*s_http_port = DEMT_PORT;
+static char				*s_http_port = DEFAULT_OOB_PORT;
 int					 stopped;
 int					 debug;
 static int				 signalled;
@@ -120,28 +121,37 @@ static int daemonize(void)
 	return 0;
 }
 
+static void show_help(char *app)
+{
+#ifdef DEV_DEBUG
+	const char		*arg_list = "{-q} {-d}";
+#else
+	const char		*arg_list = "{-d} {-s}";
+#endif
+	const char		*oob = "Out-of-Band interface";
+
+	print_info("Usage: %s %s {-p <port>} {-r <root>} {-c <cert_file>}",
+		   app, arg_list);
+#ifdef DEV_DEBUG
+	print_info("  -q - quite mode, no debug prints");
+	print_info("  -d - run as a daemon process (default is standalone)");
+#else
+	print_info("  -d - enable debug prints in log files");
+	print_info("  -s - run as a standalone process (default is daemon)");
+#endif
+	print_info("  -p - %s: port (default %s)", oob, DEFAULT_OOB_PORT);
+	print_info("  -r - %s: http root (default %s)", oob, DEFAULT_HTTP_ROOT);
+	print_info("  -c - %s: SSL cert file (default no SSL)", oob);
+}
+
 static int init_dem(int argc, char *argv[], char **ssl_cert)
 {
 	int			 opt;
 	int			 run_as_daemon;
 #ifdef DEV_DEBUG
 	const char		*opt_list = "?qdp:r:c:";
-	const char		*arg_list =
-		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
-		"-q - quite mode, no debug prints\n"
-		"-d - run as a daemon process (default is standalone)\n"
-		"-p - port from RESTful interface (default " DEMT_PORT ")\n"
-		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
-		"-c - cert file for RESTful interface use with ssl";
 #else
 	const char		*opt_list = "?dsp:r:c:";
-	const char		*arg_list =
-		"{-d} {-s} {-p <port>} {-r <root>} {-c <cert_file>}\n"
-		"-d - enable debug prints in log files\n"
-		"-s - run as a standalone process (default is daemon)\n"
-		"-p - port from RESTful interface (default " DEMT_PORT ")\n"
-		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
-		"-c - cert file for RESTful interface use with ssl";
 #endif
 
 	*ssl_cert = NULL;
@@ -187,7 +197,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		case '?':
 		default:
 help:
-			print_info("Usage: %s %s", argv[0], arg_list);
+			show_help(argv[0]);
 			return 1;
 		}
 	}
@@ -245,13 +255,8 @@ int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
-	char			 default_root[] = DEFAULT_ROOT;
+	char			 default_root[] = DEFAULT_HTTP_ROOT;
 	int			 ret = 1;
-
-	if (getuid() != 0) {
-		print_info("must be root to allow access to configfs");
-		return -1;
-	}
 
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
@@ -260,6 +265,11 @@ int main(int argc, char *argv[])
 
 	if (init_dem(argc, argv, &ssl_cert))
 		goto out1;
+
+	if (getuid() != 0) {
+		print_info("must be root to allow access to configfs");
+		goto out1;
+	}
 
 	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
 		goto out1;

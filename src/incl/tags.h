@@ -91,9 +91,8 @@
 #define METHOD_REFRESH		"refresh"
 #define METHOD_RECONFIG		"reconfig"
 
-#define DEFAULT_ADDR		"127.0.0.1"
-#define DEFAULT_PORT		"22345"
-#define DEFAULT_GROUP		"local"
+#define DEFAULT_HTTP_ADDR	"127.0.0.1"
+#define DEFAULT_HTTP_PORT	"22345"
 
 #define TRTYPE_STR_RDMA		"rdma"
 #define TRTYPE_STR_FC		"fc"

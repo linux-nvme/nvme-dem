@@ -21,9 +21,15 @@
 #include "common.h"
 #include "tags.h"
 
-#define DELAY			480 /* ms */
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
+#define DELAY			480 /* ms */
 #define KEEP_ALIVE_COUNTER	4 /* x DELAY */
+
+// TODO customize discovery controller info
+#define DEFAULT_TYPE		"rdma"
+#define DEFAULT_FAMILY		"ipv4"
+#define DEFAULT_ADDR		"192.168.22.2"
+#define DEFAULT_PORT		"4422"
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -85,6 +91,34 @@ static int daemonize(void)
 	return 0;
 }
 
+static void show_help(char *app)
+{
+#ifdef DEV_DEBUG
+	const char		*app_args = "{-q} {-d}";
+#else
+	const char		*app_args = "{-d} {-s}";
+#endif
+	const char		*dc_args =
+		"{-t <typ>} {-f <fam>} {-a <adr>} {-p <port>} {-h <nqn>}";
+	const char		*dc_str = "Discovery controller";
+
+	print_info("Usage: %s %s %s", app, app_args, dc_args);
+#ifdef DEV_DEBUG
+	print_info("  -q - quite mode, no debug prints");
+	print_info("  -d - run as a daemon process (default is standalone)");
+#else
+	print_info("  -d - enable debug prints in log files");
+	print_info("  -s - run as a standalone process (default is daemon)");
+#endif
+	print_info("  -t - %s: interface type (default %s)",
+		   dc_str, DEFAULT_TYPE);
+	print_info("  -f - %s: address family (default %s)",
+		   dc_str, DEFAULT_FAMILY);
+	print_info("  -a - %s: address (default %s)", dc_str, DEFAULT_ADDR);
+	print_info("  -p - %s: port/svcid (default %s)", dc_str, DEFAULT_PORT);
+	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
+}
+
 static int init_dem(int argc, char *argv[])
 {
 	struct portid		*portid;
@@ -94,28 +128,8 @@ static int init_dem(int argc, char *argv[])
 	int			 run_as_daemon;
 #ifdef DEV_DEBUG
 	const char		*opt_list = "?qdt:f:a:p:h:";
-	const char		*arg_list =
-		"{-q} {-d} {-t <trtype>} {-f <adrfam>} {-a <traddr>}\n"
-		"{-p <trsvcid>} {-h <hostnqn>}\n"
-		"-q - quite mode, no debug prints\n"
-		"-d - run as a daemon process (default is standalone)\n"
-		"-t - trtype of interface to Discovery controller\n"
-		"-f - family of the address to Discovery controller\n"
-		"-a - address of Discovery controller\n"
-		"-p - service id (i.e. port) of Discovery controller\n"
-		"-h - HostNQN to use to connect to the Discovery controller\n";
 #else
 	const char		*opt_list = "?dst:f:a:p:h:";
-	const char		*arg_list =
-		"{-d} {-s} {-t <trtype>} {-f <adrfam>} {-a <traddr>}\n"
-		"{-p <trsvcid>} {-h <hostnqn>}\n"
-		"-d - enable debug prints in log files\n"
-		"-s - run as a standalone process (default is daemon)\n"
-		"-t - transport type of interface to Discovery controller\n"
-		"-f - family of the address to Discovery controller\n"
-		"-a - address of Discovery controller\n"
-		"-p - service id (i.e. port) of Discovery controller\n"
-		"-h - HostNQN to use to connect to the Discovery controller\n";
 #endif
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
@@ -148,6 +162,11 @@ static int init_dem(int argc, char *argv[])
 
 	dq->portid = portid;
 	dq->target = target;
+
+	strcpy(portid->type, DEFAULT_TYPE);
+	strcpy(portid->family, DEFAULT_FAMILY);
+	strcpy(portid->address, DEFAULT_ADDR);
+	strcpy(portid->port, DEFAULT_PORT);
 
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
@@ -209,7 +228,7 @@ static int init_dem(int argc, char *argv[])
 		case '?':
 		default:
 help:
-			print_info("Usage: %s %s", argv[0], arg_list);
+			show_help(argv[0]);
 			return 1;
 		}
 	}

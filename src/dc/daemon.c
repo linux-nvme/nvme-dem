@@ -22,7 +22,8 @@
 #include "common.h"
 #include "curl.h"
 
-#define DEFAULT_ROOT		"/"
+#define DEFAULT_HTTP_ROOT	"/"
+
 #define CURL_DEBUG		0
 
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
@@ -31,7 +32,7 @@
 static LIST_HEAD(target_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
-static char				*s_http_port = DEFAULT_PORT;
+static char				*s_http_port = DEFAULT_HTTP_PORT;
 int					 stopped;
 int					 debug;
 struct host_iface			*interfaces;
@@ -189,28 +190,38 @@ static int daemonize(void)
 	return 0;
 }
 
+static void show_help(char *app)
+{
+#ifdef DEV_DEBUG
+	const char		*arg_list = "{-q} {-d}";
+#else
+	const char              *arg_list = "{-d} {-s}";
+#endif
+
+	print_info("Usage: %s %s {-p <port>} {-r <root>} {-c <cert_file>}",
+		   app, arg_list);
+#ifdef DEV_DEBUG
+	print_info("  -q - quite mode, no debug prints");
+	print_info("  -d - run as a daemon process (default is standalone)");
+#else
+	print_info("  -d - enable debug prints in log files");
+	print_info("  -s - run as a standalone process (default is daemon)");
+#endif
+	print_info("  -p - HTTP interface: port (default %s)",
+		   DEFAULT_HTTP_PORT);
+	print_info("  -r - HTTP interface: root (default %s)",
+		   DEFAULT_HTTP_ROOT);
+	print_info("  -c - HTTP interface: SSL cert file (defaut no SSL)");
+}
+
 static int init_dem(int argc, char *argv[], char **ssl_cert)
 {
 	int			 opt;
 	int			 run_as_daemon;
 #ifdef DEV_DEBUG
 	const char		*opt_list = "?qdp:r:c:";
-	const char		*arg_list =
-		"{-q} {-d} {-p <port>} {-r <root>} {-c <cert_file>}\n"
-		"-q - quite mode, no debug prints\n"
-		"-d - run as a daemon process (default is standalone)\n"
-		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
-		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
-		"-c - cert file for RESTful interface use with ssl";
 #else
 	const char		*opt_list = "?dsp:r:c:";
-	const char		*arg_list =
-		"{-d} {-s} {-p <port>} {-r <root>} {-c <cert_file>}\n"
-		"-d - enable debug prints in log files\n"
-		"-s - run as a standalone process (default is daemon)\n"
-		"-p - port from RESTful interface (default " DEFAULT_PORT ")\n"
-		"-r - root for RESTful interface (default " DEFAULT_ROOT ")\n"
-		"-c - cert file for RESTful interface use with ssl";
 #endif
 
 	*ssl_cert = NULL;
@@ -256,7 +267,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		case '?':
 		default:
 help:
-			print_info("Usage: %s %s", argv[0], arg_list);
+			show_help(argv[0]);
 			return 1;
 		}
 	}
@@ -528,7 +539,7 @@ int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
-	char			 default_root[] = DEFAULT_ROOT;
+	char			 default_root[] = DEFAULT_HTTP_ROOT;
 	int			 ret = 1;
 
 	s_http_server_opts.document_root = default_root;

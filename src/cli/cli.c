@@ -28,8 +28,8 @@
 enum { DEM = 0, TARGET, HOST, GROUP, END = -1 };
 static char *groups[] = { URI_DEM, URI_TARGET, URI_HOST, URI_GROUP };
 
-static char *dem_server = DEFAULT_ADDR;
-static char *dem_port = DEFAULT_PORT;
+static char *dem_server = DEFAULT_HTTP_ADDR;
+static char *dem_port = DEFAULT_HTTP_PORT;
 static int prompt_deletes = 1;
 static int formatted;
 
@@ -1204,8 +1204,8 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("  -c -- enable debug of curl commands being sent\n");
 	printf("  -j -- show output in json mode (less human readable)\n");
 	printf("  -r -- show output in raw mode (unformatted)\n");
-	printf("  -s -- specify server (default %s)\n", DEFAULT_ADDR);
-	printf("  -p -- specify port (default %s)\n", DEFAULT_PORT);
+	printf("  -s -- specify server (default %s)\n", DEFAULT_HTTP_ADDR);
+	printf("  -p -- specify port (default %s)\n", DEFAULT_HTTP_PORT);
 	printf("\n");
 	printf("  verb : list | get | add | set | rename");
 	printf(" | delete | link | unlink\n");
