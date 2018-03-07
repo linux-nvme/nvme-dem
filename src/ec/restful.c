@@ -505,7 +505,7 @@ static int post_request(char *p[], int n, struct mg_str *body, char *resp)
 	if (!body->len) {
 		if (n == 1 && strcmp(p[0], METHOD_SHUTDOWN) == 0) {
 			shutdown_dem();
-			strcpy(resp,"DEM Endpoint Config shutting down");
+			strcpy(resp, "DEM Endpoint Config shutting down");
 			ret = 0;
 		} else
 			goto bad;

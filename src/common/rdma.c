@@ -268,7 +268,7 @@ static void _rdma_destroy_ep(struct rdma_ep *ep)
 		free(qe);
 		ep->qe = NULL;
 	}
-	if (ep->id) {
+	if (ep->id && ep->id->qp) {
 		rdma_destroy_qp(ep->id);
 		ep->id = NULL;
 	}
@@ -517,6 +517,9 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 		return -EADDRNOTAVAIL;
 
 	while (!stopped) {
+		if (!ep->ec)
+			break;
+
 		if (rdma_wait_for_event(ep->ec, &event))
 			break;
 
@@ -542,12 +545,12 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 			ep->state = CONNECTED;
 			return 0;
 		default:
-			break;
+			goto out;
 		}
 
 		break;
 	}
-
+out:
 	if (!stopped)
 		return -ENOTCONN;
 

@@ -709,36 +709,43 @@ int connect_target(struct discovery_queue *dq)
 
 	if (bytes)
 		free(req);
-	if (ret)
+	if (ret) {
+		ep->ops->destroy_endpoint(ep->ep);
 		return ret;
+	}
 
 	if (posix_memalign(&cmd, PAGE_SIZE, PAGE_SIZE))
-		return -errno;
+		goto out;
 
 	memset(cmd, 0, PAGE_SIZE);
 
 	ret = ep->ops->alloc_key(ep->ep, cmd, PAGE_SIZE, &ep->mr);
 	if (ret)
-		return ret;
+		goto out;
 
 	ep->cmd = cmd;
 
-	if (posix_memalign(&data, PAGE_SIZE, PAGE_SIZE))
-		return -errno;
+	if (posix_memalign(&data, PAGE_SIZE, PAGE_SIZE)) {
+		ret = -errno;
+		goto out;
+	}
 
 	memset(data, 0, PAGE_SIZE);
 
 	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &ep->data_mr);
 	if (ret)
-		return ret;
+		goto out;
 
 	ep->data = data;
 
 	ret = send_fabric_connect(dq);
 	if (ret)
-		return ret;
+		goto out;
 
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
+out:
+	disconnect_target(ep, 0);
+	return ret;
 }
 
 int start_pseudo_target(struct host_iface *iface)

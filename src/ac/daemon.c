@@ -418,10 +418,10 @@ static void cleanup_dq(void)
 	struct subsystem	*subsys, *next_subsys;
 	struct logpage		*logpage, *next_logpage;
 
-	if (dq->connected)
+	if (dq->connected) {
 		disconnect_target(&dq->ep, 0);
-
-	free(dq->portid);
+		dq->connected = DISCONNECTED;
+	}
 
 	list_for_each_entry_safe(subsys, next_subsys,
 				 &dq->target->subsys_list, node) {
@@ -437,12 +437,13 @@ int main(int argc, char *argv[])
 {
 	int			 ret = 1;
 	int			 cnt = 0;
+	const char		*dc_str = "Discovery controller";
 
 	if (init_dem(argc, argv))
 		goto out;
 
 	if (connect_target(dq))
-		print_info("Unable to connect to Discovery controller");
+		print_info("Unable to connect to %s", dc_str);
 	else {
 		fetch_log_pages(dq);
 		dq->connected = CONNECTED;
@@ -456,19 +457,25 @@ int main(int argc, char *argv[])
 		usleep(DELAY);
 		if (!dq->connected) {
 			if (!connect_target(dq)) {
+				cnt = 0;
 				fetch_log_pages(dq);
 				dq->connected = CONNECTED;
-				cnt = 0;
 			}
 		}
 		if (dq->connected && (++cnt > KEEP_ALIVE_COUNTER)) {
-			send_keep_alive(&dq->ep);
 			cnt = 0;
+			ret = send_keep_alive(&dq->ep);
+			if (ret) {
+				print_err("Lost connection to %s", dc_str);
+				cleanup_dq();
+			}
 		}
 	}
 
 	if (signalled)
 		printf("\n");
+
+	free(dq->portid);
 
 	cleanup_dq();
 
