@@ -1,5 +1,5 @@
 /*
- * NVMe over Fabrics Distributed Endpoint Manager (NVMe-oF DEM).
+ * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
  * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -505,7 +505,7 @@ static int post_request(char *p[], int n, struct mg_str *body, char *resp)
 	if (!body->len) {
 		if (n == 1 && strcmp(p[0], METHOD_SHUTDOWN) == 0) {
 			shutdown_dem();
-			strcpy(resp, "DEMT shutting down");
+			strcpy(resp,"DEM Endpoint Config shutting down");
 			ret = 0;
 		} else
 			goto bad;

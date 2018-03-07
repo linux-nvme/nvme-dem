@@ -1,5 +1,5 @@
 /*
- * NVMe over Fabrics Distributed Endpoint Manager (NVMe-oF DEM).
+ * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
  * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -54,12 +54,12 @@
 #define TAG_LOCAL_MGMT		"LocalMgmt"
 #define TAG_IN_BAND_MGMT	"InBandMgmt"
 
-/* DEMT specific */
+/* Endport Config specific */
 #define TAG_NSDEVS		"NSDevices"
 #define URI_NSDEV		"nsdev"
 #define URI_NAMESPACE		"namespace"
 
-/* DEM config specific */
+/* JSON config specific */
 #define TAG_ID			"ID"
 #define TAG_PORT		"PORT"
 #define TAG_NEW			"NEW"

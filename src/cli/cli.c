@@ -1,5 +1,5 @@
 /*
- * NVMe over Fabrics Distributed Endpoint Manager (NVMe-oF DEM).
+ * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
  * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
  *
  * This program is free software; you can redistribute it and/or modify it
@@ -1367,7 +1367,8 @@ int main(int argc, char *argv[])
 	ret = p->function(url, argc, opts);
 	if (ret < 0) {
 		if (ret == -ECONNREFUSED)
-			printf("Error: DEM server is not running\n");
+			printf("Error: %s is not running\n",
+			       "DEM Discovery controller");
 		else {
 			n = 3;
 			if ((strcmp(p->verb, _RENA) == 0 && ret == -EEXIST))
