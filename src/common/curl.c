@@ -20,6 +20,12 @@
 
 #include "curl.h"
 
+#ifdef DEM_CLI
+static int curl_show_results = 1;
+#else
+extern int curl_show_results;
+#endif
+
 struct curl_context {
 	CURL *curl;
 	char *write_data;	/* used in write_cb */
@@ -133,7 +139,9 @@ static int exec_curl(char *url, char **p)
 	curl_off_t		 bytes;
 
 	curl_easy_setopt(curl, CURLOPT_URL, url);
+#ifndef DEM_CLI
 	curl_easy_setopt(curl, CURLOPT_FAILONERROR, 1L);
+#endif
 
 	ret = curl_easy_perform(curl);
 
@@ -198,7 +206,8 @@ int exec_put(char *url, char *data, int len)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (curl_show_results)
+		printf("%s\n", result);
 
 	free(result);
 
@@ -228,7 +237,8 @@ int exec_post(char *url, char *data, int len)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (curl_show_results)
+		printf("%s\n", result);
 
 	free(result);
 
@@ -253,7 +263,8 @@ int exec_delete(char *url)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (curl_show_results)
+		printf("%s\n", result);
 
 	free(result);
 
@@ -283,7 +294,8 @@ int exec_delete_ex(char *url, char *data, int len)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (curl_show_results)
+		printf("%s\n", result);
 
 	free(result);
 
@@ -313,7 +325,8 @@ int exec_patch(char *url, char *data, int len)
 	if (ret)
 		return ret;
 
-	printf("%s\n", result);
+	if (curl_show_results)
+		printf("%s\n", result);
 
 	free(result);
 

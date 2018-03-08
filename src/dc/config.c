@@ -944,31 +944,6 @@ static inline int _del_subsys(struct subsystem *subsys)
 	return ret;
 }
 
-static int send_set_subsys_inb(struct subsystem *subsys)
-{
-	UNUSED(subsys);
-
-	print_debug("TODO need to send INB set subsys");
-
-	return 0;
-}
-
-static int send_set_subsys_oob(struct subsystem *subsys)
-{
-	struct target		*target = subsys->target;
-	char			*alias = target->alias;
-	char			 buf[MAX_BODY_SIZE];
-	int			 ret;
-
-	build_set_subsys_oob(subsys, buf, sizeof(buf));
-
-	ret = send_set_config_oob(target, URI_SUBSYSTEM, buf);
-	if (ret)
-		print_err("set subsys OOB failed for %s", alias);
-
-	return ret;
-}
-
 int del_subsys(char *alias, char *nqn, char *resp)
 {
 	struct subsystem	*subsys;
@@ -1047,7 +1022,7 @@ static inline int _config_subsys(struct target *target,
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		print_debug("TODO - INB create config_subsys_inb");
-	else
+	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
 
 	return ret;
@@ -1058,9 +1033,11 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct subsystem	 new_ss;
+	int			 len;
 	int			 ret;
 
 	memset(&new_ss, 0, sizeof(new_ss));
+	new_ss.access = -1;
 
 	ret = set_json_subsys(alias, nqn, data, resp, &new_ss);
 	if (ret)
@@ -1083,13 +1060,16 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 		if (!subsys)
 			return -ENOENT;
 
-		if (target->mgmt_mode != LOCAL_MGMT &&
-		    (strcmp(nqn, new_ss.nqn) ||
-		     subsys->access != new_ss.access)) {
+		len = strlen(new_ss.nqn);
+		if ((len && strcmp(nqn, new_ss.nqn)) ||
+		    ((new_ss.access != -1) &&
+		     (new_ss.access != subsys->access))) {
 			_del_subsys(subsys);
 
-			strcpy(subsys->nqn, new_ss.nqn);
-			subsys->access = new_ss.access;
+			if (len)
+				strcpy(subsys->nqn, new_ss.nqn);
+			if (new_ss.access != -1)
+				subsys->access = new_ss.access;
 		}
 	}
 
@@ -1307,6 +1287,9 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 	if (!target)
 		goto out;
 
+	if (target->mgmt_mode == LOCAL_MGMT)
+		goto found;
+
 	list_for_each_entry(nsdev, &target->device_list, node)
 		if ((nsdev->nsdev == result.devid) &&
 		    (nsdev->nsid == result.devns))
@@ -1314,7 +1297,7 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 
 	sprintf(resp, NSDEV_ERR);
 
-	ret = -EINVAL;
+	ret = -ENOENT;
 	goto out;
 found:
 	subsys = find_subsys(target, nqn);

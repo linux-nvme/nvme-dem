@@ -80,6 +80,9 @@ static char *error_str(int ret)
 	if (ret == -ENOENT)
 		return "not found";
 
+	if (ret == -EINVAL)
+		return "invalid parameter";
+
 	return "unknown error";
 }
 
@@ -817,11 +820,18 @@ static int set_ns(char *base, int n, char **p)
 	char			*alias = *p++;
 	char			*subsys = *p++;
 	int			 nsid = atoi(*p++);
-	int			 devid = atoi(*p++);
-	int			 devnsid = atoi(*p);
+	int			 devid;
+	int			 devnsid;
 	int			 len;
 
 	UNUSED(n);
+
+	if (strcmp(*p, "nullb0"))
+		devid = atoi(*p);
+	else
+		devid = -1;
+
+	devnsid = atoi(*++p);
 
 	snprintf(url, sizeof(url), "%s/%s/%s/%s/%s", base, alias,
 		 URI_SUBSYSTEM, subsys, URI_NSID);
@@ -1216,6 +1226,8 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("       : shorthand objects may be used (first character)\n");
 	printf("allow_any -- 0 : use host list\n");
 	printf("	  -- 1 : allow any host to access a subsystem\n");
+	printf("devid -- interger value of device id\n");
+	printf("      -- 'nullb0': use nullb0 inplace of physical device\n");
 	printf("\n");
 
 	for (p = verb_list; p->verb; p++) {
@@ -1373,8 +1385,8 @@ int main(int argc, char *argv[])
 			n = 3;
 			if ((strcmp(p->verb, _RENA) == 0 && ret == -EEXIST))
 				n++;
-			printf("Error: %s: %s '%s' %s\n",
-			       argv[0], args[1], args[n], error_str(ret));
+			printf("Error: %s: %s '%s' %s (%d)\n",
+			       argv[0], args[1], args[n], error_str(ret), ret);
 		}
 	}
 

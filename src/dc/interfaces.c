@@ -813,7 +813,9 @@ static int count_dem_config_files(void)
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	if (dir != NULL) {
 		for_each_dir(entry, dir)
-			filecount++;
+			if ((strcmp(entry->d_name, CONFIG_FILENAME)) &&
+			    (strcmp(entry->d_name, SIGNATURE_FILE_FILENAME)))
+				filecount++;
 		closedir(dir);
 	} else {
 		print_err("%s does not exist", PATH_NVMF_DEM_DISC);
@@ -825,9 +827,9 @@ static int count_dem_config_files(void)
 
 static void read_dem_config(FILE *fid, struct host_iface *iface)
 {
-	int			 ret;
 	char			 tag[LARGEST_TAG + 1];
 	char			 val[LARGEST_VAL + 1];
+	int			 ret;
 
 	ret = parse_line(fid, tag, LARGEST_TAG, val, LARGEST_VAL);
 	if (ret)
@@ -879,6 +881,10 @@ static int read_dem_config_files(struct host_iface *iface)
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	for_each_dir(entry, dir) {
+		if ((strcmp(entry->d_name, CONFIG_FILENAME) == 0) ||
+		    (strcmp(entry->d_name, SIGNATURE_FILE_FILENAME) == 0))
+			continue;
+
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 

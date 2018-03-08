@@ -62,7 +62,8 @@ dem-ec: ${BIN_DIR}/dem-ec
 
 ${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC dem
-	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR}
+	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR} \
+		-DDEM_CLI
 
 ${BIN_DIR}/dem-ac: ${AC_SRC} ${AC_INC} Makefile
 	echo CC dem-ac

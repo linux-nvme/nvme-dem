@@ -69,11 +69,6 @@ static int daemonize(void)
 {
 	pid_t			 pid, sid;
 
-	if (getuid() != 0) {
-		print_err("must be root to run demd as a daemon");
-		return -1;
-	}
-
 	pid = fork();
 	if (pid < 0) {
 		print_err("fork failed %d", pid);
@@ -151,7 +146,7 @@ static int init_dq(struct discovery_queue *dq)
 
 	strcpy(target->alias, "dem-ac");
 
-	target->mgmt_mode = IN_BAND_MGMT;
+	target->mgmt_mode = DISCOVERY_CTRL;
 	INIT_LIST_HEAD(&target->subsys_list);
 
 	dq->portid = portid;
@@ -399,7 +394,6 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 						goto next;
 					}
 				}
-
 next:
 				break;
 			}
@@ -452,8 +446,7 @@ static void fetch_log_pages(struct discovery_queue *dq)
 	free(log);
 }
 
-
-static void connect_subsystems(struct discovery_queue *dq)
+static void mark_connected_subsystems(struct discovery_queue *dq)
 {
 	struct subsystem	*subsys;
 	struct logpage		*logpage;
@@ -521,7 +514,16 @@ static void connect_subsystems(struct discovery_queue *dq)
 		}
 
 		closedir(dir);
+	}
+}
 
+static void connect_one_subsystem(struct discovery_queue *dq)
+{
+	struct subsystem	*subsys;
+	struct logpage		*logpage;
+	FILE			*fd;
+
+	list_for_each_entry(subsys, &dq->target->subsys_list, node) {
 		list_for_each_entry(logpage, &subsys->logpage_list, node) {
 			if (logpage->connected)
 				continue;
@@ -531,7 +533,11 @@ static void connect_subsystems(struct discovery_queue *dq)
 				logpage->e.traddr, logpage->e.trsvcid,
 				subsys->nqn, dq->hostnqn);
 			fclose(fd);
+
+			logpage->connected = 1;
+
 			print_info("subsys %s connected", subsys->nqn);
+			return;
 		}
 	}
 }
@@ -584,7 +590,7 @@ int main(int argc, char *argv[])
 		print_info("Connected to %s", dc_str);
 		usleep(100);
 		fetch_log_pages(dq);
-		connect_subsystems(dq);
+		mark_connected_subsystems(dq);
 		dq->connected = CONNECTED;
 	}
 
@@ -600,7 +606,7 @@ int main(int argc, char *argv[])
 				cnt = 0;
 				usleep(100);
 				fetch_log_pages(dq);
-				connect_subsystems(dq);
+				mark_connected_subsystems(dq);
 				dq->connected = CONNECTED;
 			}
 		}
@@ -612,6 +618,8 @@ int main(int argc, char *argv[])
 				cleanup_dq(dq);
 			}
 		}
+
+		connect_one_subsystem(dq);
 	}
 
 	if (signalled)

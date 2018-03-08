@@ -169,7 +169,8 @@ static int send_fabric_connect(struct discovery_queue *dq)
 	cmd->connect.qid	= htole16(0);
 	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
 
-	if (target->mgmt_mode == IN_BAND_MGMT)
+	if (target->mgmt_mode == IN_BAND_MGMT ||
+	    target->mgmt_mode == DISCOVERY_CTRL)
 		cmd->connect.kato = htole16(NVME_DISC_KATO);
 
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);

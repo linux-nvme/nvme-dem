@@ -35,6 +35,7 @@ static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_HTTP_PORT;
 int					 stopped;
 int					 debug;
+int					 curl_show_results = 0;
 struct host_iface			*interfaces;
 int					 num_interfaces;
 struct list_head			*target_list = &target_list_head;
@@ -157,11 +158,6 @@ static int daemonize(void)
 {
 	pid_t			 pid, sid;
 
-	if (getuid() != 0) {
-		print_err("must be root to run demd as a daemon");
-		return -1;
-	}
-
 	pid = fork();
 	if (pid < 0) {
 		print_err("fork failed %d", pid);
@@ -228,6 +224,11 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
+
+	if (getuid() != 0) {
+		print_err("must be root to run demd as a daemon");
+		return -1;
+	}
 
 #ifdef DEV_DEBUG
 	debug = 1;

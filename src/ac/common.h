@@ -251,7 +251,7 @@ struct target {
 	union sc_iface		 sc_iface;
 };
 
-enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
+enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT, DISCOVERY_CTRL };
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 

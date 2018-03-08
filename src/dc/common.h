@@ -54,14 +54,11 @@
 #define DEV_DEBUG
 #endif
 
-#ifdef DEV_DEBUG
-#define CONFIG_DIR	"."
-#else
-#define CONFIG_DIR	"/etc/nvme/nvmeof-dem/"
-#endif
-
-#define CONFIG_FILE	CONFIG_DIR "config"
-#define SIGNATURE_FILE	CONFIG_DIR "signature"
+#define CONFIG_DIR		"/etc/nvme/nvmeof-dem/"
+#define CONFIG_FILENAME		"config"
+#define SIGNATURE_FILE_FILENAME	"signature"
+#define CONFIG_FILE		CONFIG_DIR CONFIG_FILENAME
+#define SIGNATURE_FILE		CONFIG_DIR SIGNATURE_FILE_FILENAME
 
 #define print_debug(f, x...) \
 	do { \
@@ -101,6 +98,7 @@
 #define JSENTRY		"%s\"%s\""
 
 extern int			 debug;
+extern int			 curl_show_results;
 extern int			 stopped;
 extern int			 num_interfaces;
 extern struct host_iface	*interfaces;
@@ -303,7 +301,7 @@ struct target {
 	int			 dirty;
 };
 
-enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
+enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT, DISCOVERY_CTRL };
 
 struct mg_connection;
 struct mg_str;

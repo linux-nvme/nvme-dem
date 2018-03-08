@@ -1,0 +1,264 @@
+------------------------
+dem config
+------------------------
+GET http://127.0.0.1:22345/dem
+{"Interfaces":[{"ID":0,"TRTYPE":"rdma","ADRFAM":"ipv4","TRADDR":"192.168.22.2","TRSVCID":"4422"}]}
+------------------------
+dem list group
+------------------------
+GET http://127.0.0.1:22345/group
+{"Groups":[]}
+------------------------
+dem add group g1
+------------------------
+POST http://127.0.0.1:22345/group/g1
+Group 'g1' added
+------------------------
+dem set group g2
+------------------------
+PUT http://127.0.0.1:22345/group
+<< {"Name":"g2"} >>
+Group 'g2' added 
+------------------------
+dem list group
+------------------------
+GET http://127.0.0.1:22345/group
+{"Groups":["g1","g2"]}
+------------------------
+dem get group g1
+------------------------
+GET http://127.0.0.1:22345/group/g1
+{"Name": "g1", "Targets": [], "Hosts": []}
+------------------------
+dem delete group g1
+------------------------
+DELETE http://127.0.0.1:22345/group/g1
+Group 'g1' deleted
+------------------------
+dem rename group g2 g1
+------------------------
+PATCH http://127.0.0.1:22345/group/g2
+<< {"Name":"g1" } >>
+Group 'g1' updated 
+------------------------
+dem add target t1
+------------------------
+POST http://127.0.0.1:22345/target/t1
+Target 't1' added
+------------------------
+dem set target t2
+------------------------
+PUT http://127.0.0.1:22345/target
+<< {"Alias":"t2"} >>
+Target 't2' added 
+------------------------
+dem list target
+------------------------
+GET http://127.0.0.1:22345/target
+{"Targets":["t1","t2"]}
+------------------------
+dem get target t1
+------------------------
+GET http://127.0.0.1:22345/target/t1
+{"Alias": "t1", "PortIDs": [], "Subsystems": []}
+------------------------
+dem delete target t1
+------------------------
+DELETE http://127.0.0.1:22345/target/t1
+Target 't1' deleted
+------------------------
+dem rename target t2 t1
+------------------------
+PATCH http://127.0.0.1:22345/target/t2
+<< {"Alias":"t1"} >>
+Target 't1' updated 
+------------------------
+dem set mode t1 local
+------------------------
+PATCH http://127.0.0.1:22345/target/t1
+<< {"MgmtMode":"LocalMgmt"} >>
+Target 't1' updated 
+------------------------
+dem set interface t1 ipv4 1.1.1.1 4422
+------------------------
+PATCH http://127.0.0.1:22345/target/t1
+<< {"Interface":{"FAMILY":"ipv4","ADDRESS":"1.1.1.1","PORT":4422}} >>
+Target 't1' updated 
+------------------------
+dem set refresh t1 0
+------------------------
+PATCH http://127.0.0.1:22345/target/t1
+<< {"Refresh":0} >>
+Target 't1' updated 
+------------------------
+dem refresh target t1
+------------------------
+POST http://127.0.0.1:22345/target/t1/refresh
+Target 't1' refreshed
+------------------------
+dem link target t1 g1
+------------------------
+POST http://127.0.0.1:22345/group/g1/target/t1
+Group 'g1' updated
+------------------------
+dem get group g1
+------------------------
+GET http://127.0.0.1:22345/group/g1
+{"Name": "g1", "Hosts": [], "Targets": ["t1"]}
+------------------------
+dem unlink target t1 g1
+------------------------
+DELETE http://127.0.0.1:22345/group/g1/target/t1
+Group 'g1' updated
+------------------------
+dem add subsystem t1 subsys2
+------------------------
+POST http://127.0.0.1:22345/target/t1/subsystem/subsys2
+Subsystem 'subsys2' added to in Target 't1'
+------------------------
+dem set subsystem t1 subsys1 0
+------------------------
+PUT http://127.0.0.1:22345/target/t1/subsystem
+<< {"SUBNQN":"subsys1","AllowAnyHost":0} >>
+Subsystem 'subsys1' added to in Target 't1'
+------------------------
+dem edit subsystem t1 subsys1 0
+------------------------
+PUT http://127.0.0.1:22345/target/t1/subsystem/subsys1
+<< {"AllowAnyHost":0} >>
+Subsystem 'subsys1' updated in in Target 't1'
+------------------------
+dem delete subsystem t1 subsys1
+------------------------
+DELETE http://127.0.0.1:22345/target/t1/subsystem/subsys1
+Subsystem 'subsys1' deleted from Target 't1'
+------------------------
+dem rename subsystem t1 subsys2 subsys1
+------------------------
+PATCH http://127.0.0.1:22345/target/t1/subsystem/subsys2
+<< {"SUBNQN":"subsys1"} >>
+Subsystem 'subsys2' updated in in Target 't1'
+------------------------
+dem set portid t1 1 rdma ipv4 1.1.1.1 4420
+------------------------
+PUT http://127.0.0.1:22345/target/t1/portid
+<< {"PORTID":1,"TRTYPE":"rdma","ADRFAM":"ipv4","TRADDR":"1.1.1.1","TRSVCID":4420} >>
+PORTID '1' updated in Target 't1'
+------------------------
+dem edit portid t1 1 rdma ipv4 1.1.1.1 4420
+------------------------
+PUT http://127.0.0.1:22345/target/t1/portid/1
+<< {"TRTYPE":"rdma","ADRFAM":"ipv4","TRADDR":"1.1.1.1","TRSVCID":4420} >>
+PORTID '1' updated in Target 't1'
+------------------------
+dem delete portid t1 1
+------------------------
+DELETE http://127.0.0.1:22345/target/t1/portid/1
+PORTID '1' deleted from Target 't1'
+------------------------
+dem set portid t1 1 rdma ipv4 1.1.1.1 4420
+------------------------
+PUT http://127.0.0.1:22345/target/t1/portid
+<< {"PORTID":1,"TRTYPE":"rdma","ADRFAM":"ipv4","TRADDR":"1.1.1.1","TRSVCID":4420} >>
+PORTID '1' updated in Target 't1'
+------------------------
+dem set host h1 hostnqn
+------------------------
+PUT http://127.0.0.1:22345/host
+<< {"Alias":"h1","HOSTNQN":"hostnqn"} >>
+Host 'h1' added 
+------------------------
+dem set acl t1 subsys1 h1
+------------------------
+PUT http://127.0.0.1:22345/target/t1/subsystem/subsys1/host
+<< {"Alias":"h1"} >>
+Host 'h1' added for Subsystem 'subsys1' in Target 't1'
+------------------------
+dem delete acl t1 subsys1 h1
+------------------------
+DELETE http://127.0.0.1:22345/target/t1/subsystem/subsys1/host/h1
+Host 'h1' deleted from Subsystem 'subsys1' for Alias 't1'
+------------------------
+dem delete host h1
+------------------------
+DELETE http://127.0.0.1:22345/host/h1
+Host 'h1' deleted
+------------------------
+dem set ns t1 subsys1 1 nullb0 0
+------------------------
+PUT http://127.0.0.1:22345/target/t1/subsystem/subsys1/nsid
+<< {"NSID":1,"DeviceID":-1,"DeviceNSID":0} >>
+NSID 1 updated in Subsystem 'subsys1' of Target 't1'
+------------------------
+dem get target t1
+------------------------
+GET http://127.0.0.1:22345/target/t1
+{"Alias": "t1", "PortIDs": [{"PORTID": 1, "TRTYPE": "rdma", "TRADDR": "1.1.1.1", "ADRFAM": "ipv4", "TRSVCID": 4420}], "Subsystems": [{"SUBNQN": "subsys1", "AllowAnyHost": 1, "Hosts": [], "NSIDs": [{"NSID": 1, "DeviceID": -1, "DeviceNSID": 0}]}], "MgmtMode": "LocalMgmt", "Refresh": 0}
+------------------------
+dem delete ns t1 subsys1 1
+------------------------
+DELETE http://127.0.0.1:22345/target/t1/subsystem/subsys1/nsid/1
+NSID '1' deleted from Subsystem 'subsys1' in Target 't1'
+------------------------
+dem add host h1
+------------------------
+POST http://127.0.0.1:22345/host/h1
+Host 'h1' added
+------------------------
+dem list host
+------------------------
+GET http://127.0.0.1:22345/host
+{"Hosts":["h1"]}
+------------------------
+dem get host h1
+------------------------
+GET http://127.0.0.1:22345/host/h1
+{"Alias": "h1", "Shared": [{"Alias": "t1", "SUBNQN": "subsys1"}], "Restricted": []}
+------------------------
+dem set host h2 hostnqn
+------------------------
+PUT http://127.0.0.1:22345/host
+<< {"Alias":"h2","HOSTNQN":"hostnqn"} >>
+Host 'h2' added 
+------------------------
+dem edit host h2 hostnqn
+------------------------
+PUT http://127.0.0.1:22345/host/h2
+<< {"HOSTNQN":"hostnqn"} >>
+Host 'h2' updated 
+------------------------
+dem get host h1
+------------------------
+GET http://127.0.0.1:22345/host/h1
+{"Alias": "h1", "Shared": [{"Alias": "t1", "SUBNQN": "subsys1"}], "Restricted": []}
+------------------------
+dem delete host h1
+------------------------
+DELETE http://127.0.0.1:22345/host/h1
+Host 'h1' deleted
+------------------------
+dem rename host h2 h1
+------------------------
+PATCH http://127.0.0.1:22345/host/h2
+<< {"Alias":"h1"} >>
+Host 'h1' updated 
+------------------------
+dem link host h1 g1
+------------------------
+POST http://127.0.0.1:22345/group/g1/host/h1
+Group 'g1' updated
+------------------------
+dem get group g1
+------------------------
+GET http://127.0.0.1:22345/group/g1
+{"Name": "g1", "Hosts": ["h1"], "Targets": []}
+------------------------
+dem unlink host h1 g1
+------------------------
+DELETE http://127.0.0.1:22345/group/g1/host/h1
+Group 'g1' updated
+------------------------
+dem shutdown
+------------------------
+POST http://127.0.0.1:22345/dem/shutdown
+DEM Discovery controller shutting down
