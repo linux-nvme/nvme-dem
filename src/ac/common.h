@@ -37,16 +37,32 @@
 
 #include "ops.h"
 
-#define NVMF_UUID_FMT   "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
+#define NVMF_UUID_FMT		"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
 
-#define PAGE_SIZE	4096
-#define BUF_SIZE	4096
-#define NVMF_DQ_DEPTH	1
-#define IDLE_TIMEOUT	100
-#define MINUTES		(60 * 1000) /* convert ms to minutes */
-#define LOG_PAGE_RETRY	200
+#define PAGE_SIZE		4096
+#define BUF_SIZE		4096
+#define NVMF_DQ_DEPTH		1
+#define IDLE_TIMEOUT		100
+#define MINUTES			(60 * 1000) /* convert ms to minutes */
+#define LOG_PAGE_RETRY		200
 
-#define FI_VER		FI_VERSION(1, 0)
+/* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
+#define DELAY			480 /* ms */
+#define KEEP_ALIVE_COUNTER	4 /* x DELAY */
+
+// TODO customize discovery controller info
+#define DEFAULT_TYPE		"rdma"
+#define DEFAULT_FAMILY		"ipv4"
+#define DEFAULT_ADDR		"192.168.22.2"
+#define DEFAULT_PORT		"4422"
+
+#define NVME_FABRICS_DEV	"/dev/nvme-fabrics"
+#define SYS_CLASS_PATH		"/sys/class/nvme-fabrics/ctl/"
+#define SYS_CLASS_ADDR_FILE	"address"
+#define SYS_CLASS_TRTYPE_FILE	"transport"
+#define SYS_CLASS_SUBNQN_FILE	"subsysnqn"
+#define NVME_FABRICS_FMT	\
+	"transport=%s,traddr=%s,trsvcid=%s,nqn=%s,hostnqn=%s"
 
 #define print_debug(f, x...) \
 	do { \
@@ -78,9 +94,7 @@
 #define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
-extern int			 debug;
 extern int			 stopped;
-extern struct discovery_queue	*dq;
 
 enum { DISCONNECTED, CONNECTED };
 
@@ -116,6 +130,7 @@ static inline int msec_delta(struct timeval t0)
 
 #define MAX_NQN_SIZE		256
 #define MAX_ALIAS_SIZE		64
+#define MAX_ADDR_SIZE		40
 
 #ifndef AF_IPV4
 #define AF_IPV4			1
@@ -218,6 +233,7 @@ struct logpage {
 	struct portid		*portid;
 	struct nvmf_disc_rsp_page_entry e;
 	int			 valid;
+	int			 connected;
 };
 
 struct subsystem {
@@ -236,8 +252,6 @@ struct target {
 };
 
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT };
-
-void shutdown_dem(void);
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
 

@@ -16,33 +16,44 @@
 #include <pthread.h>
 #include <stdbool.h>
 #include <stdio.h>
+#include <dirent.h>
 #include <sys/stat.h>
 
 #include "common.h"
 #include "tags.h"
-
-/* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
-#define DELAY			480 /* ms */
-#define KEEP_ALIVE_COUNTER	4 /* x DELAY */
-
-// TODO customize discovery controller info
-#define DEFAULT_TYPE		"rdma"
-#define DEFAULT_FAMILY		"ipv4"
-#define DEFAULT_ADDR		"192.168.22.2"
-#define DEFAULT_PORT		"4422"
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
 #define DEV_DEBUG
 #endif
 
+static int			 run_as_daemon;
 int				 stopped;
-int				 signalled;
-int				 debug;
-struct discovery_queue		 discovery_queue;
-struct discovery_queue		*dq = &discovery_queue;
+static int			 signalled;
+static int			 debug;
+static struct discovery_queue	 discovery_queue;
 
-void shutdown_dem(void)
+static const char *arg_str(const char * const *strings, size_t array_size,
+			   size_t idx)
+{
+	if (idx < array_size && strings[idx])
+		return strings[idx];
+
+	return "unrecognized";
+}
+
+static const char * const trtypes[] = {
+	[NVMF_TRTYPE_RDMA]	= "rdma",
+	[NVMF_TRTYPE_FC]	= "fibre-channel",
+	[NVMF_TRTYPE_LOOP]	= "loop",
+};
+
+static const char *trtype_str(u8 trtype)
+{
+	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
+}
+
+static void shutdown_dem(void)
 {
 	stopped = 1;
 }
@@ -119,29 +130,10 @@ static void show_help(char *app)
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 }
 
-static int init_dem(int argc, char *argv[])
+static int init_dq(struct discovery_queue *dq)
 {
 	struct portid		*portid;
 	struct target		*target;
-	int			 opt;
-	int			 ret;
-	int			 run_as_daemon;
-#ifdef DEV_DEBUG
-	const char		*opt_list = "?qdt:f:a:p:h:";
-#else
-	const char		*opt_list = "?dst:f:a:p:h:";
-#endif
-
-	if (argc > 1 && strcmp(argv[1], "--help") == 0)
-		goto help;
-
-#ifdef DEV_DEBUG
-	debug = 1;
-	run_as_daemon = 0;
-#else
-	debug = 0;
-	run_as_daemon = 1;
-#endif
 
 	memset(dq, 0, sizeof(*dq));
 
@@ -157,6 +149,8 @@ static int init_dem(int argc, char *argv[])
 		return 1;
 	}
 
+	strcpy(target->alias, "dem-ac");
+
 	target->mgmt_mode = IN_BAND_MGMT;
 	INIT_LIST_HEAD(&target->subsys_list);
 
@@ -167,6 +161,30 @@ static int init_dem(int argc, char *argv[])
 	strcpy(portid->family, DEFAULT_FAMILY);
 	strcpy(portid->address, DEFAULT_ADDR);
 	strcpy(portid->port, DEFAULT_PORT);
+
+	return 0;
+}
+
+static int parse_args(int argc, char *argv[], struct discovery_queue *dq)
+{
+	struct portid		*portid = dq->portid;
+	int			 opt;
+#ifdef DEV_DEBUG
+	const char		*opt_list = "?qdt:f:a:p:h:";
+#else
+	const char		*opt_list = "?dst:f:a:p:h:";
+#endif
+
+	if (argc > 1 && strcmp(argv[1], "--help") == 0)
+		goto out;
+
+#ifdef DEV_DEBUG
+	debug = 1;
+	run_as_daemon = 0;
+#else
+	debug = 0;
+	run_as_daemon = 1;
+#endif
 
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
@@ -188,7 +206,7 @@ static int init_dem(int argc, char *argv[])
 		case 't':
 			if (!optarg) {
 				print_info("Invalid trtype");
-				goto help;
+				goto out;
 			}
 
 			strncpy(portid->type, optarg, CONFIG_TYPE_SIZE);
@@ -196,7 +214,7 @@ static int init_dem(int argc, char *argv[])
 		case 'f':
 			if (!optarg) {
 				print_info("Invalid adrfam");
-				goto help;
+				goto out;
 			}
 
 			strncpy(portid->family, optarg, CONFIG_FAMILY_SIZE);
@@ -204,7 +222,7 @@ static int init_dem(int argc, char *argv[])
 		case 'a':
 			if (!optarg) {
 				print_info("Invalid traddr");
-				goto help;
+				goto out;
 			}
 
 			strncpy(portid->address, optarg, CONFIG_ADDRESS_SIZE);
@@ -212,7 +230,7 @@ static int init_dem(int argc, char *argv[])
 		case 'p':
 			if (!optarg) {
 				print_info("Invalid trsvcid");
-				goto help;
+				goto out;
 			}
 
 			strncpy(portid->port, optarg, CONFIG_PORT_SIZE);
@@ -220,18 +238,25 @@ static int init_dem(int argc, char *argv[])
 		case 'h':
 			if (!optarg) {
 				print_info("Invalid hostnqn");
-				goto help;
+				goto out;
 			}
 
 			strncpy(dq->hostnqn, optarg, MAX_NQN_SIZE);
 			break;
 		case '?':
 		default:
-help:
-			show_help(argv[0]);
-			return 1;
+			goto out;
 		}
 	}
+	return 0;
+out:
+	return 1;
+}
+
+static int validate_dq(struct discovery_queue *dq)
+{
+	struct portid		*portid = dq->portid;
+	int			 ret;
 
 	if (portid->type) {
 		if (strcmp(portid->type, TRTYPE_STR_RDMA) == 0)
@@ -241,12 +266,7 @@ help:
 	if (!dq->ep.ops) {
 		print_info("Invalid trtype: valid options %s",
 			   TRTYPE_STR_RDMA);
-		goto help;
-	}
-
-	if (!portid->family) {
-		print_info("Missing adrfam");
-		goto help;
+		goto out;
 	}
 
 	if (strcmp(portid->family, ADRFAM_STR_IPV4) == 0)
@@ -259,12 +279,7 @@ help:
 	if (!portid->adrfam) {
 		print_info("Invalid adrfam: valid options %s, %s, %s",
 			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
-		goto help;
-	}
-
-	if (!portid->address) {
-		print_info("Missing traddr");
-		goto help;
+		goto out;
 	}
 
 	switch (portid->adrfam) {
@@ -281,7 +296,7 @@ help:
 
 	if (ret) {
 		print_info("Invalid traddr");
-		goto help;
+		goto out;
 	}
 
 	if (portid->port)
@@ -289,7 +304,7 @@ help:
 
 	if (!portid->port_num) {
 		print_info("Invalid trsvcid");
-		goto help;
+		goto out;
 	}
 
 	if (strlen(dq->hostnqn) == 0) {
@@ -303,9 +318,32 @@ help:
 
 	if (run_as_daemon)
 		if (daemonize())
-			return 1;
+			goto out;
+	return 0;
+out:
+	return 1;
+}
+
+static int validate_usage(void)
+{
+	FILE			*fd;
+
+	if (getuid() != 0) {
+		print_info("must be root to allow access to %s",
+			   NVME_FABRICS_DEV);
+		goto out;
+	}
+
+	fd = fopen(NVME_FABRICS_DEV, "r");
+	if (!fd) {
+		print_info("nvme-fabrics kernel module must be loaded");
+		goto out;
+	}
+	fclose(fd);
 
 	return 0;
+out:
+	return 1;
 }
 
 static inline void invalidate_log_pages(struct target *target)
@@ -373,12 +411,13 @@ next:
 				return;
 			}
 
+			list_add_tail(&subsys->node, &target->subsys_list);
+
 			INIT_LIST_HEAD(&subsys->logpage_list);
 
 			strcpy(subsys->nqn, e->subnqn);
 
-			print_debug("added subsystem %s to target %s",
-				    e->subnqn, target->alias);
+			print_debug("added subsystem '%s'", e->subnqn);
 		}
 
 		logpage = malloc(sizeof(*logpage));
@@ -393,14 +432,14 @@ next:
 	}
 }
 
-void fetch_log_pages(struct discovery_queue *dq)
+static void fetch_log_pages(struct discovery_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	struct target			*target = dq->target;
 	u32				 num_records = 0;
 
 	if (get_logpages(dq, &log, &num_records)) {
-		print_err("get logpages for target %s failed", target->alias);
+		print_err("get logpages for hostnqn %s failed", dq->hostnqn);
 		return;
 	}
 
@@ -413,7 +452,91 @@ void fetch_log_pages(struct discovery_queue *dq)
 	free(log);
 }
 
-static void cleanup_dq(void)
+
+static void connect_subsystems(struct discovery_queue *dq)
+{
+	struct subsystem	*subsys;
+	struct logpage		*logpage;
+	struct dirent		*entry;
+	DIR			*dir;
+	FILE			*fd;
+	char			 path[FILENAME_MAX + 1];
+	char			 val[MAX_NQN_SIZE + 1];
+	char			 address[MAX_ADDR_SIZE + 1];
+	char			*port;
+	char			*addr;
+	int			 pos;
+
+	list_for_each_entry(subsys, &dq->target->subsys_list, node) {
+		list_for_each_entry(logpage, &subsys->logpage_list, node)
+			logpage->connected = 0;
+
+		dir = opendir(SYS_CLASS_PATH);
+
+		for_each_dir(entry, dir) {
+			if (strncmp(entry->d_name, "nvme", 4))
+				continue;
+
+			pos = sprintf(path, "%s/%s/",
+				      SYS_CLASS_PATH, entry->d_name);
+
+			strcpy(path + pos, SYS_CLASS_SUBNQN_FILE);
+			fd = fopen(path, "r");
+			fgets(val, sizeof(val), fd);
+			fclose(fd);
+			*strchrnul(val, '\n') = 0;
+			if (strcmp(subsys->nqn, val))
+				continue;
+
+			strcpy(path + pos, SYS_CLASS_ADDR_FILE);
+			fd = fopen(path, "r");
+			fgets(address, sizeof(address), fd);
+			fclose(fd);
+			*strchrnul(address, '\n') = 0;
+
+			strcpy(path + pos, SYS_CLASS_TRTYPE_FILE);
+			fd = fopen(path, "r");
+			fgets(val, sizeof(val), fd);
+			fclose(fd);
+			*strchrnul(val, '\n') = 0;
+
+			addr = index(address, '=') + 1;
+			port = index(addr, ',');
+			*port++ = 0;
+			port = index(port, '=') + 1;
+
+			list_for_each_entry(logpage, &subsys->logpage_list,
+					    node) {
+				if (strcmp(trtype_str(logpage->e.trtype), val))
+					continue;
+				if (strcmp(logpage->e.traddr, addr))
+					continue;
+				if (strcmp(logpage->e.trsvcid, port))
+					continue;
+				logpage->connected = 1;
+				print_info("subsys %s already %s",
+					   subsys->nqn, entry->d_name);
+				break;
+			}
+		}
+
+		closedir(dir);
+
+		list_for_each_entry(logpage, &subsys->logpage_list, node) {
+			if (logpage->connected)
+				continue;
+			fd = fopen(PATH_NVME_FABRICS, "w");
+			fprintf(fd, NVME_FABRICS_FMT,
+				trtype_str(logpage->e.trtype),
+				logpage->e.traddr, logpage->e.trsvcid,
+				subsys->nqn, dq->hostnqn);
+			fclose(fd);
+			print_info("subsys %s connected", subsys->nqn);
+		}
+	}
+}
+
+static void cleanup_dq(struct discovery_queue *dq)
 {
 	struct subsystem	*subsys, *next_subsys;
 	struct logpage		*logpage, *next_logpage;
@@ -437,15 +560,31 @@ int main(int argc, char *argv[])
 {
 	int			 ret = 1;
 	int			 cnt = 0;
+	struct discovery_queue	*dq = &discovery_queue;
 	const char		*dc_str = "Discovery controller";
 
-	if (init_dem(argc, argv))
+	if (init_dq(dq))
+		goto out;
+
+	if (parse_args(argc, argv, dq)) {
+		show_help(argv[0]);
+		goto out;
+	}
+	if (validate_dq(dq)) {
+		show_help(argv[0]);
+		goto out;
+	}
+
+	if (validate_usage())
 		goto out;
 
 	if (connect_target(dq))
 		print_info("Unable to connect to %s", dc_str);
 	else {
+		print_info("Connected to %s", dc_str);
+		usleep(100);
 		fetch_log_pages(dq);
+		connect_subsystems(dq);
 		dq->connected = CONNECTED;
 	}
 
@@ -457,8 +596,11 @@ int main(int argc, char *argv[])
 		usleep(DELAY);
 		if (!dq->connected) {
 			if (!connect_target(dq)) {
+				print_info("Connected to %s", dc_str);
 				cnt = 0;
+				usleep(100);
 				fetch_log_pages(dq);
+				connect_subsystems(dq);
 				dq->connected = CONNECTED;
 			}
 		}
@@ -467,7 +609,7 @@ int main(int argc, char *argv[])
 			ret = send_keep_alive(&dq->ep);
 			if (ret) {
 				print_err("Lost connection to %s", dc_str);
-				cleanup_dq();
+				cleanup_dq(dq);
 			}
 		}
 	}
@@ -477,7 +619,7 @@ int main(int argc, char *argv[])
 
 	free(dq->portid);
 
-	cleanup_dq();
+	cleanup_dq(dq);
 
 	ret = 0;
 out:

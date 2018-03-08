@@ -39,7 +39,7 @@
 #include "json.h"
 #include "tags.h"
 
-#define NVMF_UUID_FMT   "nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
+#define NVMF_UUID_FMT	"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
 
 #define PAGE_SIZE	4096
 #define BUF_SIZE	4096
@@ -62,8 +62,6 @@
 
 #define CONFIG_FILE	CONFIG_DIR "config"
 #define SIGNATURE_FILE	CONFIG_DIR "signature"
-
-#define FI_VER		FI_VERSION(1, 0)
 
 #define print_debug(f, x...) \
 	do { \
