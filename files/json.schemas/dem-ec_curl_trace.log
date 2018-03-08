@@ -1,0 +1,38 @@
+handle_http_request(716) GET /nsdev
+handle_http_request(716) GET /interface
+handle_http_request(716) DELETE /target
+handle_http_request(716) POST /portid/1
+handle_http_request(719)
+{"TRTYPE":"rdma","ADRFAM":"ipv4","TRADDR":"192.168.22.1","TRSVCID":4420}
+handle_http_request(716) POST /portid/2
+handle_http_request(719)
+{"TRTYPE":"tcp","ADRFAM":"ipv4","TRADDR":"192.168.22.1","TRSVCID":4430}
+handle_http_request(716) POST /subsystem
+handle_http_request(719) {"SUBNQN":"host01subsys1","AllowAnyHost":1}
+handle_http_request(716) POST /subsystem/host01subsys1/namespace
+handle_http_request(719) {"NSID":1,"DeviceID":0,"DeviceNSID":1}
+handle_http_request(716) POST /subsystem/host01subsys1/portid
+handle_http_request(719) {"PORTID":1}
+handle_http_request(716) POST /subsystem/host01subsys1/portid
+handle_http_request(719) {"PORTID":2}
+handle_http_request(716) POST /subsystem
+handle_http_request(719) {"SUBNQN":"host01subsys2","AllowAnyHost":0}
+handle_http_request(716) POST /subsystem/host01subsys2/namespace
+handle_http_request(719) {"NSID":2,"DeviceID":-1,"DeviceNSID":0}
+handle_http_request(716) POST /host
+handle_http_request(719) {"HOSTNQN":"host02nqn"}
+handle_http_request(716) POST /subsystem/host01subsys2/host
+handle_http_request(719) {"HOSTNQN":"host02nqn"}
+handle_http_request(716) POST /subsystem/host01subsys2/portid
+handle_http_request(719) {"PORTID":1}
+handle_http_request(716) POST /subsystem/host01subsys2/portid
+handle_http_request(719) {"PORTID":2}
+handle_http_request(716) POST /subsystem
+handle_http_request(719) {"SUBNQN":"host01subsys3","AllowAnyHost":1}
+handle_http_request(716) POST /subsystem/host01subsys3/namespace
+handle_http_request(719) {"NSID":1,"DeviceID":-1,"DeviceNSID":0}
+handle_http_request(716) POST /subsystem/host01subsys3/portid
+handle_http_request(719) {"PORTID":1}
+handle_http_request(716) POST /subsystem/host01subsys3/portid
+handle_http_request(719) {"PORTID":2}
+

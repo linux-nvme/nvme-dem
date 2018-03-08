@@ -716,11 +716,11 @@ void free_interfaces(void)
 {
 	struct list_head	*p;
 	struct list_head	*n;
-	struct interface	*iface;
+	struct portid		*iface;
 
 	list_for_each_safe(p, n, interfaces) {
 		list_del(p);
-		iface = container_of(p, struct interface, node);
+		iface = container_of(p, struct portid, node);
 		free(iface);
 	}
 }
@@ -756,7 +756,7 @@ static void addr_to_fc(__u8 *addr, char *str)
 		n = sprintf(str, "%s%u", i ? FC_DELIM : "", *addr);
 }
 
-static void read_dem_config(FILE *fd, struct interface *iface)
+static void read_dem_config(FILE *fd, struct portid *iface)
 {
 	int			 ret;
 	char			 tag[LARGEST_TAG + 1];
@@ -767,11 +767,11 @@ static void read_dem_config(FILE *fd, struct interface *iface)
 		return;
 
 	if (strcasecmp(tag, TAG_TYPE) == 0)
-		strncpy(iface->u.oob.type, val, CONFIG_TYPE_SIZE);
+		strncpy(iface->type, val, CONFIG_TYPE_SIZE);
 	else if (strcasecmp(tag, TAG_FAMILY) == 0)
-		strncpy(iface->u.oob.family, val, CONFIG_FAMILY_SIZE);
+		strncpy(iface->family, val, CONFIG_FAMILY_SIZE);
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
-		strncpy(iface->u.oob.address, val, CONFIG_ADDRESS_SIZE);
+		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
 }
 
 int enumerate_interfaces(void)
@@ -780,11 +780,15 @@ int enumerate_interfaces(void)
 	DIR			*dir;
 	FILE			*fd;
 	char			 config_file[FILENAME_MAX + 1];
-	struct interface	*iface;
+	struct portid		*iface;
 	int			 cnt = 0;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	for_each_dir(entry, dir) {
+		if ((strcmp(entry->d_name, CONFIG_FILENAME) == 0) ||
+		    (strcmp(entry->d_name, SIGNATURE_FILE_FILENAME) == 0))
+			continue;
+
 		snprintf(config_file, FILENAME_MAX, "%s%s",
 			 PATH_NVMF_DEM_DISC, entry->d_name);
 
@@ -800,14 +804,16 @@ int enumerate_interfaces(void)
 			goto out2;
 		}
 
+		memset(iface, 0, sizeof(*iface));
+
 		while (!feof(fd))
 			read_dem_config(fd, iface);
 
 		fclose(fd);
 
 		print_debug("adding interface for %s %s %s",
-			    iface->u.oob.type, iface->u.oob.family,
-			    iface->u.oob.address);
+			    iface->type, iface->family,
+			    iface->address);
 
 		list_add_tail(&iface->node, interfaces);
 		cnt++;

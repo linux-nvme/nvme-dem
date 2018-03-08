@@ -100,12 +100,11 @@ static int parse_uri(char *p, int depth, char *part[])
 	return i;
 }
 
-static int get_nsdev(char *resp)
+static void get_nsdev(char *resp)
 {
 	struct nsdev		*dev;
 	int			 len;
 	int			 once = 0;
-	int			 ret = 0;
 
 	len = sprintf(resp, "{ " JSTAG " [", TAG_NSDEVS);
 	resp += len;
@@ -121,16 +120,13 @@ static int get_nsdev(char *resp)
 	}
 
 	sprintf(resp, "]}");
-
-	return ret;
 }
 
-static int get_interface(char *resp)
+static void get_interface(char *resp)
 {
-	struct port_id		*iface;
+	struct portid		*iface;
 	int			 len;
 	int			 once = 0;
-	int			 ret = 0;
 
 	len = sprintf(resp, "{ " JSTAG " [", TAG_INTERFACES);
 	resp += len;
@@ -138,9 +134,9 @@ static int get_interface(char *resp)
 	list_for_each_entry(iface, interfaces, node) {
 		len = sprintf(resp, "%s{", once ? "," : "");
 		resp += len;
-		len = sprintf(resp, JSSTR ",", TAG_FAMILY, iface->family);
-		resp += len;
 		len = sprintf(resp, JSSTR ",", TAG_TYPE, iface->type);
+		resp += len;
+		len = sprintf(resp, JSSTR ",", TAG_FAMILY, iface->family);
 		resp += len;
 		len = sprintf(resp, JSSTR "}", TAG_ADDRESS, iface->address);
 		resp += len;
@@ -148,25 +144,21 @@ static int get_interface(char *resp)
 	}
 
 	sprintf(resp, "]}");
-
-	return ret;
 }
 
 static int get_request(char *p[], int n, char *resp)
 {
-	int			 ret = 0;
-
 	if (n != 1)
 		goto bad;
 
 	if (strcmp(p[0], URI_NSDEV) == 0)
-		ret = get_nsdev(resp);
+		get_nsdev(resp);
 	else if (strcmp(p[0], URI_INTERFACE) == 0)
-		ret = get_interface(resp);
+		get_interface(resp);
 	else
 		goto bad;
 
-	return ret;
+	return 0;
 bad:
 	return bad_request(resp);
 }

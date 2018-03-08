@@ -35,6 +35,10 @@
 #include "linux/kernel.h"
 
 #define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
+#define CONFIG_FILENAME		"config"
+#define SIGNATURE_FILE_FILENAME	"signature"
+#define CONFIG_FILE		CONFIG_DIR CONFIG_FILENAME
+#define SIGNATURE_FILE		CONFIG_DIR SIGNATURE_FILE_FILENAME
 
 #define MINUTES		(60 * 1000) /* convert ms to minutes */
 
@@ -165,7 +169,7 @@ struct interface {
 	} u;
 };
 
-struct port_id {
+struct portid {
 	struct list_head	 node;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
