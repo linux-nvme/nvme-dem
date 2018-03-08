@@ -683,6 +683,9 @@ int enumerate_devices(void)
 					}
 					sscanf(subentry->d_name, SYSFS_DEVICE,
 					       &device->devid, &device->nsid);
+					print_debug("adding device nvme%dn%d",
+						    device->devid,
+						    device->nsid);
 					list_add_tail(&device->node, devices);
 					cnt++;
 				}
@@ -703,6 +706,7 @@ int enumerate_devices(void)
 		device->devid = NULL_BLK_DEVID;
 		device->nsid = 0;
 
+		print_debug("adding device nullb0");
 		list_add_tail(&device->node, devices);
 		cnt++;
 		fclose(fd);

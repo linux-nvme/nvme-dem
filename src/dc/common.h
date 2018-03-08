@@ -57,8 +57,8 @@
 #define CONFIG_DIR		"/etc/nvme/nvmeof-dem/"
 #define CONFIG_FILENAME		"config"
 #define SIGNATURE_FILE_FILENAME	"signature"
-#define CONFIG_FILE		CONFIG_DIR CONFIG_FILENAME
-#define SIGNATURE_FILE		CONFIG_DIR SIGNATURE_FILE_FILENAME
+#define CONFIG_FILE		(CONFIG_DIR CONFIG_FILENAME)
+#define SIGNATURE_FILE		(CONFIG_DIR SIGNATURE_FILE_FILENAME)
 
 #define print_debug(f, x...) \
 	do { \

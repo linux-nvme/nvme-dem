@@ -35,7 +35,7 @@ static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_HTTP_PORT;
 int					 stopped;
 int					 debug;
-int					 curl_show_results = 0;
+int					 curl_show_results;
 struct host_iface			*interfaces;
 int					 num_interfaces;
 struct list_head			*target_list = &target_list_head;
@@ -219,6 +219,8 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 #else
 	const char		*opt_list = "?dsp:r:c:";
 #endif
+
+	curl_show_results = 0;
 
 	*ssl_cert = NULL;
 
