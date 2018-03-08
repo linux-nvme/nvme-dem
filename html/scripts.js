@@ -1121,8 +1121,8 @@ function parseObject(obj, itemA) {
     str += "<h1>About</h1>";
     str += '<div class="comments">';
     str += "<p>Use the menus to the right to view the defined objects ";
-    str += "managed by this DEM.</p>";
-    str += "<p>Currently active DEM fabric interfaces for NVMe-oF Hosts ";
+    str += "managed by this <b>DEM Discovery Controller</b>.</p>";
+    str += "<p>Currently active fabric interfaces for NVMe-oF Hosts ";
     str += "to query are listed below.</p></div>";
   }
 
@@ -1366,7 +1366,7 @@ function loadDoc(page) {
       $("#form input[name=pswd]").val("");
       message.innerHTML = "<p><b>Please Login.</b></p>";
     } else if (this.status == 0)
-      showError(message, "DEM is not responding.");
+      showError(message, "The DEM Discovery Controller is not responding.");
     else if (this.status == 403)
       showError(message, "Invalid user id and/or password.");
     else
@@ -1422,6 +1422,7 @@ function email(name) {
     var cc = "";
     var subject = "";
     var body = "";
+    var nl = String.fromCharCode(13) + String.fromCharCode(10);
     var cayton = "Phil Cayton <phil.cayton@intel.com>";
     var jay = "Jay Sternberg <jay.e.sternberg@intel.com>";
 
@@ -1432,9 +1433,10 @@ function email(name) {
         email = jay;
         cc = cayton;
     }
-    subject = "NVMe-oF Discovery Manager Query";
-    body = "Can you please provide more information regarding your " +
-           "implementation of the DEM.  Thanks.";
+    subject = "NVMe-oF Discovery Endpoint Management (DEM) Query";
+    body = "Can you please provide more information regarding this " +
+           "implementation of Discovery Endpoint Management (DEM)" +
+           nl + nl + "Thanks.";
 
     window.location.href = "mailto:" + encodeURI(email) +
                            "?cc=" + encodeURI(cc) +

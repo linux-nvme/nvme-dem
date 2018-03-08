@@ -287,15 +287,15 @@ union sc_iface {
 struct target {
 	struct list_head	 node;
 	struct list_head	 subsys_list;
-	char			 alias[MAX_ALIAS_SIZE + 1];
-	int			 mgmt_mode;
-	union sc_iface		 sc_iface;
 	struct list_head	 portid_list;
 	struct list_head	 device_list;
 	struct list_head	 discovery_queue_list;
 	struct list_head	 fabric_iface_list;
 	struct host_iface	*iface;
 	json_t			*json;
+	union sc_iface		 sc_iface;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	int			 mgmt_mode;
 	int			 refresh;
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
