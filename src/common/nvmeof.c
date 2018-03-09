@@ -35,7 +35,7 @@
 
 void dump(u8 *buf, int len)
 {
-	int			i, j, n = 0;
+	int			 i, j, n = 0;
 	char			 hex[49];
 	char			 prev[49];
 	char			 chr[17];

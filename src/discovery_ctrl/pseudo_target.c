@@ -21,8 +21,8 @@
 #include "common.h"
 #include "ops.h"
 
-#define RETRY_COUNT	200  // 20 sec since multiplier of delay timeout
-#define DELAY_TIMEOUT	100 // ms
+#define RETRY_COUNT	200	// 20 sec since multiplier of delay timeout
+#define DELAY_TIMEOUT	100	// ms
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
@@ -31,8 +31,9 @@
 struct host_conn {
 	struct list_head	 node;
 	struct endpoint		*ep;
-	struct timeval		 t0;
-	int			 retry;
+	struct timeval		 timeval;
+	int			 countdown;
+	int			 kato;
 };
 
 static int handle_property_set(struct nvme_command *cmd, int *csts)
@@ -252,9 +253,10 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	return ret;
 }
 
-static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
+static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 			   int length)
 {
+	struct endpoint			*ep = host->ep;
 	struct nvme_command		*cmd = (struct nvme_command *) buf;
 	struct nvme_completion		*resp = (void *) ep->cmd;
 	struct nvmf_connect_command	*c = &cmd->connect;
@@ -296,7 +298,6 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
-		/* TODO Update keepalive counter */
 		ret = 0;
 	else if (cmd->common.opcode == nvme_admin_get_log_page) {
 		if (len == 16)
@@ -308,7 +309,7 @@ static void handle_request(struct endpoint *ep, struct qe *qe, void *buf,
 		if (ret)
 			ret = 0;
 		else
-			kato = 0; /* TODO Update kato */
+			host->kato = kato / DELAY_TIMEOUT;
 	} else {
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
 		ret = -EINVAL;
@@ -380,7 +381,7 @@ static void *host_thread(void *arg)
 	struct host_queue	*q = arg;
 	struct endpoint		*ep = NULL;
 	struct qe		 qe;
-	struct timeval		 t0;
+	struct timeval		 timeval;
 	struct list_head	 host_list;
 	struct host_conn	*next;
 	struct host_conn	*host;
@@ -392,7 +393,7 @@ static void *host_thread(void *arg)
 	INIT_LIST_HEAD(&host_list);
 
 	while (!stopped) {
-		gettimeofday(&t0, NULL);
+		gettimeofday(&timeval, NULL);
 
 		do {
 			ret = get_new_host_conn(q, &ep);
@@ -403,12 +404,12 @@ static void *host_thread(void *arg)
 					goto out;
 
 				host->ep	= ep;
-				host->retry	= RETRY_COUNT;
-				host->t0	= t0;
+				host->kato	= RETRY_COUNT;
+				host->countdown	= RETRY_COUNT;
+				host->timeval	= timeval;
 
 				list_add_tail(&host->node, &host_list);
 			}
-
 		} while (!ret && !stopped);
 
 		/* Service Host requests */
@@ -416,16 +417,16 @@ static void *host_thread(void *arg)
 			ep = host->ep;
 			ret = ep->ops->poll_for_msg(ep->ep, &qe.qe, &buf, &len);
 			if (!ret) {
-				handle_request(ep, &qe, buf, len);
+				handle_request(host, &qe, buf, len);
 
-				host->retry	= RETRY_COUNT;
-				host->t0	= t0;
+				host->countdown	= host->kato;
+				host->timeval	= timeval;
 
 				continue;
 			}
 
 			if (ret == -EAGAIN)
-				if (--host->retry > 0)
+				if (--host->countdown > 0)
 					continue;
 
 			disconnect_target(ep, !stopped);
@@ -437,7 +438,7 @@ static void *host_thread(void *arg)
 			free(host);
 		}
 
-		delta = msec_delta(t0);
+		delta = msec_delta(timeval);
 		if (delta < DELAY_TIMEOUT)
 			usleep((DELAY_TIMEOUT - delta) * 1000);
 	}
@@ -536,7 +537,6 @@ void *interface_thread(void *arg)
 	}
 
 	pthread_join(pthread, NULL);
-
 out2:
 	iface->ops->destroy_listener(listener);
 out1:
