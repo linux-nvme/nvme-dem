@@ -1,0 +1,70 @@
+-------------------------------------------------
+github.com/cesanta/mongoose.git
+------------------------------------------------- 
+Copyright (c) 2004-2013 Sergey Lyubka <valenok@gmail.com>
+Copyright (c) 2013-2016 Cesanta Software Limited
+All rights reserved
+
+This software is dual-licensed: you can redistribute it and/or modify
+it under the terms of the GNU General Public License version 2 as
+published by the Free Software Foundation. For the terms of this
+license, see <http://www.gnu.org/licenses/>.
+
+You are free to use this software under the terms of the GNU General
+Public License, but WITHOUT ANY WARRANTY; without even the implied
+warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+See the GNU General Public License for more details.
+
+Alternatively, you can license this software under a commercial
+license, as set out in <https://www.cesanta.com/license>. 
+-------------------------------------------------
+github.com/akheron/jansson.git
+-------------------------------------------------
+Copyright (c) 2009-2016 Petri Lehtinen <petri@digip.org>
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in
+all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+THE SOFTWARE.
+-------------------------------------------------
+http://www.webtoolkit.info/javascript_base64.html
+-------------------------------------------------
+/**
+*
+*  Base64 encode / decode
+*  http://www.webtoolkit.info/
+*
+**/
+-------------------------------------------------
+License 
+As long as you leave the copyright notice of the original script, or link back to this website, you can use any of the content published on this website free of charge for any use: commercial or noncommercial. However, under the license they are released through there are limitations to what you may or may not do.
+
+You Can: 
+- Use the resources in your personal work, in whole or part. 
+- Use the resources in your commercial work, in whole or part. 
+- Modify the work to your personal preference. 
+- Share the resources with others, under the following terms: 
+- Link to the resource webpage, not the download file. 
+- Use an excerpt from the webpage if necessary (don’t copy the full article and
+  display it on your site)
+
+You Can Not: 
+- You can NOT sell the resources directly for profit (eg. Selling the items on 
+  stock resource websites) 
+- You can NOT copy the full webpage and display it on your own website.
+  (Use an excerpt by all means, but please link to the original resource download
+   page – not the actual file.) 
+
