@@ -2,9 +2,9 @@
 
 COMMON_DIR=src/common
 CLI_DIR=src/cli
-AC_DIR=src/ac
-DC_DIR=src/dc
-EC_DIR=src/ec
+AC_DIR=src/auto_connect
+DC_DIR=src/discovery_ctrl
+EC_DIR=src/endpoint_config
 INCL_DIR=src/incl
 BIN_DIR=.bin
 
