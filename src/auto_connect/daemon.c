@@ -584,17 +584,22 @@ int main(int argc, char *argv[])
 	if (validate_usage())
 		goto out;
 
+	signalled = stopped = 0;
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
+
 	if (connect_target(dq))
 		print_info("Unable to connect to %s", dc_str);
 	else {
+		dq->connected = CONNECTED;
 		print_info("Connected to %s", dc_str);
 		usleep(100);
+		if (stopped)
+			goto cleanup;
 		fetch_log_pages(dq);
 		mark_connected_subsystems(dq);
-		dq->connected = CONNECTED;
 	}
-
-	signalled = stopped = 0;
 
 	print_info("Starting server");
 
@@ -605,6 +610,8 @@ int main(int argc, char *argv[])
 				print_info("Connected to %s", dc_str);
 				cnt = 0;
 				usleep(100);
+				if (stopped)
+					goto cleanup;
 				fetch_log_pages(dq);
 				mark_connected_subsystems(dq);
 				dq->connected = CONNECTED;
@@ -613,21 +620,31 @@ int main(int argc, char *argv[])
 		if (dq->connected && (++cnt > KEEP_ALIVE_COUNTER)) {
 			cnt = 0;
 			ret = send_keep_alive(&dq->ep);
+			if (stopped)
+				goto cleanup;
 			if (ret) {
 				print_err("Lost connection to %s", dc_str);
 				cleanup_dq(dq);
 			}
 		}
 
+		if (stopped)
+			goto cleanup;
+
 		connect_one_subsystem(dq);
 	}
+
+cleanup:
+	cleanup_dq(dq);
 
 	if (signalled)
 		printf("\n");
 
 	free(dq->portid);
 
-	cleanup_dq(dq);
+	print_info("Shutting down");
+
+	sleep(5);
 
 	ret = 0;
 out:

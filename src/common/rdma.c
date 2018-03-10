@@ -705,7 +705,8 @@ static int rdma_send_msg(struct xp_ep *_ep, void *msg, int len,
 			return -ESHUTDOWN;
 
 	if (wc.status != IBV_WC_SUCCESS) {
-		print_err("send wc.status %d", wc.status);
+		if (wc.status != IBV_WC_RETRY_EXC_ERR)
+			print_err("send wc.status %d", wc.status);
 		return -ECONNRESET;
 	}
 
@@ -727,7 +728,8 @@ static int rdma_poll_for_msg(struct xp_ep *_ep, struct xp_qe **_qe, void **msg,
 		return -EAGAIN;
 
 	if (wc.status != IBV_WC_SUCCESS) {
-		print_err("recv wc.status %d", wc.status);
+		if (wc.status != IBV_WC_WR_FLUSH_ERR)
+			print_err("recv wc.status %d", wc.status);
 		return -ECONNRESET;
 	}
 
