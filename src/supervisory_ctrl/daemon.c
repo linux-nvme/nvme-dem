@@ -46,11 +46,9 @@
 #include "mongoose.h"
 #include "common.h"
 #include "tags.h"
+#include "ops.h"
 
-#define RETRY_COUNT	200
 #define DEFAULT_HTTP_ROOT	"/"
-#define DEFAULT_OOB_PORT	"22334"
-#define DEFAULT_INB_PORT	"4422"
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -60,13 +58,14 @@
 static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
 
-static struct mg_serve_http_opts	 s_http_server_opts;
-static char				*s_http_port = DEFAULT_OOB_PORT;
 int					 stopped;
 int					 debug;
 static int				 signalled;
+static struct mg_serve_http_opts	 s_http_server_opts;
+static char				*s_http_port;
 struct list_head			*devices = &device_list_head;
 struct list_head			*interfaces = &interface_list_head;
+static struct host_iface		 host_iface;
 
 void shutdown_dem(void)
 {
@@ -145,32 +144,99 @@ static void show_help(char *app)
 #ifdef DEV_DEBUG
 	const char		*arg_list = "{-q} {-d}";
 #else
-	const char		*arg_list = "{-d} {-s}";
+	const char		*arg_list = "{-d} {-S}";
 #endif
-	const char		*oob = "Out-of-Band interface";
+	const char		*oob_args =
+		"{-p <port>} {-r <root>} {-c <cert_file>}";
+	const char		*inb_args =
+		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsrvcid>}";
 
-	print_info("Usage: %s %s {-p <port>} {-r <root>} {-c <cert_file>}",
-		   app, arg_list);
+	print_info("Usage: %s %s", app, arg_list);
+	print_info(" FOR Out-of-Band (HTTP) -- %s", oob_args);
+	print_info(" FOR In-Band (SC) -- %s", inb_args);
+
 #ifdef DEV_DEBUG
 	print_info("  -q - quite mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
 	print_info("  -d - enable debug prints in log files");
-	print_info("  -s - run as a standalone process (default is daemon)");
+	print_info("  -S - run as a standalone process (default is daemon)");
 #endif
-	print_info("  -p - %s: port (default %s)", oob, DEFAULT_OOB_PORT);
-	print_info("  -r - %s: http root (default %s)", oob, DEFAULT_HTTP_ROOT);
-	print_info("  -c - %s: SSL cert file (default no SSL)", oob);
+
+	print_info("  Out-of-Band (RESTful) interface:");
+	print_info("  -p - port");
+	print_info("  -r - http root (default %s)", DEFAULT_HTTP_ROOT);
+	print_info("  -c - SSL cert file (default no SSL)");
+
+	print_info("  In-Band (Supervisory Controller) interface:");
+	print_info("  -t - type (TRTYPE) [ rdma, tcp. fc ]");
+	print_info("  -f - family (ADRFAM) [ ipv4, ipv6. fc ]");
+	print_info("  -a - address (TRADDR)");
+	print_info("  -s - service id (TRSRVID)");
+}
+
+static int validate_host_iface(void)
+{
+	int			 ret = 0;
+
+	if (strcmp(host_iface.type, TRTYPE_STR_RDMA) == 0)
+		host_iface.ep.ops = rdma_register_ops();
+
+	if (!host_iface.ep.ops)
+		goto out;
+
+	if (strcmp(host_iface.family, ADRFAM_STR_IPV4) == 0)
+		host_iface.adrfam = NVMF_ADDR_FAMILY_IP4;
+	else if (strcmp(host_iface.family, ADRFAM_STR_IPV6) == 0)
+		host_iface.adrfam = NVMF_ADDR_FAMILY_IP6;
+	else if (strcmp(host_iface.family, ADRFAM_STR_FC) == 0)
+		host_iface.adrfam = NVMF_ADDR_FAMILY_FC;
+
+	if (!host_iface.adrfam) {
+		print_info("Invalid adrfam: valid options %s, %s, %s",
+			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+		goto out;
+	}
+
+	switch (host_iface.adrfam) {
+	case NVMF_ADDR_FAMILY_IP4:
+		ret = ipv4_to_addr(host_iface.address, host_iface.addr);
+		break;
+	case NVMF_ADDR_FAMILY_IP6:
+		ret = ipv6_to_addr(host_iface.address, host_iface.addr);
+		break;
+	case NVMF_ADDR_FAMILY_FC:
+		ret = fc_to_addr(host_iface.address, host_iface.addr);
+		break;
+	}
+
+	if (ret) {
+		print_info("Invalid traddr");
+		goto out;
+	}
+
+	if (host_iface.port)
+		host_iface.port_num = atoi(host_iface.port);
+
+	if (!host_iface.port_num) {
+		print_info("Invalid trsvcid");
+		goto out;
+	}
+
+	ret = 1;
+out:
+	return ret;
 }
 
 static int init_dem(int argc, char *argv[], char **ssl_cert)
 {
 	int			 opt;
+	int			 inb_test;
 	int			 run_as_daemon;
 #ifdef DEV_DEBUG
-	const char		*opt_list = "?qdp:r:c:";
+	const char		*opt_list = "?qdp:r:c:t:f:a:s:";
 #else
-	const char		*opt_list = "?dsp:r:c:";
+	const char		*opt_list = "?dSp:r:c:t:f:a:s:";
 #endif
 
 	*ssl_cert = NULL;
@@ -199,7 +265,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		case 'd':
 			debug = 1;
 			break;
-		case 's':
+		case 'S':
 			run_as_daemon = 0;
 			break;
 #endif
@@ -213,12 +279,45 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		case 'c':
 			*ssl_cert = optarg;
 			break;
+		case 't':
+			strncpy(host_iface.type, optarg, CONFIG_TYPE_SIZE);
+			break;
+		case 'f':
+			strncpy(host_iface.family, optarg, CONFIG_FAMILY_SIZE);
+			break;
+		case 'a':
+			strncpy(host_iface.address, optarg,
+				CONFIG_ADDRESS_SIZE);
+			break;
+		case 's':
+			strncpy(host_iface.port, optarg, CONFIG_PORT_SIZE);
+			break;
 		case '?':
 		default:
 help:
 			show_help(argv[0]);
 			return 1;
 		}
+	}
+
+	inb_test = (host_iface.type[0]) ? 1 : 0;
+	inb_test += (host_iface.family[0]) ? 1 : 0;
+	inb_test += (host_iface.address[0]) ? 1 : 0;
+	inb_test += (host_iface.port[0]) ? 1 : 0;
+
+	if ((inb_test > 0) && (inb_test < 4)) {
+		print_err("incomplete in-band address info");
+		return 1;
+	}
+
+	if (!inb_test && !s_http_port) {
+		print_err("neither in-band not out-of-band info provided");
+		return 1;
+	}
+
+	if (inb_test && !validate_host_iface()) {
+		print_err("invalid in-band address info");
+		return 1;
 	}
 
 	if (run_as_daemon) {
@@ -267,13 +366,50 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
 
 	mg_set_protocol_http_websocket(c);
 
+	print_info("Starting daemon on port %s, serving '%s'",
+		   s_http_port, s_http_server_opts.document_root);
+
 	return 0;
+}
+
+static void cleanup_inb_thread(pthread_t *listen_thread)
+{
+	pthread_kill(*listen_thread, SIGTERM);
+
+	/* wait for threads to cleanup before exiting so they can properly
+	 * cleanup.
+	 */
+
+	usleep(100);
+
+	/* even thought the threads are finished, need to call join
+	 * otherwize, it will not release its memory and valgrind indicates
+	 * a leak
+	 */
+
+	pthread_join(*listen_thread, NULL);
+}
+
+static int init_inb_thread(pthread_t *listen_thread)
+{
+	pthread_attr_t		 pthread_attr;
+	int			 ret;
+
+	pthread_attr_init(&pthread_attr);
+
+	ret = pthread_create(listen_thread, &pthread_attr, interface_thread,
+			     &host_iface);
+	if (ret)
+		print_err("failed to start thread for supervisory controller");
+
+	return ret;
 }
 
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
 	char			*ssl_cert = NULL;
+	pthread_t		 inb_pthread;
 	char			 default_root[] = DEFAULT_HTTP_ROOT;
 	int			 ret = 1;
 
@@ -290,13 +426,11 @@ int main(int argc, char *argv[])
 		goto out1;
 	}
 
-	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
-		goto out1;
+	if (s_http_port)
+		if (init_mg_mgr(&mgr, argv[0], ssl_cert))
+			goto out1;
 
 	signalled = stopped = 0;
-
-	print_info("Starting target daemon on port %s, serving '%s'",
-		   s_http_port, s_http_server_opts.document_root);
 
 	if (enumerate_devices() <= 0) {
 		print_info("no nvme devices found");
@@ -308,13 +442,25 @@ int main(int argc, char *argv[])
 		goto out2;
 	}
 
-	poll_loop(&mgr);
+	if (host_iface.type[0])
+		if (init_inb_thread(&inb_pthread))
+			goto out3;
+
+	if (s_http_port)
+		poll_loop(&mgr);
+	else
+		while (!stopped)
+			usleep(100);
 
 	if (signalled)
 		printf("\n");
 
 	ret = 0;
 
+	if (host_iface.type[0])
+		cleanup_inb_thread(&inb_pthread);
+
+out3:
 	free_interfaces();
 out2:
 	free_devices();

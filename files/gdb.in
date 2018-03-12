@@ -1,3 +1,5 @@
+set args -t rdma -f ipv4 -a 192.168.22.2 -s 44222
+
 handle SIGTERM nostop noprint
 l init_listener
 b 243

@@ -45,12 +45,15 @@
 #include "ops.h"
 #include "linux/nvme-rdma.h"
 
-#define NVME_CTRL_ENABLE 0x460001
-#define NVME_CTRL_DISABLE 0x464001
+#define NVME_CTRL_ENABLE	0x460001
+#define NVME_CTRL_DISABLE	0x464001
 
-#define NVME_DISC_KATO	360000 /* ms = minutes */
-
-#define MSG_TIMEOUT     100
+#define NVME_DISC_KATO		360000 /* ms = minutes */
+#define RETRY_COUNT		5
+#define MSG_TIMEOUT		100
+#define CONFIG_TIMEOUT		50
+#define CONFIG_RETRY_COUNT	20
+#define CONNECT_RETRY_COUNT	10
 
 void dump(u8 *buf, int len)
 {
@@ -160,20 +163,23 @@ static int process_nvme_rsp(struct endpoint *ep)
 
 	ret = rsp->status;
 
+	if (ret)
+		print_err("error status %x", ret);
+
 	ep->ops->repost_recv(ep->ep, qe);
 
 	return ret;
 }
 
-static int send_fabric_connect(struct discovery_queue *dq)
+static int send_fabric_connect(struct target *target, struct endpoint *ep,
+			       char *hostnqn)
 {
-	struct target			*target = dq->target;
-	struct endpoint			*ep = &dq->ep;
 	struct nvmf_connect_data	*data;
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	int				 bytes;
 	int				 key;
+	int				 retry;
 	int				 ret;
 
 	data = ep->data;
@@ -194,7 +200,7 @@ static int send_fabric_connect(struct discovery_queue *dq)
 
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	strncpy(data->hostnqn, dq->hostnqn, NVMF_NQN_SIZE);
+	strncpy(data->hostnqn, hostnqn, NVMF_NQN_SIZE);
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -210,6 +216,16 @@ static int send_fabric_connect(struct discovery_queue *dq)
 	ret = process_nvme_rsp(ep);
 	if (!ret || (target->mgmt_mode != IN_BAND_MGMT))
 		return ret;
+
+	retry = RETRY_COUNT;
+	while (ret == -EAGAIN) {
+		usleep(100);
+		ret = process_nvme_rsp(ep);
+		if (!ret)
+			return ret;
+		if (!--retry)
+			break;
+	}
 
 	print_err("misconfigured target %s, retry as locally managed",
 		  target->alias);
@@ -257,8 +273,7 @@ int send_keep_alive(struct endpoint *ep)
 	return 0;
 }
 
-int send_get_nsdevs(struct endpoint *ep,
-		    struct nvmf_ns_devices_rsp_page_hdr **hdr)
+int send_get_config(struct endpoint *ep, int config_id, void **_data)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
@@ -266,6 +281,7 @@ int send_get_nsdevs(struct endpoint *ep,
 	u64				*data;
 	int				 bytes;
 	int				 key;
+	int				 cnt = CONFIG_RETRY_COUNT;
 	int				 ret;
 
 	if (!cmd)
@@ -291,7 +307,8 @@ int send_get_nsdevs(struct endpoint *ep,
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 	cmd->common.opcode	= nvme_fabrics_command;
 
-	cmd->fabrics.fctype	= nvme_fabrics_type_get_ns_devices;
+	cmd->get_config.config_id	= config_id;
+	cmd->get_config.fctype		= nvme_fabrics_type_get_config;
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -300,80 +317,32 @@ int send_get_nsdevs(struct endpoint *ep,
 	put_unaligned_le32(key, sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
-	*hdr = (struct nvmf_ns_devices_rsp_page_hdr *) data;
+	*_data = data;
 
 	ret = send_cmd(ep, cmd, bytes);
-	if (ret)
+	if (ret) {
 		free(data);
-	else
-		ret =  process_nvme_rsp(ep);
-
-	ep->ops->dealloc_key(mr);
-
-	return ret;
-}
-
-int send_get_xports(struct endpoint *ep,
-		    struct nvmf_transports_rsp_page_hdr **hdr)
-{
-	struct nvme_keyed_sgl_desc	*sg;
-	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	u64				*data;
-	int				 bytes;
-	int				 key;
-	int				 ret;
-
-	bytes = sizeof(*cmd);
-
-	if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
-		print_err("no memory for buffer, errno %d", errno);
-		return errno;
+		goto out;
 	}
 
-	memset(data, 0, PAGE_SIZE);
-
-	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
-
-	cmd->fabrics.fctype	= nvme_fabrics_type_get_transports;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(PAGE_SIZE, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
-	*hdr = (struct nvmf_transports_rsp_page_hdr *) data;
-
-	ret = send_cmd(ep, cmd, bytes);
-	if (ret)
-		free(data);
-	else
-		ret =  process_nvme_rsp(ep);
-
+	do {
+		usleep(CONFIG_TIMEOUT);
+		ret = process_nvme_rsp(ep);
+	} while (ret == -EAGAIN && --cnt);
+out:
 	ep->ops->dealloc_key(mr);
 
 	return ret;
 }
 
-int send_set_port_config(struct endpoint *ep, int len,
-			 struct nvmf_port_config_page_hdr *hdr)
+int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
 	int				 bytes;
 	int				 key;
+	int				 cnt = CONFIG_RETRY_COUNT;
 	int				 ret;
 
 	if (!cmd)
@@ -381,7 +350,7 @@ int send_set_port_config(struct endpoint *ep, int len,
 
 	bytes = sizeof(*cmd);
 
-	ret = ep->ops->alloc_key(ep->ep, hdr, len, &mr);
+	ret = ep->ops->alloc_key(ep->ep, data, len, &mr);
 	if (ret)
 		return ret;
 
@@ -391,70 +360,33 @@ int send_set_port_config(struct endpoint *ep, int len,
 
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 	cmd->common.opcode	= nvme_fabrics_command;
-	cmd->fabrics.fctype	= nvme_fabrics_type_set_port_config;
+
+	cmd->set_config.config_id	= config_id;
+	cmd->set_config.fctype		= nvme_fabrics_type_set_config;
 
 	sg = &cmd->common.dptr.ksgl;
 
-	sg->addr = (u64) hdr;
+	sg->addr = (u64) data;
 	put_unaligned_le24(len, sg->length);
 	put_unaligned_le32(key, sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
-		return ret;
+		goto out;
 
-	ret = process_nvme_rsp(ep);
-
-	ep->ops->dealloc_key(mr);
-
-	return ret;
-}
-
-int send_set_subsys_config(struct endpoint *ep, int len,
-			   struct nvmf_subsys_config_page_hdr *hdr)
-{
-	struct nvme_keyed_sgl_desc	*sg;
-	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	int				 bytes;
-	int				 key;
-	int				 ret;
-
-	bytes = sizeof(*cmd);
-
-	ret = ep->ops->alloc_key(ep->ep, hdr, len, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
-	cmd->fabrics.fctype	= nvme_fabrics_type_set_subsys_config;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) hdr;
-	put_unaligned_le24(len, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
-	ret = send_cmd(ep, cmd, bytes);
-	if (ret)
-		return ret;
-
-	ret = process_nvme_rsp(ep);
-
+	do {
+		usleep(CONFIG_TIMEOUT);
+		ret = process_nvme_rsp(ep);
+	} while (ret == -EAGAIN && --cnt);
+out:
 	ep->ops->dealloc_key(mr);
 
 	return ret;
 }
 
 int send_get_subsys_usage(struct endpoint *ep, int len,
-			  struct nvmf_subsys_usage_rsp_page_hdr *hdr)
+			  struct nvmf_subsys_usage_hdr *hdr)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
@@ -643,7 +575,7 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 }
 
 
-void disconnect_target(struct endpoint *ep, int shutdown)
+void disconnect_ctrl(struct endpoint *ep, int shutdown)
 {
 	if (shutdown && (ep->state == CONNECTED))
 		post_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
@@ -651,10 +583,12 @@ void disconnect_target(struct endpoint *ep, int shutdown)
 	if (ep->mr)
 		ep->ops->dealloc_key(ep->mr);
 
-	ep->ops->destroy_endpoint(ep->ep);
+	if (ep->ep)
+		ep->ops->destroy_endpoint(ep->ep);
 
 	if (ep->qe)
 		free(ep->qe);
+
 	if (ep->cmd)
 		free(ep->cmd);
 }
@@ -688,10 +622,11 @@ static int build_connect_data(struct nvme_rdma_cm_req **req, char *hostnqn)
 	return bytes;
 }
 
-int connect_target(struct discovery_queue *dq)
+int connect_ctrl(struct ctrl_queue *ctrl)
 {
-	struct portid		*portid = dq->portid;
-	struct endpoint		*ep = &dq->ep;
+	struct target		*target = ctrl->target;
+	struct portid		*portid = ctrl->portid;
+	struct endpoint		*ep = &ctrl->ep;
 	struct sockaddr		 dest = { 0 };
 	struct sockaddr_in	*dest_in = (struct sockaddr_in *) &dest;
 	struct sockaddr_in6	*dest_in6 = (struct sockaddr_in6 *) &dest;
@@ -700,6 +635,7 @@ int connect_target(struct discovery_queue *dq)
 	void			*data;
 	int			 bytes;
 	int			 ret = 0;
+	int			 cnt = CONNECT_RETRY_COUNT;
 
 	if (strcmp(portid->family, "ipv4") == 0) {
 		dest_in->sin_family = AF_INET;
@@ -723,9 +659,12 @@ int connect_target(struct discovery_queue *dq)
 	if (ret)
 		return ret;
 
-	bytes = build_connect_data(&req, dq->hostnqn);
+	bytes = build_connect_data(&req, ctrl->hostnqn);
 
-	ret = ep->ops->client_connect(ep->ep, &dest, req, bytes);
+	do {
+		usleep(CONFIG_TIMEOUT);
+		ret = ep->ops->client_connect(ep->ep, &dest, req, bytes);
+	} while (ret == -EAGAIN && --cnt);
 
 	if (bytes)
 		free(req);
@@ -758,13 +697,13 @@ int connect_target(struct discovery_queue *dq)
 
 	ep->data = data;
 
-	ret = send_fabric_connect(dq);
+	ret = send_fabric_connect(target, ep, ctrl->hostnqn);
 	if (ret)
 		goto out;
 
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
 out:
-	disconnect_target(ep, 0);
+	disconnect_ctrl(ep, 0);
 	return ret;
 }
 
@@ -787,8 +726,7 @@ int start_pseudo_target(struct host_iface *iface)
 	else
 		return -EINVAL;
 
-	ret = iface->ops->init_listener(&iface->listener,
-					iface->pseudo_target_port);
+	ret = iface->ops->init_listener(&iface->listener, iface->port);
 	if (ret)
 		return ret;
 

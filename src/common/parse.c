@@ -36,6 +36,7 @@
 #include <string.h>
 
 #include "common.h"
+#include "tags.h"
 
 #define is_whitespace(c) (c == ' ' || c == '\t' || c == '\r')
 #define is_quote(c)	 (c == '\'' || c == '"')
@@ -214,8 +215,10 @@ static int string_to_addr(char *p, int *addr, int len, int width, char delim)
 	for (; j < len; j++)
 		addr[j] = 0;
 
-	if (i < n && *p == '/')
-		return atoi(++p);
+	if (i < n && *p == '/') {
+		*p++ = 0;
+		return atoi(p);
+	}
 
 	return 0;
 }
@@ -233,4 +236,112 @@ int ipv6_to_addr(char *p, int *addr)
 int fc_to_addr(char *p, int *addr)
 {
 	return string_to_addr(p, addr, FC_LEN, FC_WIDTH, FC_CHAR);
+}
+
+static const char *arg_str(const char * const *strings, size_t array_size,
+			   size_t idx)
+{
+	if (idx < array_size && strings[idx])
+		return strings[idx];
+
+	return "unrecognized";
+}
+
+static const char * const trtypes[] = {
+	[NVMF_TRTYPE_RDMA]		 = "rdma",
+	[NVMF_TRTYPE_FC]		 = "fc",
+	[NVMF_TRTYPE_LOOP]		 = "loop",
+};
+
+const char *trtype_str(u8 trtype)
+{
+	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
+}
+
+static const char * const adrfams[] = {
+	[NVMF_ADDR_FAMILY_PCI]		 = "pci",
+	[NVMF_ADDR_FAMILY_IP4]		 = "ipv4",
+	[NVMF_ADDR_FAMILY_IP6]		 = "ipv6",
+	[NVMF_ADDR_FAMILY_IB]		 = "ib",
+	[NVMF_ADDR_FAMILY_FC]		 = "fc",
+};
+
+const char *adrfam_str(u8 adrfam)
+{
+	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
+}
+
+static const char * const subtypes[] = {
+	[NVME_NQN_DISC]			 = "discovery subsystem",
+	[NVME_NQN_NVME]			 = "nvme subsystem",
+};
+
+const char *subtype_str(u8 subtype)
+{
+	return arg_str(subtypes, ARRAY_SIZE(subtypes), subtype);
+}
+
+static const char * const treqs[] = {
+	[NVMF_TREQ_NOT_SPECIFIED]	 = "not specified",
+	[NVMF_TREQ_REQUIRED]		 = "required",
+	[NVMF_TREQ_NOT_REQUIRED]	 = "not required",
+};
+
+const char *treq_str(u8 treq)
+{
+	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
+}
+
+static const char * const prtypes[] = {
+	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED] = "not specified",
+	[NVMF_RDMA_PRTYPE_IB]		 = "infiniband",
+	[NVMF_RDMA_PRTYPE_ROCE]		 = "roce",
+	[NVMF_RDMA_PRTYPE_ROCEV2]	 = "roce-v2",
+	[NVMF_RDMA_PRTYPE_IWARP]	 = "iwarp",
+};
+
+const char *prtype_str(u8 prtype)
+{
+	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
+}
+
+static const char * const qptypes[] = {
+	[NVMF_RDMA_QPTYPE_CONNECTED]	 = "connected",
+	[NVMF_RDMA_QPTYPE_DATAGRAM]	 = "datagram",
+};
+
+const char *qptype_str(u8 qptype)
+{
+	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);
+}
+
+static const char * const cms[] = {
+	[NVMF_RDMA_CMS_RDMA_CM]		 = "rdma-cm",
+};
+
+const char *cms_str(u8 cm)
+{
+	return arg_str(cms, ARRAY_SIZE(cms), cm);
+}
+
+u8 to_trtype(char *str)
+{
+	if (strcmp(str, TRTYPE_STR_RDMA) == 0)
+		return NVMF_TRTYPE_RDMA;
+	if (strcmp(str, TRTYPE_STR_FC) == 0)
+		return NVMF_TRTYPE_FC;
+	if (strcmp(str, TRTYPE_STR_TCP) == 0)
+		return NVMF_TRTYPE_TCP;
+	return 0;
+}
+
+u8 to_adrfam(char *str)
+{
+	if (strcmp(str, ADRFAM_STR_IPV4) == 0)
+		return NVMF_ADDR_FAMILY_IP4;
+	if (strcmp(str, ADRFAM_STR_IPV6) == 0)
+		return NVMF_ADDR_FAMILY_IP6;
+	if (strcmp(str, ADRFAM_STR_FC) == 0)
+		return NVMF_ADDR_FAMILY_FC;
+	return 0;
 }

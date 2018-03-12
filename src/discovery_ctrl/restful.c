@@ -135,7 +135,7 @@ static int get_dem_request(char *verb, char *resp)
 		resp += n;
 
 		n = sprintf(resp, JSSTR "}", TAG_TRSVCID,
-			    iface->pseudo_target_port);
+			    iface->port);
 		resp += n;
 	}
 

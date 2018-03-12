@@ -82,7 +82,7 @@ static inline int match_logpage(struct logpage *logpage,
 
 static inline void store_logpage(struct logpage *logpage,
 				 struct nvmf_disc_rsp_page_entry *e,
-				 struct discovery_queue *dq)
+				 struct ctrl_queue *dq)
 {
 	logpage->e = *e;
 	logpage->valid = 1;
@@ -90,7 +90,7 @@ static inline void store_logpage(struct logpage *logpage,
 }
 
 static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
-			   struct target *target, struct discovery_queue *dq)
+			   struct target *target, struct ctrl_queue *dq)
 {
 	int				 i;
 	int				 found;
@@ -133,7 +133,7 @@ next:
 	}
 }
 
-void fetch_log_pages(struct discovery_queue *dq)
+void fetch_log_pages(struct ctrl_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	struct target			*target = dq->target;
@@ -156,7 +156,7 @@ void fetch_log_pages(struct discovery_queue *dq)
 int target_refresh(char *alias)
 {
 	struct target		*target;
-	struct discovery_queue	*dq;
+	struct ctrl_queue	*dq;
 
 	list_for_each_entry(target, target_list, node)
 		if (!strcmp(target->alias, alias))
@@ -165,13 +165,10 @@ int target_refresh(char *alias)
 	return -ENOENT;
 found:
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
-		if (target->mgmt_mode != IN_BAND_MGMT) {
-			if (!connect_target(dq)) {
-				fetch_log_pages(dq);
-				disconnect_target(&dq->ep, 0);
-			}
-		} else if (dq->connected)
+		if (!connect_ctrl(dq)) {
 			fetch_log_pages(dq);
+			disconnect_ctrl(&dq->ep, 0);
+		}
 	}
 
 	return 0;
@@ -189,92 +186,6 @@ int target_usage(char *alias, char **results)
 found:
 	sprintf(*results, "TODO return Target Usage info");
 	return 0;
-}
-
-static const char *arg_str(const char * const *strings, size_t array_size,
-			   size_t idx)
-{
-	if (idx < array_size && strings[idx])
-		return strings[idx];
-
-	return "unrecognized";
-}
-
-static const char * const trtypes[] = {
-	[NVMF_TRTYPE_RDMA]	= "rdma",
-	[NVMF_TRTYPE_FC]	= "fibre-channel",
-	[NVMF_TRTYPE_LOOP]	= "loop",
-};
-
-static const char *trtype_str(u8 trtype)
-{
-	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
-}
-
-static const char * const adrfams[] = {
-	[NVMF_ADDR_FAMILY_PCI]	= "pci",
-	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
-	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
-	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
-	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
-};
-
-static inline const char *adrfam_str(u8 adrfam)
-{
-	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
-}
-
-static const char * const subtypes[] = {
-	[NVME_NQN_DISC]		= "discovery subsystem",
-	[NVME_NQN_NVME]		= "nvme subsystem",
-};
-
-static inline const char *subtype_str(u8 subtype)
-{
-	return arg_str(subtypes, ARRAY_SIZE(subtypes),
-		       subtype);
-}
-
-static const char * const treqs[] = {
-	[NVMF_TREQ_NOT_SPECIFIED]	= "not specified",
-	[NVMF_TREQ_REQUIRED]		= "required",
-	[NVMF_TREQ_NOT_REQUIRED]	= "not required",
-};
-
-static inline const char *treq_str(u8 treq)
-{
-	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
-}
-
-static const char * const prtypes[] = {
-	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]	= "not specified",
-	[NVMF_RDMA_PRTYPE_IB]			= "infiniband",
-	[NVMF_RDMA_PRTYPE_ROCE]			= "roce",
-	[NVMF_RDMA_PRTYPE_ROCEV2]		= "roce-v2",
-	[NVMF_RDMA_PRTYPE_IWARP]		= "iwarp",
-};
-
-static inline const char *prtype_str(u8 prtype)
-{
-	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
-}
-
-static const char * const qptypes[] = {
-	[NVMF_RDMA_QPTYPE_CONNECTED]	= "connected",
-	[NVMF_RDMA_QPTYPE_DATAGRAM]	= "datagram",
-};
-
-static inline const char *qptype_str(u8 qptype)
-{
-	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);	}
-
-static const char * const cms[] = {
-	[NVMF_RDMA_CMS_RDMA_CM] = "rdma-cm",
-};
-
-static const char *cms_str(u8 cm)
-{
-	return arg_str(cms, ARRAY_SIZE(cms), cm);
 }
 
 static void format_logpage(char *buf, struct nvmf_disc_rsp_page_entry *e)
@@ -655,12 +566,93 @@ struct target *alloc_target(char *alias)
 	return target;
 }
 
+static int setup_oob_target(json_t *parent, struct target *target)
+{
+	json_t			*iface;
+	json_t			*obj;
+	int			 ret = 1;
+
+	iface = json_object_get(parent, TAG_INTERFACE);
+	if (!iface)
+		goto out;
+
+	obj = json_object_get(iface, TAG_IFADDRESS);
+	if (!obj || !json_is_string(obj))
+		goto out;
+
+	strcpy(target->sc_iface.oob.address,
+	       (char *) json_string_value(obj));
+
+	obj = json_object_get(iface, TAG_IFPORT);
+	if (!obj || !json_is_integer(obj))
+		goto out;
+
+	target->sc_iface.oob.port = json_integer_value(obj);
+
+	ret = 0;
+out:
+	return ret;
+}
+
+static int setup_inb_target(json_t *parent, struct target *target)
+{
+	json_t			*iface;
+	json_t			*obj;
+
+	target->sc_iface.inb.target = target;
+	strcpy(target->sc_iface.inb.hostnqn, DISCOVERY_CTRL_NQN);
+
+	target->sc_iface.inb.portid = malloc(sizeof(struct portid));
+	if (!target->sc_iface.inb.portid)
+		return -ENOMEM;
+
+	iface = json_object_get(parent, TAG_INTERFACE);
+	if (!iface)
+		goto reset;
+
+	obj = json_object_get(iface, TAG_TYPE);
+	if (!obj || !json_is_string(obj))
+		goto reset;
+
+	strcpy(target->sc_iface.inb.portid->type,
+	       (char *) json_string_value(obj));
+
+	obj = json_object_get(iface, TAG_FAMILY);
+	if (!obj || !json_is_string(obj))
+		goto reset;
+
+	strcpy(target->sc_iface.inb.portid->family,
+	       (char *) json_string_value(obj));
+
+	obj = json_object_get(iface, TAG_ADDRESS);
+	if (!obj || !json_is_string(obj))
+		goto reset;
+
+	strcpy(target->sc_iface.inb.portid->address,
+	       (char *) json_string_value(obj));
+
+	obj = json_object_get(iface, TAG_TRSVCID);
+	if (!obj || !json_is_integer(obj))
+		goto reset;
+
+	target->sc_iface.inb.portid->port_num = json_integer_value(obj);
+
+	return 0;
+reset:
+	print_err("In-Band SC misconfigured %s, reverting to Local Management",
+		  target->alias);
+
+	target->mgmt_mode = LOCAL_MGMT;
+	free(target->sc_iface.inb.portid);
+
+	return 0;
+}
+
 static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 {
 	struct target		*target;
 	json_t			*subgroup;
 	json_t			*obj;
-	json_t			*iface = NULL;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 refresh = 0;
 	int			 mgmt_mode = LOCAL_MGMT;
@@ -683,64 +675,18 @@ static struct target *add_to_target_list(json_t *parent, json_t *hosts)
 	if (obj && json_is_string(obj))
 		mgmt_mode = get_mgmt_mode((char *) json_string_value(obj));
 
+	target->mgmt_mode = mgmt_mode;
+
 	if (mgmt_mode == OUT_OF_BAND_MGMT) {
-		iface = json_object_get(parent, TAG_INTERFACE);
-		if (!iface)
+		if (setup_oob_target(parent, target))
 			goto err;
-
-		obj = json_object_get(iface, TAG_IFADDRESS);
-		if (!obj || !json_is_string(obj))
-			goto err;
-
-		strcpy(target->sc_iface.oob.address,
-		       (char *) json_string_value(obj));
-
-		obj = json_object_get(iface, TAG_IFPORT);
-		if (!obj || !json_is_integer(obj))
-			goto err;
-
-		target->sc_iface.oob.port = json_integer_value(obj);
 	} else if (mgmt_mode == IN_BAND_MGMT) {
-		iface = json_object_get(parent, TAG_INTERFACE);
-		if (!iface)
-			goto common_inb_iface;
-
-		obj = json_object_get(iface, TAG_TYPE);
-		if (!obj || !json_is_string(obj))
-			goto common_inb_iface;
-
-		strcpy(target->sc_iface.inb.portid.type,
-		       (char *) json_string_value(obj));
-
-		obj = json_object_get(iface, TAG_FAMILY);
-		if (!obj || !json_is_string(obj))
-			goto common_inb_iface;
-
-		strcpy(target->sc_iface.inb.portid.family,
-		       (char *) json_string_value(obj));
-
-		obj = json_object_get(iface, TAG_ADDRESS);
-		if (!obj || !json_is_string(obj))
-			goto common_inb_iface;
-
-		strcpy(target->sc_iface.inb.portid.address,
-		       (char *) json_string_value(obj));
-
-		obj = json_object_get(iface, TAG_TRSVCID);
-		if (obj && json_is_integer(obj))
-			target->sc_iface.inb.portid.port_num =
-				json_integer_value(obj);
-		else {
-common_inb_iface:
-			memset(&target->sc_iface.inb.portid, 0,
-			       sizeof(target->sc_iface.inb.portid));
-		}
-
+		if (setup_inb_target(parent, target))
+			goto err;
 	}
 
 	target->json = parent;
 	target->refresh = refresh;
-	target->mgmt_mode = mgmt_mode;
 
 	subgroup = json_object_get(parent, TAG_SUBSYSTEMS);
 	if (subgroup)
@@ -861,32 +807,24 @@ static void read_dem_config(FILE *fid, struct host_iface *iface)
 	else if (strcasecmp(tag, TAG_ADDRESS) == 0)
 		strncpy(iface->address, val, CONFIG_ADDRESS_SIZE);
 	else if (strcasecmp(tag, TAG_TRSVCID) == 0)
-		strncpy(iface->pseudo_target_port, val, CONFIG_PORT_SIZE);
+		strncpy(iface->port, val, CONFIG_PORT_SIZE);
 }
 
 static void translate_addr_to_array(struct host_iface *iface)
 {
-	int			 mask_bits;
-	char			*p;
-
 	if (strcmp(iface->family, "ipv4") == 0)
-		mask_bits = ipv4_to_addr(iface->address, iface->addr);
+		ipv4_to_addr(iface->address, iface->addr);
 	else if (strcmp(iface->family, "ipv6") == 0)
-		mask_bits = ipv6_to_addr(iface->address, iface->addr);
+		ipv6_to_addr(iface->address, iface->addr);
 	else if (strcmp(iface->family, "fc") == 0)
-		mask_bits = fc_to_addr(iface->address, iface->addr);
+		fc_to_addr(iface->address, iface->addr);
 	else {
 		print_err("unsupported or unspecified address family");
 		return;
 	}
 
-	if (mask_bits) {
-		p = strchr(iface->address, '/');
-		p[0] = 0;
-	}
-
-	if (!strlen(iface->pseudo_target_port))
-		sprintf(iface->pseudo_target_port, "%d", NVME_RDMA_IP_PORT);
+	if (!strlen(iface->port))
+		sprintf(iface->port, "%d", NVME_RDMA_IP_PORT);
 }
 
 static int read_dem_config_files(struct host_iface *iface)

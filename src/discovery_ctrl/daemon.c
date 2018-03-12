@@ -93,7 +93,7 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 
 static int keep_alive_work(struct target *target)
 {
-	struct discovery_queue	*dq;
+	struct ctrl_queue	*dq;
 	int			 ret;
 
 	if (target->kato_countdown == 0) {
@@ -105,7 +105,7 @@ static int keep_alive_work(struct target *target)
 			if (ret) {
 				print_err("keep alive failed %s",
 					  target->alias);
-				disconnect_target(&dq->ep, 0);
+				disconnect_ctrl(&dq->ep, 0);
 				dq->connected = 0;
 				target->log_page_retry_count = LOG_PAGE_RETRY;
 				return ret;
@@ -122,7 +122,7 @@ static int keep_alive_work(struct target *target)
 static void periodic_work(void)
 {
 	struct target		*target;
-	struct discovery_queue	*dq;
+	struct ctrl_queue	*dq;
 
 	list_for_each_entry(target, target_list, node) {
 		if (target->mgmt_mode == IN_BAND_MGMT)
@@ -141,7 +141,7 @@ static void periodic_work(void)
 			get_config(target);
 
 		list_for_each_entry(dq, &target->discovery_queue_list, node) {
-			if (connect_target(dq)) {
+			if (connect_ctrl(dq)) {
 				print_err("Could not connect to target %s",
 					  target->alias);
 				target->log_page_retry_count = LOG_PAGE_RETRY;
@@ -151,7 +151,7 @@ static void periodic_work(void)
 			fetch_log_pages(dq);
 
 			if (target->mgmt_mode != IN_BAND_MGMT)
-				disconnect_target(&dq->ep, 0);
+				disconnect_ctrl(&dq->ep, 0);
 		}
 
 		target->refresh_countdown =
@@ -210,7 +210,7 @@ static void show_help(char *app)
 #ifdef DEV_DEBUG
 	const char		*arg_list = "{-q} {-d}";
 #else
-	const char              *arg_list = "{-d} {-s}";
+	const char		*arg_list = "{-d} {-s}";
 #endif
 
 	print_info("Usage: %s %s {-p <port>} {-r <root>} {-c <cert_file>}",
@@ -379,9 +379,6 @@ static int init_interface_threads(pthread_t **listen_threads)
 	if (!pthreads)
 		return -ENOMEM;
 
-	signal(SIGINT, signal_handler);
-	signal(SIGTERM, signal_handler);
-
 	pthread_attr_init(&pthread_attr);
 
 	for (i = 0; i < num_interfaces; i++) {
@@ -412,7 +409,7 @@ static inline int check_logpage_portid(struct subsystem *subsys,
 
 static void init_discovery_queue(struct target *target, struct portid *portid)
 {
-	struct discovery_queue	*dq;
+	struct ctrl_queue	*dq;
 	struct subsystem	*subsys;
 	struct host		*host;
 	uuid_t			 id;
@@ -452,13 +449,13 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 				sprintf(dq->hostnqn, host->nqn);
 			}
 
-			if (connect_target(dq))
+			if (connect_ctrl(dq))
 				continue;
 
 			fetch_log_pages(dq);
 
 			if (target->mgmt_mode != IN_BAND_MGMT)
-				disconnect_target(&dq->ep, 0);
+				disconnect_ctrl(&dq->ep, 0);
 			else
 				dq->connected = 1;
 
@@ -497,7 +494,7 @@ void cleanup_targets(void)
 	struct subsystem	*subsys, *next_subsys;
 	struct host		*host, *next_host;
 	struct logpage		*logpage, *next_logpage;
-	struct discovery_queue	*dq, *next_dq;
+	struct ctrl_queue	*dq, *next_dq;
 
 	list_for_each_entry_safe(target, next_target, target_list, node) {
 		list_for_each_entry_safe(subsys, next_subsys,
@@ -517,13 +514,12 @@ void cleanup_targets(void)
 		list_for_each_entry_safe(dq, next_dq,
 					 &target->discovery_queue_list, node) {
 			if (dq->connected)
-				disconnect_target(&dq->ep, 0);
+				disconnect_ctrl(&dq->ep, 0);
 			free(dq);
 		}
 
-		if (target->mgmt_mode == IN_BAND_MGMT &&
-		    target->sc_iface.inb.connected)
-			disconnect_target(&target->sc_iface.inb.ep, 0);
+		if (target->mgmt_mode == IN_BAND_MGMT)
+			free(target->sc_iface.inb.portid);
 
 		free(target);
 	}
@@ -563,6 +559,9 @@ int main(int argc, char *argv[])
 	char			*ssl_cert = NULL;
 	char			 default_root[] = DEFAULT_HTTP_ROOT;
 	int			 ret = 1;
+
+	signal(SIGINT, signal_handler);
+	signal(SIGTERM, signal_handler);
 
 	s_http_server_opts.document_root = default_root;
 

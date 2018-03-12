@@ -56,10 +56,10 @@ static inline const char *nvme_rdma_cm_msg(enum nvme_rdma_cm_status status)
 /**
  * struct nvme_rdma_cm_req - rdma connect request
  *
- * @recfmt:        format of the RDMA Private Data
- * @qid:           queue Identifier for the Admin or I/O Queue
- * @hrqsize:       host receive queue size to be created
- * @hsqsize:       host send queue size to be created
+ * @recfmt:	format of the RDMA Private Data
+ * @qid:	queue Identifier for the Admin or I/O Queue
+ * @hrqsize:	host receive queue size to be created
+ * @hsqsize:	host send queue size to be created
  */
 struct nvme_rdma_cm_req {
 	__le16		recfmt;
@@ -72,8 +72,8 @@ struct nvme_rdma_cm_req {
 /**
  * struct nvme_rdma_cm_rep - rdma connect reply
  *
- * @recfmt:        format of the RDMA Private Data
- * @crqsize:       controller receive queue size
+ * @recfmt:	format of the RDMA Private Data
+ * @crqsize:	controller receive queue size
  */
 struct nvme_rdma_cm_rep {
 	__le16		recfmt;
@@ -84,8 +84,8 @@ struct nvme_rdma_cm_rep {
 /**
  * struct nvme_rdma_cm_rej - rdma connect reject
  *
- * @recfmt:        format of the RDMA Private Data
- * @fsts:          error status for the associated connect request
+ * @recfmt:	format of the RDMA Private Data
+ * @fsts:	error status for the associated connect request
  */
 struct nvme_rdma_cm_rej {
 	__le16		recfmt;

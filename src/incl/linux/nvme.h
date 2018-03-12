@@ -281,7 +281,7 @@ enum {
 	NVME_CTRL_ONCS_WRITE_ZEROES		= 1 << 3,
 	NVME_CTRL_ONCS_TIMESTAMP		= 1 << 6,
 	NVME_CTRL_VWC_PRESENT			= 1 << 0,
-	NVME_CTRL_OACS_SEC_SUPP                 = 1 << 0,
+	NVME_CTRL_OACS_SEC_SUPP			= 1 << 0,
 	NVME_CTRL_OACS_DIRECTIVES		= 1 << 5,
 	NVME_CTRL_OACS_DBBUF_SUPP		= 1 << 8,
 	NVME_CTRL_LPA_CMD_EFFECTS_LOG		= 1 << 1,
@@ -510,7 +510,7 @@ enum nvme_opcode {
  * @NVME_SGL_FMT_OFFSET:      relative offset of the in-capsule data block
  * @NVME_SGL_FMT_TRANSPORT_A: transport defined format, value 0xA
  * @NVME_SGL_FMT_INVALIDATE:  RDMA transport specific remote invalidation
- *                            request subtype
+ *				request subtype
  */
 enum {
 	NVME_SGL_FMT_ADDRESS		= 0x00,
@@ -782,10 +782,10 @@ struct nvme_features {
 	union nvme_data_ptr	dptr;
 	__le32			fid;
 	__le32			dword11;
-	__le32                  dword12;
-	__le32                  dword13;
-	__le32                  dword14;
-	__le32                  dword15;
+	__le32			dword12;
+	__le32			dword13;
+	__le32			dword14;
+	__le32			dword15;
 };
 
 struct nvme_host_mem_buf_desc {
@@ -909,11 +909,9 @@ enum nvmf_capsule_command {
 	nvme_fabrics_type_property_set		= 0x00,
 	nvme_fabrics_type_connect		= 0x01,
 	nvme_fabrics_type_property_get		= 0x04,
-	nvme_fabrics_type_get_subsys_usage	= 0x22,
-	nvme_fabrics_type_set_port_config	= 0x21,
-	nvme_fabrics_type_set_subsys_config	= 0x23,
-	nvme_fabrics_type_get_ns_devices	= 0x24,
-	nvme_fabrics_type_get_transports	= 0x26,
+	nvme_fabrics_type_set_config		= 0x23,
+	nvme_fabrics_type_get_config		= 0x24,
+	nvme_fabrics_type_get_subsys_usage	= 0x25,
 };
 
 struct nvmf_common_command {
@@ -1023,6 +1021,44 @@ struct nvmf_property_get_command {
 	__u8		resv4[16];
 };
 
+enum {
+	nvmf_get_ns_config	= 0x01,
+	nvmf_get_xport_config	= 0x02,
+	nvmf_del_target_config	= 0x03,
+	nvmf_set_port_config	= 0x04,
+	nvmf_del_port_config	= 0x05,
+	nvmf_link_port_config	= 0x06,
+	nvmf_unlink_port_config	= 0x07,
+	nvmf_set_subsys_config	= 0x08,
+	nvmf_del_subsys_config	= 0x09,
+	nvmf_set_ns_config	= 0x0a,
+	nvmf_del_ns_config	= 0x0b,
+	nvmf_set_host_config	= 0x0c,
+	nvmf_del_host_config	= 0x0d,
+	nvmf_link_host_config	= 0x0e,
+	nvmf_unlink_host_config	= 0x0f,
+};
+
+struct nvmf_set_config_command {
+	__u8		opcode;
+	__u8		resv1;
+	__u16		command_id;
+	__u8		fctype;
+	__u8		resv2[35];
+	__u8		config_id;
+	__u8		resv3[23];
+};
+
+struct nvmf_get_config_command {
+	__u8		opcode;
+	__u8		resv1;
+	__u16		command_id;
+	__u8		fctype;
+	__u8		resv2[35];
+	__u8		config_id;
+	__u8		resv4[23];
+};
+
 struct nvme_dbbuf {
 	__u8			opcode;
 	__u8			flags;
@@ -1045,8 +1081,7 @@ struct streams_directive_params {
 	__u8	rsvd2[6];
 };
 
-struct nvmf_port_config_page_entry {
-	__le16		status;
+struct nvmf_port_config_entry {
 	__u8		trtype;
 	__u8		adrfam;
 	__u8		rsvd;   /* subtype */
@@ -1056,26 +1091,50 @@ struct nvmf_port_config_page_entry {
 	char		traddr[NVMF_TRADDR_SIZE];
 };
 
-struct nvmf_port_config_page_hdr {
-	__u8		num_entries;
-	__u8		data;   /*Reference to start of config_page_entries */
-};
-
-struct nvmf_subsys_config_page_entry {
-	__le16		status;
+struct nvmf_subsys_config_entry {
 	char		subnqn[NVMF_NQN_FIELD_LEN];
-	char		devpath[NVMF_DEV_PATH_SIZE];
-	__u8		allowallhosts;
-	__u16		numhosts;
-	__u8		data;
+	__u8		allowanyhost;
 };
 
-struct nvmf_subsys_config_page_hdr {
-	__u8		num_entries;
-	__u8		data;   /*Reference to start of config_page_entries */
+struct nvmf_ns_config_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	__le32		nsid;
+	__le32		deviceid;
+	__le32		devicensid;
 };
 
-struct nvmf_transports_rsp_page_entry {
+struct nvmf_host_config_entry {
+	char		hostnqn[NVMF_NQN_FIELD_LEN];
+};
+
+struct nvmf_subsys_delete_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+};
+
+struct nvmf_ns_delete_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	__le32		nsid;
+};
+
+struct nvmf_host_delete_entry {
+	char		hostnqn[NVMF_NQN_FIELD_LEN];
+};
+
+struct nvmf_port_delete_entry {
+	__le16		portid;
+};
+
+struct nvmf_link_host_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	char		hostnqn[NVMF_NQN_FIELD_LEN];
+};
+
+struct nvmf_link_port_entry {
+	char		subnqn[NVMF_NQN_FIELD_LEN];
+	__le16		portid;
+};
+
+struct nvmf_get_transports_entry {
 	__u8		trtype;
 	__u8		adrfam;
 	__u8		rsvd1;   /* subtype */
@@ -1085,31 +1144,33 @@ struct nvmf_transports_rsp_page_entry {
 	char		traddr[NVMF_TRADDR_SIZE];
 };
 
-struct nvmf_transports_rsp_page_hdr {
+struct nvmf_get_transports_hdr {
 	__u8		num_entries;
-	__u8		data;   /*Reference to start of usage entries */
+	__u8		data;	/* Reference to first entry */
 };
 
-struct nvmf_ns_devices_rsp_page_entry {
-	__u8		dev_id;
-	__u8		ns_id;
+#define NVMF_NULLB_DEVID 255
+
+struct nvmf_get_ns_devices_entry {
+	__u8		devid;
+	__u8		nsid;
 	__u8		rsvd[6];
 };
 
-struct nvmf_ns_devices_rsp_page_hdr {
+struct nvmf_get_ns_devices_hdr {
 	__u8		num_entries;
-	__u8		data;   /*Reference to start of usage entries */
+	__u8		data;	/* Reference to first entry */
 };
 
-struct nvmf_subsys_usage_rsp_page_entry {
+struct nvmf_subsys_usage_entry {
 	char		subnqn[NVMF_NQN_FIELD_LEN];
 	__u8		num_entries;
-	__u8		data;
+	__u8		data;	/* Reference to first entry */
 };
 
-struct nvmf_subsys_usage_rsp_page_hdr {
+struct nvmf_subsys_usage_hdr {
 	__u8		num_entries;
-	__u8		data;   /*Reference to start of usage entries */
+	__u8		data;	/* Reference to first entry */
 };
 
 struct nvme_command {
@@ -1131,6 +1192,8 @@ struct nvme_command {
 		struct nvmf_connect_command connect;
 		struct nvmf_property_set_command prop_set;
 		struct nvmf_property_get_command prop_get;
+		struct nvmf_set_config_command set_config;
+		struct nvmf_get_config_command get_config;
 		struct nvme_dbbuf dbbuf;
 		struct nvme_directive_cmd directive;
 	};

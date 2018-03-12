@@ -1,10 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0/BSD
+
 .SILENT:
 
 COMMON_DIR=src/common
 CLI_DIR=src/cli
-AC_DIR=src/auto_connect
+HAC_DIR=src/host_auto_connect
 DC_DIR=src/discovery_ctrl
-EC_DIR=src/endpoint_config
+SC_DIR=src/supervisory_ctrl
 INCL_DIR=src/incl
 BIN_DIR=.bin
 
@@ -25,57 +27,66 @@ VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
 DC_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
-EC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
-AC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
+SC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
+HAC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
 
 CLI_LIBS = -lcurl jansson/libjansson.a
 
 GDB_OPTS = -g -O0
 
+LINUX_INCL = ${INCL_DIR}/linux/nvme.h ${INCL_DIR}/linux/kernel.h \
+	     ${INCL_DIR}/linux/list.h ${INCL_DIR}/linux/nvme-rdma.h
+
 CLI_SRC = ${CLI_DIR}/cli.c ${COMMON_DIR}/curl.c ${CLI_DIR}/show.c
-CLI_INC = ${INCL_DIR}/curl.h ${CLI_DIR}/show.h ${INCL_DIR}/tags.h
-AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
-	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
+CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \
+	  ${INCL_DIR}/tags.h
+
+HAC_SRC = ${HAC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
+	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
+HAC_INC = ${INCL_DIR}/dem.h ${HAC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
+
 DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
 	 ${DC_DIR}/interfaces.c ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
 	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
-AC_INC = ${AC_DIR}/common.h ${INCL_DIR}/ops.h
-DC_INC = ${DC_DIR}/json.h ${DC_DIR}/common.h ${INCL_DIR}/ops.h \
-	 ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h mongoose/mongoose.h
-EC_SRC = ${EC_DIR}/daemon.c ${EC_DIR}/restful.c ${EC_DIR}/configfs.c \
-	 ${COMMON_DIR}/rdma.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
-EC_INC = ${EC_DIR}/common.h ${INCL_DIR}/tags.h ${INCL_DIR}/ops.h \
-	 mongoose/mongoose.h
+DC_INC = ${INCL_DIR}/dem.h ${DC_DIR}/json.h ${DC_DIR}/common.h \
+	 ${INCL_DIR}/ops.h ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h \
+	 mongoose/mongoose.h ${LINUX_INCL}
+
+SC_SRC = ${SC_DIR}/daemon.c ${SC_DIR}/restful.c ${SC_DIR}/configfs.c \
+	 ${SC_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c \
+	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+SC_INC = ${INCL_DIR}/dem.h ${SC_DIR}/common.h ${INCL_DIR}/tags.h \
+	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
 all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
-     ${BIN_DIR}/dem ${BIN_DIR}/dem-ac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-ec
+     ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc
 	echo Done.
 
 ${BIN_DIR}:
 	mkdir ${BIN_DIR}
 
 dem: ${BIN_DIR}/dem
-dem-ac: ${BIN_DIR}/dem-ac
+dem-hac: ${BIN_DIR}/dem-hac
 dem-dc: ${BIN_DIR}/dem-dc
-dem-ec: ${BIN_DIR}/dem-ec
+dem-sc: ${BIN_DIR}/dem-sc
 
 ${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC dem
 	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR} \
 		-DDEM_CLI
 
-${BIN_DIR}/dem-ac: ${AC_SRC} ${AC_INC} Makefile
-	echo CC dem-ac
-	gcc ${AC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${AC_LIBS} -I${AC_DIR}
+${BIN_DIR}/dem-hac: ${HAC_SRC} ${HAC_INC} Makefile
+	echo CC dem-hac
+	gcc ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${HAC_LIBS} -I${HAC_DIR}
 
 ${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
 	echo CC dem-dc
 	gcc ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DC_LIBS} -I${DC_DIR}
 
-${BIN_DIR}/dem-ec: ${EC_SRC} ${EC_INC} Makefile jansson/libjansson.a
-	echo CC dem-ec
-	gcc ${EC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${EC_LIBS} -I${EC_DIR}
+${BIN_DIR}/dem-sc: ${SC_SRC} ${SC_INC} Makefile jansson/libjansson.a
+	echo CC dem-sc
+	gcc ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${SC_LIBS} -I${SC_DIR}
 
 clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog
@@ -87,9 +98,9 @@ must_be_root:
 install: must_be_root
 	#cp ${BIN_DIR}/* /bin
 	ln -sf `pwd`/${BIN_DIR}/dem /bin/dem
-	ln -sf `pwd`/${BIN_DIR}/dem-ac /bin/dem-ac
+	ln -sf `pwd`/${BIN_DIR}/dem-hac /bin/dem-hac
 	ln -sf `pwd`/${BIN_DIR}/dem-dc /bin/dem-dc
-	ln -sf `pwd`/${BIN_DIR}/dem-ec /bin/dem-ec
+	ln -sf `pwd`/${BIN_DIR}/dem-sc /bin/dem-sc
 	cp usr/nvmeof.conf /etc/nvme
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
 	cp usr/nvmeof /usr/libexec/
@@ -102,7 +113,7 @@ install: must_be_root
 uninstall: must_be_root
 	[ `whoami` == "root" ]
 	rm -f /etc/bash_completion.d/dem
-	rm -f /bin/dem /bin/dem-dc /bin/dem-ec
+	rm -f /bin/dem /bin/dem-dc /bin/dem-sc
 	rm -f /etc/nvme/nvmeof.conf
 	rm -rf /etc/nvme/nvmeof-dem
 	rm -f /usr/libexec/nvmeof
@@ -128,54 +139,6 @@ jansson/src/.libs/libjansson.a: jansson/Makefile
 	cd jansson/src ; make libjansson.la >/dev/null
 jansson/libjansson.a: jansson/src/.libs/libjansson.a
 	cp jansson/src/.libs/libjansson.a jansson
-
-# hard coded path to nvme-cli
-get_logpages:
-	sudo /home/cayton/src/nvme/nvme-cli/nvme discover /dev/nvme-fabrics \
-		-t rdma -a 192.168.22.2 -s 4422 -q host02 || echo nvme-cli error $$?
-
-archive/make_config.sh: Makefile
-	[ -d archive ] || mkdir archive
-	echo ./dem set t ctrl1 20 > $@
-	echo ./dem set t ctrl2 25 >> $@
-	echo ./dem set p ctrl1 1 rdma ipv4 192.168.22.1 4420 >> $@
-	echo ./dem set p ctrl2 1 rdma ipv4 192.168.22.2 4420 >> $@
-	echo ./dem set s ctrl1 host01subsys1 1 >> $@
-	echo ./dem set s ctrl1 host01subsys2 0 >> $@
-	echo ./dem set s ctrl1 host01subsys3 1 >> $@
-	echo ./dem set s ctrl2 host02subsys1 1 >> $@
-	echo ./dem set s ctrl2 host02subsys2 0 >> $@
-	echo ./dem set h host01 >> $@
-	echo ./dem set h host02 >> $@
-	echo ./dem set a ctrl1 host01subsys2 host01 >> $@
-	echo ./dem set a ctrl2 host02subsys2 host01 >> $@
-	echo ./dem set a ctrl1 host01subsys2 host02 >> $@
-	echo ./dem set a ctrl2 host02subsys2 host02 >> $@
-
-archive/run_test.sh: Makefile
-	[ -d archive ] || mkdir archive
-	echo "make del_hosts" > $@
-	echo "make del_targets" >> $@
-	echo "./dem apply" >> $@
-	echo "sh archive/make_config.sh" >> $@
-	echo "./dem apply" >> $@
-	echo "make get_logpages" >> $@
-	echo "fmt=-j make show_targets" >> $@
-	echo "fmt=-j make show_hosts" >> $@
-	echo "make del_targets" >> $@
-	echo "make del_hosts" >> $@
-	echo "./dem apply" >> $@
-	echo "make get_logpages" >> $@
-	echo "make show_targets" >> $@
-	echo "make show_hosts" >> $@
-	echo "sh archive/make_config.sh" >> $@
-	echo "./dem apply" >> $@
-
-config.json: archive/make_config.sh
-	sh archive/make_config.sh
-
-run_test: archive/run_test.sh
-	sh archive/run_test.sh
 
 archive: clean
 	[ -d archive ] || mkdir archive
@@ -281,22 +244,3 @@ sparse:
 	echo "${SPARSE_OPTS}"
 	for i in src/*/*.c ; do sparse $$i ${SPARSE_OPTS} ; done
 	echo Done.
-
-simple_test:
-	date
-	rm -f config.json
-	make config.json
-	./dem apply
-	sleep 1
-	make get_logpages
-	sleep 1
-	echo
-	make del_targets
-	make del_hosts
-	./dem apply
-	make get_logpages
-
-post_reboot:
-	sudo ssh root@host02 "cd ~cayton/nvme_scripts; ./rdma_target"
-	cd ~cayton/nvme_scripts; ./rdma_target
-	sudo modprobe nvme_rdma

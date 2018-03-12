@@ -12,15 +12,15 @@
 
 /**
  * Casts a member of a structure out to the containing structure
- * @param ptr        the pointer to the member.
- * @param type       the type of the container struct this is embedded in.
- * @param member     the name of the member within the struct.
+ * @param ptr	  the pointer to the member.
+ * @param type	  the type of the container struct this is embedded in.
+ * @param member  the name of the member within the struct.
  *
  */
 #ifndef container_of
-#define container_of(ptr, type, member) ({                      \
-        const typeof( ((type *)0)->member ) *__mptr = (ptr);    \
-        (type *)( (char *)__mptr - offsetof(type,member) );})
+#define container_of(ptr, type, member) ({			\
+	const typeof( ((type *)0)->member ) *__mptr = (ptr);	\
+	(type *)( (char *)__mptr - offsetof(type,member) );})
 #endif
 
 /*
@@ -138,8 +138,8 @@ static inline void list_del_init(struct list_head *entry)
  */
 static inline void list_move(struct list_head *list, struct list_head *head)
 {
-        __list_del(list->prev, list->next);
-        list_add(list, head);
+	__list_del(list->prev, list->next);
+	list_add(list, head);
 }
 
 /**
@@ -150,8 +150,8 @@ static inline void list_move(struct list_head *list, struct list_head *head)
 static inline void list_move_tail(struct list_head *list,
 				  struct list_head *head)
 {
-        __list_del(list->prev, list->next);
-        list_add_tail(list, head);
+	__list_del(list->prev, list->next);
+	list_add_tail(list, head);
 }
 
 /**
@@ -174,27 +174,27 @@ static inline int list_empty(const struct list_head *head)
 
 /**
  * list_first_entry - get the first element from a list
- * @ptr:        the list head to take the element from.
- * @type:       the type of the struct this is embedded in.
- * @member:     the name of the list_head within the struct.
+ * @ptr:	the list head to take the element from.
+ * @type:	the type of the struct this is embedded in.
+ * @member:	the name of the list_head within the struct.
  *
  * Note, that list is expected to be not empty.
  */
 #define list_first_entry(ptr, type, member) \
-        list_entry((ptr)->next, type, member)
+	list_entry((ptr)->next, type, member)
 
 /**
- * list_for_each	-	iterate over a list
+ * list_for_each - iterate over a list
  * @pos:	the &struct list_head to use as a loop counter.
  * @head:	the head for your list.
  */
 
 #define list_for_each(pos, head) \
-  for (pos = (head)->next; pos != (head);	\
-       pos = pos->next)
+	for (pos = (head)->next; pos != (head);	\
+		pos = pos->next)
 
 /**
- * __list_for_each	-	iterate over a list
+ * __list_for_each - iterate over a list
  * @pos:	the &struct list_head to use as a loop counter.
  * @head:	the head for your list.
  *
@@ -207,7 +207,7 @@ static inline int list_empty(const struct list_head *head)
 	for (pos = (head)->next; pos != (head); pos = pos->next)
 
 /**
- * list_for_each_prev	-	iterate over a list backwards
+ * list_for_each_prev - iterate over a list backwards
  * @pos:	the &struct list_head to use as a loop counter.
  * @head:	the head for your list.
  */
@@ -216,7 +216,7 @@ static inline int list_empty(const struct list_head *head)
 		pos = pos->prev)
 
 /**
- * list_for_each_safe	-	iterate over a list safe against removal of list entry
+ * list_for_each_safe - iterate over a list safe against removal of list entry
  * @pos:	the &struct list_head to use as a loop counter.
  * @n:		another &struct list_head to use as temporary storage
  * @head:	the head for your list.
@@ -226,7 +226,7 @@ static inline int list_empty(const struct list_head *head)
 		pos = n, n = pos->next)
 
 /**
- * list_for_each_entry	-	iterate over list of given type
+ * list_for_each_entry - iterate over list of given type
  * @pos:	the type * to use as a loop counter.
  * @head:	the head for your list.
  * @member:	the name of the list_struct within the struct.

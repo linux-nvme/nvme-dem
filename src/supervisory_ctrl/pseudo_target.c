@@ -47,7 +47,7 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-// #define DEBUG_COMMANDS
+#define DEBUG_COMMANDS // TODO comment this out
 
 struct host_conn {
 	struct list_head	 node;
@@ -117,6 +117,10 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	struct nvmf_connect_data *data = ep->data;
 	int			  ret;
 
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_connect");
+#endif
+
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
 		print_err("rma_read returned %d", ret);
@@ -149,6 +153,10 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	struct nvme_id_ctrl	*id = ep->data;
 	int			 ret;
 
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_identify");
+#endif
+
 	if (htole32(cmd->identify.cns) != NVME_ID_CNS_CTRL) {
 		print_err("unexpected identify command");
 		return -EINVAL;
@@ -178,45 +186,75 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	return ret;
 }
 
-static int host_access(struct subsystem *subsys, char *nqn)
+static int get_nsdev(void *data)
 {
-	struct host		*entry;
-
-	/* check if host is in subsys host_list it has non-zero access */
-	/* return: 0 if no access; else access rights */
-
-	list_for_each_entry(entry, &subsys->host_list, node)
-		if (strcmp(entry->nqn, nqn) == 0)
-			return 1;
-
-	return 0;
-}
-
-static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
-				     u64 len)
-{
-	struct nvmf_disc_rsp_page_hdr	*log = ep->data;
-	struct target			*target;
-	struct subsystem		*subsys;
-	struct logpage			*p;
-	int				 numrec = 0;
-	int				 ret;
-
-	list_for_each_entry(target, target_list, node)
-		list_for_each_entry(subsys, &target->subsys_list, node)
-			list_for_each_entry(p, &subsys->logpage_list, node) {
-				if (!p->valid)
-					continue;
-				if (subsys->access ||
-				    host_access(subsys, ep->nqn))
-					numrec++;
-			}
-	log->numrec = numrec;
-	log->genctr = 1;
+	struct nvmf_get_ns_devices_hdr *hdr = data;
+	struct nvmf_get_ns_devices_entry *entry;
+	struct nsdev		*dev;
+	int			 cnt = 0;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("log_page count %d", numrec);
+	print_debug("nvme_fabrics_get_ns_devices");
 #endif
+
+	entry = (struct nvmf_get_ns_devices_entry *) &hdr->data;
+
+	list_for_each_entry(dev, devices, node) {
+		memset(entry, 0, sizeof(*entry));
+		entry->devid = dev->devid;
+		entry->nsid = dev->nsid;
+		cnt++;
+		entry++;
+	}
+
+	hdr->num_entries = cnt;
+
+	return cnt * sizeof(*entry) + sizeof(*hdr) - 1;
+}
+
+static int get_xport(void *data)
+{
+	struct nvmf_get_transports_hdr *hdr = data;
+	struct nvmf_get_transports_entry *entry;
+	struct portid		*xport;
+	int			 cnt = 0;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_get_transports");
+#endif
+
+	entry = (struct nvmf_get_transports_entry *) &hdr->data;
+
+	list_for_each_entry(xport, interfaces, node) {
+		memset(entry, 0, sizeof(*entry));
+		entry->trtype = to_trtype(xport->type);
+		entry->adrfam = to_adrfam(xport->family);
+		strcpy(entry->traddr, xport->address); 
+		cnt++;
+		entry++;
+	}
+
+	hdr->num_entries = cnt;
+
+	return cnt * sizeof(*entry) + sizeof(*hdr) - 1;
+}
+
+static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
+			     u64 addr, u64 key, u64 len)
+{
+	struct nvmf_get_config_command *c = &cmd->get_config;
+	int			  ret;
+
+	switch (c->config_id) {
+	case nvmf_get_ns_config:
+		len = get_nsdev(ep->data);
+		break;
+	case nvmf_get_xport_config:
+		len = get_xport(ep->data);
+		break;
+	default:
+		print_err("Unknown set config id %x", c->config_id);
+	}
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret)
@@ -225,52 +263,223 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
 	return ret;
 }
 
-static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
+static inline int set_portid(void *data)
 {
-	struct nvmf_disc_rsp_page_hdr	*log;
-	struct nvmf_disc_rsp_page_entry *e;
-	struct logpage			*p;
-	struct xp_mr			*mr;
-	struct target			*target;
-	struct subsystem		*subsys;
-	int				 numrec = 0;
-	int				 ret;
+	struct nvmf_port_config_entry *entry;
 
-	log = malloc(len);
-	if (!log)
-		return -ENOMEM;
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - set_portid");
+#endif
 
-	ret = ep->ops->alloc_key(ep->ep, log, len, &mr);
+	entry = (struct nvmf_port_config_entry *) data;
+
+	return create_portid(entry->portid, (char *) adrfam_str(entry->adrfam),
+			     (char *) trtype_str(entry->trtype), entry->treq,
+			     entry->traddr, atoi(entry->trsvcid));
+}
+
+static inline int del_portid(void *data)
+{
+	struct nvmf_port_delete_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - del_portid");
+#endif
+
+	entry = (struct nvmf_port_delete_entry *) data;
+
+	return delete_portid(entry->portid);
+}
+
+static inline int set_subsys(void *data)
+{
+	struct nvmf_subsys_config_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - set_subsys");
+#endif
+
+	entry = (struct nvmf_subsys_config_entry *) data;
+
+	return create_subsys(entry->subnqn, entry->allowanyhost);
+}
+
+static inline int del_subsys(void *data)
+{
+	struct nvmf_subsys_delete_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - del_subsys");
+#endif
+
+	entry = (struct nvmf_subsys_delete_entry *) data;
+
+	return delete_subsys(entry->subnqn);
+}
+
+static inline int set_ns(void *data)
+{
+	struct nvmf_ns_config_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - set_ns");
+#endif
+
+	entry = (struct nvmf_ns_config_entry *) data;
+
+	return create_ns(entry->subnqn, entry->nsid, entry->deviceid,
+			 entry->devicensid);
+}
+
+static inline int del_ns(void *data)
+{
+	struct nvmf_ns_delete_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - del_ns");
+#endif
+
+	entry = (struct nvmf_ns_delete_entry *) data;
+
+	return delete_ns(entry->subnqn, entry->nsid);
+}
+
+static inline int set_host(void *data)
+{
+	struct nvmf_host_config_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - set_host");
+#endif
+
+	entry = (struct nvmf_host_config_entry *) data;
+
+	return create_host(entry->hostnqn);
+}
+
+static inline int del_host(void *data)
+{
+	struct nvmf_host_delete_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config del_host");
+#endif
+
+	entry = (struct nvmf_host_delete_entry *) data;
+
+	return delete_host(entry->hostnqn);
+}
+
+static inline int link_portid(void *data)
+{
+	struct nvmf_link_port_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config link_portid");
+#endif
+
+	entry = (struct nvmf_link_port_entry *) data;
+
+	return link_port_to_subsys(entry->subnqn, entry->portid);
+}
+
+static inline int unlink_portid(void *data)
+{
+	struct nvmf_link_port_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - unlink_portid");
+#endif
+
+	entry = (struct nvmf_link_port_entry *) data;
+
+	return unlink_port_from_subsys(entry->subnqn, entry->portid);
+}
+
+static inline int link_host(void *data)
+{
+	struct nvmf_link_host_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - link_host");
+#endif
+
+	entry = (struct nvmf_link_host_entry *) data;
+
+	return link_host_to_subsys(entry->subnqn, entry->hostnqn);
+}
+
+static inline int unlink_host(void *data)
+{
+	struct nvmf_link_host_entry *entry;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_fabrics_set_config - unlink_host");
+#endif
+
+	entry = (struct nvmf_link_host_entry *) data;
+
+	return unlink_host_from_subsys(entry->subnqn, entry->hostnqn);
+}
+
+static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
+			     u64 addr, u64 key, u64 len)
+{
+	struct nvmf_set_config_command *c = &cmd->set_config;
+	int			  ret;
+
+	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
-		print_err("alloc_key returned %d", ret);
-		return ret;
+		print_err("rma_read returned %d", ret);
+		goto out;
 	}
 
-	e = (void *) (&log[1]);
+	switch (c->config_id) {
+	case nvmf_del_target_config:
+		delete_target();
+		ret = 0;
+		break;
+	case nvmf_set_port_config:
+		ret = set_portid(ep->data);
+		break;
+	case nvmf_del_port_config:
+		ret = del_portid(ep->data);
+		break;
+	case nvmf_link_port_config:
+		ret = link_portid(ep->data);
+		break;
+	case nvmf_unlink_port_config:
+		ret = unlink_portid(ep->data);
+		break;
+	case nvmf_set_subsys_config:
+		ret = set_subsys(ep->data);
+		break;
+	case nvmf_del_subsys_config:
+		ret = del_subsys(ep->data);
+		break;
+	case nvmf_set_ns_config:
+		ret = set_ns(ep->data);
+		break;
+	case nvmf_del_ns_config:
+		ret = del_ns(ep->data);
+		break;
+	case nvmf_set_host_config:
+		ret = set_host(ep->data);
+		break;
+	case nvmf_del_host_config:
+		ret = del_host(ep->data);
+		break;
+	case nvmf_link_host_config:
+		ret = link_host(ep->data);
+		break;
+	case nvmf_unlink_host_config:
+		ret = unlink_host(ep->data);
+		break;
+	default:
+		print_err("Unknown set config id %x", c->config_id);
+	}
 
-	list_for_each_entry(target, target_list, node)
-		list_for_each_entry(subsys, &target->subsys_list, node)
-			list_for_each_entry(p, &subsys->logpage_list, node) {
-				if (!p->valid)
-					continue;
-				if (subsys->access ||
-				    host_access(subsys, ep->nqn)) {
-					memcpy(e, &p->e, sizeof(*e));
-					numrec++;
-					e++;
-				}
-			}
-
-	log->numrec = numrec;
-	log->genctr = 1;
-
-	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr);
-	if (ret)
-		print_err("rma_write returned %d", ret);
-
-	ep->ops->dealloc_key(mr);
-	free(log);
-
+out:
 	return ret;
 }
 
@@ -312,6 +521,12 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 		case nvme_fabrics_type_connect:
 			ret = handle_connect(ep, addr, key, len);
 			break;
+		case nvme_fabrics_type_get_config:
+			ret = handle_get_config(cmd, ep, addr, key, len);
+			break;
+		case nvme_fabrics_type_set_config:
+			ret = handle_set_config(cmd, ep, addr, key, len);
+			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = -EINVAL;
@@ -320,12 +535,7 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
 		ret = 0;
-	else if (cmd->common.opcode == nvme_admin_get_log_page) {
-		if (len == 16)
-			ret = handle_get_log_page_count(ep, addr, key, len);
-		else
-			ret = handle_get_log_pages(ep, addr, key, len);
-	} else if (cmd->common.opcode == nvme_admin_set_features) {
+	else if (cmd->common.opcode == nvme_admin_set_features) {
 		ret = handle_set_features(cmd, &kato);
 		if (ret)
 			ret = 0;
@@ -436,14 +646,16 @@ static void *host_thread(void *arg)
 		/* Service Host requests */
 		list_for_each_entry_safe(host, next, &host_list, node) {
 			ep = host->ep;
+loop:
 			ret = ep->ops->poll_for_msg(ep->ep, &qe.qe, &buf, &len);
 			if (!ret) {
+print_debug("call handle_request");
 				handle_request(host, &qe, buf, len);
 
 				host->countdown	= host->kato;
 				host->timeval	= timeval;
 
-				continue;
+				goto loop;
 			}
 
 			if (ret == -EAGAIN)
@@ -561,8 +773,6 @@ void *interface_thread(void *arg)
 out2:
 	iface->ops->destroy_listener(listener);
 out1:
-	num_interfaces--;
-
 	pthread_exit(NULL);
 
 	return NULL;

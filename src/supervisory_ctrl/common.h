@@ -53,69 +53,11 @@
 #include "linux/nvme.h"
 #include "linux/kernel.h"
 
-#define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
-#define CONFIG_FILENAME		"config"
-#define SIGNATURE_FILE_FILENAME	"signature"
-#define CONFIG_FILE		(CONFIG_DIR CONFIG_FILENAME)
-#define SIGNATURE_FILE		(CONFIG_DIR SIGNATURE_FILE_FILENAME)
-
-#define MINUTES		(60 * 1000) /* convert ms to minutes */
-
-#define MAX_NQN_SIZE	256
-
-#define IDLE_TIMEOUT	100
-
-#define print_debug(f, x...) \
-	do { \
-		if (debug) { \
-			printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
-			fflush(stdout); \
-		} \
-	} while (0)
-#define print_info(f, x...)\
-	do { \
-		printf(f "\n", ##x); \
-		fflush(stdout); \
-	} while (0)
-#define print_err(f, x...)\
-	do { \
-		fprintf(stderr, "%s(%d) Error: " f "\n", \
-			__func__, __LINE__, ##x); \
-		fflush(stderr); \
-	} while (0)
-
-#define UNUSED(x) ((void) x)
-
-#define min(x, y) ((x < y) ? x : y)
-
-#define __round_mask(x, y) ((__typeof__(x))((y) - 1))
-#define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
+#include "dem.h"
 
 extern int			 debug;
-extern int			 stopped;
 extern struct list_head		*devices;
 extern struct list_head		*interfaces;
-
-#define CONFIG_TYPE_SIZE	8
-#define CONFIG_FAMILY_SIZE	8
-#define CONFIG_ADDRESS_SIZE	40
-#define CONFIG_PORT_SIZE	8
-#define CONFIG_DEVICE_SIZE	20
-#define LARGEST_TAG		8
-#define LARGEST_VAL		40
-#define ADDR_LEN		16 /* IPV6 is current longest address */
-
-#define MAX_ALIAS_SIZE		64
-#define PAGE_SIZE		4096
-
-#ifndef AF_IPV4
-#define AF_IPV4			1
-#define AF_IPV6			2
-#endif
-
-#ifndef AF_FC
-#define AF_FC			3
-#endif
 
 #define IPV4_LEN		4
 #define IPV4_OFFSET		4
@@ -131,8 +73,6 @@ extern struct list_head		*interfaces;
 
 #define NULLB_DEVID		-1
 
-enum { DISCONNECTED = 0, CONNECTED };
-
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
@@ -145,24 +85,6 @@ struct nsdev {
 	int			 nsid;
 };
 
-struct qe {
-	struct xp_qe		*qe;
-	u8			*buf;
-};
-
-struct endpoint {
-	struct xp_ep		*ep;
-	struct xp_mr		*mr;
-	struct xp_mr		*data_mr;
-	struct xp_ops		*ops;
-	struct nvme_command	*cmd;
-	struct qe		*qe;
-	void			*data;
-	int			depth;
-	int			state;
-	int			csts;
-};
-
 struct oob_iface {
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
@@ -170,13 +92,28 @@ struct oob_iface {
 };
 
 struct inb_iface {
-	char			type[CONFIG_TYPE_SIZE + 1];
-	char			family[CONFIG_FAMILY_SIZE + 1];
-	char			address[CONFIG_ADDRESS_SIZE + 1];
-	char			port[CONFIG_PORT_SIZE + 1];
-	int			port_num;
-	struct endpoint		ep;
-	int			connected;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[ADDR_LEN];
+	char			 port[CONFIG_PORT_SIZE + 1];
+	struct endpoint		 ep;
+	struct xp_pep		*listener;
+	struct xp_ops		*ops;
+	int			 connected;
+};
+
+struct host_iface {
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 family[CONFIG_FAMILY_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[ADDR_LEN];
+	char			 port[CONFIG_PORT_SIZE + 1];
+	int			 port_num;
+	int			 adrfam;
+	struct endpoint		 ep;
+	struct xp_pep		*listener;
+	struct xp_ops		*ops;
 };
 
 struct interface {
@@ -193,6 +130,7 @@ struct portid {
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
+	int			 addr[ADDR_LEN];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
 	int			 treq;
@@ -207,13 +145,25 @@ struct subsystem {
 	int			 allowany;
 };
 
+struct target {
+	struct host_iface	*iface;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	int			 mgmt_mode;
+	int			 refresh;
+	int			 log_page_retry_count;
+	int			 refresh_countdown;
+	int			 kato_countdown;
+	int			 dirty;
+};
+
 struct mg_connection;
 
 void shutdown_dem(void);
 void handle_http_request(struct mg_connection *c, void *ev_data);
-void dump(__u8 *buf, int len);
 
-int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
+void *interface_thread(void *arg);
+int start_pseudo_target(struct host_iface *iface);
+int run_pseudo_target(struct endpoint *ep, void *id);
 
 void delete_target(void);
 int create_subsys(char *subsys, int allowany);

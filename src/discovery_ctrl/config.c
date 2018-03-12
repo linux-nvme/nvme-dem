@@ -47,57 +47,7 @@ static const char *TARGET_ERR    = " - target not found";
 static const char *NSDEV_ERR     = " - invalid ns device";
 static const char *MGMT_MODE_ERR = " - invalid mgmt mode for setting interface";
 
-/* helper functions */
-
-static inline char *trtype_str(u8 trtype)
-{
-	switch (trtype) {
-	case NVMF_TRTYPE_RDMA:
-		return TRTYPE_STR_RDMA;
-	case NVMF_TRTYPE_FC:
-		return TRTYPE_STR_FC;
-	case NVMF_TRTYPE_TCP:
-		return TRTYPE_STR_TCP;
-	default:
-		return "unknown";
-	}
-}
-
-static inline char *adrfam_str(u8 adrfam)
-{
-	switch (adrfam) {
-	case NVMF_ADDR_FAMILY_IP4:
-		return ADRFAM_STR_IPV4;
-	case NVMF_ADDR_FAMILY_IP6:
-		return ADRFAM_STR_IPV6;
-	case NVMF_ADDR_FAMILY_FC:
-		return ADRFAM_STR_FC;
-	default:
-		return "unknown";
-	}
-}
-
-static inline u8 to_trtype(char *str)
-{
-	if (strcmp(str, TRTYPE_STR_RDMA) == 0)
-		return NVMF_TRTYPE_RDMA;
-	if (strcmp(str, TRTYPE_STR_FC) == 0)
-		return NVMF_TRTYPE_FC;
-	if (strcmp(str, TRTYPE_STR_TCP) == 0)
-		return NVMF_TRTYPE_TCP;
-	return 0;
-}
-
-static inline u8 to_adrfam(char *str)
-{
-	if (strcmp(str, ADRFAM_STR_IPV4) == 0)
-		return NVMF_ADDR_FAMILY_IP4;
-	if (strcmp(str, ADRFAM_STR_IPV6) == 0)
-		return NVMF_ADDR_FAMILY_IP6;
-	if (strcmp(str, ADRFAM_STR_FC) == 0)
-		return NVMF_ADDR_FAMILY_FC;
-	return 0;
-}
+/* helper function(s) */
 
 int get_mgmt_mode(char *mode)
 {
@@ -186,101 +136,186 @@ static inline struct ns *find_ns(struct subsystem *subsys, int nsid)
 
 /* in band message formatting functions */
 
-static int build_set_port_inb(struct target *target,
-			      struct nvmf_port_config_page_hdr **_hdr)
+static int build_set_port_config_inb(struct portid *portid,
+				 struct nvmf_port_config_entry **_entry)
 {
-	struct nvmf_port_config_page_entry *entry;
-	struct nvmf_port_config_page_hdr *hdr;
-	struct portid		*portid;
-	void			*ptr;
-	int			 len;
-	int			 count = 0;
+	struct nvmf_port_config_entry *entry;
 
-	list_for_each_entry(portid, &target->portid_list, node)
-		count++;
-
-	len = sizeof(hdr) - 1 + (count * sizeof(*entry));
-	if (posix_memalign(&ptr, PAGE_SIZE, len)) {
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
 		print_err("no memory for buffer, errno %d", errno);
 		return 0;
 	}
 
-	hdr = ptr;
-	hdr->num_entries = count;
+	entry->portid = portid->portid;
+	entry->treq = NVMF_TREQ_NOT_REQUIRED; // TODO need to pull from portid
+	entry->trtype = to_trtype(portid->type);
+	entry->adrfam = to_adrfam(portid->family);
+	strcpy(entry->traddr, portid->address);
+	strcpy(entry->trsvcid, portid->port);
 
-	entry = (struct nvmf_port_config_page_entry *) &hdr->data;
-	list_for_each_entry(portid, &target->portid_list, node) {
-		if (!portid->valid)
-			continue;
+	*_entry = entry;
 
-		entry->status = 0;
-
-		entry->portid = portid->portid;
-		entry->trtype = to_trtype(portid->type);
-		entry->adrfam = to_adrfam(portid->family);
-		strcpy(entry->traddr, portid->address);
-		strcpy(entry->trsvcid, portid->port);
-		entry++;
-	}
-
-	*_hdr = hdr;
-
-	return len;
+	return sizeof(*entry);
 }
 
-static int build_set_subsys_inb(struct target *target,
-				struct nvmf_subsys_config_page_hdr **_hdr)
+static int build_subsys_config_inb(struct subsystem *subsys,
+				   struct nvmf_subsys_config_entry **_entry)
 {
-	struct nvmf_subsys_config_page_entry *entry;
-	struct nvmf_subsys_config_page_hdr *hdr;
-	struct subsystem	*subsystem;
-	struct host		*host;
-	char			*hostnqn;
-	void			*ptr;
-	int			 len;
-	int			 count = 0;
+	struct nvmf_subsys_config_entry *entry;
 
-	len = sizeof(hdr) - 1;
-
-	list_for_each_entry(subsystem, &target->subsys_list, node) {
-		len += sizeof(*entry) - 1;
-		count++;
-		list_for_each_entry(host, &subsystem->host_list, node)
-			len += NVMF_NQN_FIELD_LEN;
-	}
-
-	if (posix_memalign(&ptr, PAGE_SIZE, len)) {
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
 		print_err("no memory for buffer, errno %d", errno);
 		return 0;
 	}
 
-	hdr = ptr;
-	hdr->num_entries = count;
+	entry->allowanyhost = subsys->access;
+	strcpy(entry->subnqn, subsys->nqn);
 
-	/* TODO INB do we validate subsystems? */
-	entry = (struct nvmf_subsys_config_page_entry *) &hdr->data;
-	list_for_each_entry(subsystem, &target->subsys_list, node) {
-		entry->status = 0;
-		entry->allowallhosts = subsystem->access;
-		strcpy(entry->subnqn, subsystem->nqn);
+	*_entry = entry;
 
-		count = 0;
-		hostnqn = (char *) &entry->data;
-		list_for_each_entry(host, &subsystem->host_list, node) {
-			strcpy(hostnqn, host->nqn);
-			count++;
-			hostnqn += NVMF_NQN_FIELD_LEN;
-		}
+	return sizeof(*entry);
+}
 
-		entry->numhosts = count;
-		entry = (struct nvmf_subsys_config_page_entry *) hostnqn;
+static int build_link_host_inb(struct subsystem *subsys, struct host *host,
+			       struct nvmf_link_host_entry **_entry)
+{
+	struct nvmf_link_host_entry *entry;
 
-		print_debug("TODO need nsid info for INB request");
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
 	}
 
-	*_hdr = hdr;
+	strcpy(entry->subnqn, subsys->nqn);
+	strcpy(entry->hostnqn, host->nqn);
 
-	return len;
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_host_config_inb(char *hostnqn,
+				 struct nvmf_host_config_entry **_entry)
+{
+	struct nvmf_host_config_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->hostnqn, hostnqn);
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_host_delete_inb(char *hostnqn,
+				 struct nvmf_host_delete_entry **_entry)
+{
+	struct nvmf_host_delete_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->hostnqn, hostnqn);
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_link_port_inb(struct subsystem *subsys, struct portid *portid,
+			    struct nvmf_link_port_entry **_entry)
+{
+	struct nvmf_link_port_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->subnqn, subsys->nqn);
+	entry->portid = portid->portid;
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_port_delete_inb(struct portid *portid,
+				 struct nvmf_port_delete_entry **_entry)
+{
+	struct nvmf_port_delete_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	entry->portid = portid->port_num;
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_subsys_delete_inb(struct subsystem *subsys,
+				   struct nvmf_subsys_delete_entry **_entry)
+{
+	struct nvmf_subsys_delete_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->subnqn, subsys->nqn);
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_ns_config_inb(struct subsystem *subsys, struct ns *ns,
+			       struct nvmf_ns_config_entry **_entry)
+{
+	struct nvmf_ns_config_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->subnqn, subsys->nqn);
+	entry->nsid = ns->nsid;
+	entry->deviceid = ns->devid;
+	entry->devicensid = ns->devns;
+
+	*_entry = entry;
+
+	return sizeof(*entry);
+}
+
+static int build_ns_delete_inb(struct subsystem *subsys, struct ns *ns,
+			       struct nvmf_ns_delete_entry **_entry)
+{
+	struct nvmf_ns_delete_entry *entry;
+
+	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
+		print_err("no memory for buffer, errno %d", errno);
+		return 0;
+	}
+
+	strcpy(entry->subnqn, subsys->nqn);
+	entry->nsid = ns->nsid;
+
+	*_entry = entry;
+
+	return sizeof(*entry);
 }
 
 /* out of band message formatting functions */
@@ -386,17 +421,17 @@ static int send_update_subsys_oob(struct target *target, char *subsys,
 
 static inline int get_inb_nsdevs(struct target *target)
 {
-	struct nvmf_ns_devices_rsp_page_hdr *hdr;
-	struct nvmf_ns_devices_rsp_page_entry *entry;
+	struct nvmf_get_ns_devices_hdr *hdr;
+	struct nvmf_get_ns_devices_entry *entry;
 	struct nsdev		*nsdev;
 	struct endpoint		*ep = &target->sc_iface.inb.ep;
 	char			*alias = target->alias;
 	int			 i;
 	int			 ret;
 
-	ret = send_get_nsdevs(ep, &hdr);
+	ret = send_get_config(ep, nvmf_get_ns_config, (void **) &hdr);
 	if (ret) {
-		print_err("send get nsdevs INB failed for %s", alias);
+		print_err("send get nsdevs INB failed %d for %s", ret, alias);
 		goto out1;
 	}
 
@@ -405,34 +440,136 @@ static inline int get_inb_nsdevs(struct target *target)
 		goto out2;
 	}
 
-	entry = (struct nvmf_ns_devices_rsp_page_entry *) &hdr->data;
+	entry = (struct nvmf_get_ns_devices_entry *) &hdr->data;
 
 	list_for_each_entry(nsdev, &target->device_list, node)
 		nsdev->valid = 0;
 
 	for (i = hdr->num_entries; i > 0; i--, entry++) {
 		list_for_each_entry(nsdev, &target->device_list, node)
-			if (nsdev->nsdev == entry->dev_id &&
-			    nsdev->nsid == entry->ns_id) {
+			if (nsdev->nsdev == entry->devid &&
+			    nsdev->nsid == entry->nsid) {
 				nsdev->valid = 1;
 				goto found;
 		}
-		if (entry->dev_id == 255)
-			print_err("New nsdev on %s - nullb0", alias);
-		else
-			print_err("New nsdev on %s - dev id %d nsid %d",
-				  alias, entry->dev_id, entry->ns_id);
+
+		nsdev = malloc(sizeof(*nsdev));
+		if (!nsdev) {
+			print_err("unalbe to alloc nsdev");
+			ret = -ENOMEM;
+			goto out2;
+		}
+
+		nsdev->valid = 1;
+		nsdev->nsdev = entry->devid;
+		nsdev->nsid = entry->nsid;
+
+		list_add_tail(&nsdev->node, &target->device_list);
+
+		print_debug("Added %s %d:%d to %s '%s'",
+			    TAG_DEVID, entry->devid, entry->nsid,
+			    TAG_TARGET, alias);
 found:
 		continue;
 	}
 
 	list_for_each_entry(nsdev, &target->device_list, node)
-		if (!nsdev->valid) {
-			if (entry->dev_id == 255)
-				print_err("Nsdev not on %s - nullb0", alias);
-			else
-				print_err("Nsdev not on %s - dev id %d nsid %d",
-					  alias, nsdev->nsdev, nsdev->nsid);
+		if (!nsdev->valid)
+			print_err("Removed %s %d:%d from %s '%s'",
+				  TAG_DEVID, entry->devid, entry->nsid,
+				  TAG_TARGET, alias);
+out2:
+	free(hdr);
+out1:
+	return ret;
+}
+
+/* get config command handlers */
+
+static inline int get_inb_xports(struct target *target)
+{
+	struct nvmf_get_transports_hdr *hdr;
+	struct nvmf_get_transports_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct fabric_iface	*iface, *next;
+	char			 type[CONFIG_TYPE_SIZE + 1];
+	char			 fam[CONFIG_FAMILY_SIZE + 1];
+	char			 addr[CONFIG_ADDRESS_SIZE + 1];
+	int			 i, rdma_found;
+	int			 ret;
+
+	ret = send_get_config(ep, nvmf_get_xport_config, (void **) &hdr);
+	if (ret) {
+		print_err("send get xports INB failed %d for %s", ret,
+			  target->alias);
+		goto out1;
+	}
+
+	if (!hdr->num_entries) {
+		print_err("No transports defined for %s", target->alias);
+		goto out2;
+	}
+
+	entry = (struct nvmf_get_transports_entry *) &hdr->data;
+
+	list_for_each_entry(iface, &target->fabric_iface_list, node)
+		iface->valid = 0;
+
+	for (i = hdr->num_entries; i > 0; i--, entry++) {
+		rdma_found = 0;
+		strcpy(type, trtype_str(entry->trtype));
+		strcpy(fam, adrfam_str(entry->adrfam));
+		strcpy(addr, entry->traddr);
+
+		list_for_each_entry(iface, &target->fabric_iface_list, node) {
+			if (strcmp(addr, iface->addr) ||
+			    strcmp(fam, iface->fam))
+				continue;
+			if (strcmp(type, iface->type) == 0) {
+				iface->valid = 1;
+				if (entry->trtype == NVMF_TRTYPE_RDMA)
+					rdma_found = 1;
+				else
+					goto found;
+			}
+			// TODO revisit once TCP transport is  supported
+			if ((entry->trtype == NVMF_TRTYPE_RDMA) &&
+			    (strcmp(iface->type, TRTYPE_STR_TCP) == 0)) {
+				iface->valid = 1;
+				if (!rdma_found)
+					rdma_found = 1;
+				else
+					goto found;
+			}
+		}
+
+		iface = malloc(sizeof(*iface));
+		if (!iface) {
+			print_err("unalbe to alloc iface");
+			ret = -ENOMEM;
+			goto out2;
+		}
+
+		iface->valid = 1;
+		strcpy(iface->type, type);
+		strcpy(iface->fam, fam);
+		strcpy(iface->addr, addr);
+
+		list_add_tail(&iface->node, &target->fabric_iface_list);
+
+		print_debug("Added %s %s %s to %s '%s'",
+			    type, fam, addr, TAG_TARGET, target->alias);
+found:
+		continue;
+	}
+
+	list_for_each_entry_safe(iface, next, &target->fabric_iface_list, node)
+		if (!iface->valid) {
+			print_err("Removed %s %s %s from %s '%s'",
+				  iface->type, iface->fam, iface->addr,
+				  TAG_TARGET, target->alias);
+
+			list_del(&iface->node);
 		}
 out2:
 	free(hdr);
@@ -440,136 +577,122 @@ out1:
 	return ret;
 }
 
-static inline int get_inb_xports(struct target *target)
-{
-	struct nvmf_transports_rsp_page_hdr *xports_hdr;
-	struct nvmf_transports_rsp_page_entry *xport;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
-	struct portid		*portid;
-	int			 i, rdma_found;
-	int			 ret;
-
-	ret = send_get_xports(ep, &xports_hdr);
-	if (ret) {
-		print_err("send get xports INB failed for %s", target->alias);
-		goto out1;
-	}
-
-	if (!xports_hdr->num_entries) {
-		print_err("No transports defined for %s", target->alias);
-		goto out2;
-	}
-
-	xport = (struct nvmf_transports_rsp_page_entry *) &xports_hdr->data;
-
-	list_for_each_entry(portid, &target->portid_list, node)
-		portid->valid = 0;
-
-	for (i = xports_hdr->num_entries; i > 0; i--, xport++) {
-		rdma_found = 0;
-		list_for_each_entry(portid, &target->portid_list, node) {
-			if (!strcmp(xport->traddr, portid->address) &&
-			    (xport->adrfam == to_adrfam(portid->family)) &&
-			    (xport->trtype == to_trtype(portid->type))) {
-				portid->valid = 1;
-				if (xport->adrfam == NVMF_TRTYPE_RDMA)
-					rdma_found = 1;
-				else
-					goto found;
-			}
-
-			if (!strcmp(xport->traddr, portid->address) &&
-			    (xport->adrfam == to_adrfam(portid->family)) &&
-			    (xport->trtype == NVMF_TRTYPE_RDMA &&
-			     to_trtype(portid->type) == NVMF_TRTYPE_TCP)) {
-				portid->valid = 1;
-				if (!rdma_found)
-					rdma_found = 1;
-				else
-					goto found;
-			}
-		}
-		if (!rdma_found)
-			print_err("New transport on %s - %s %s %s",
-				  target->alias, trtype_str(xport->trtype),
-				  adrfam_str(xport->adrfam), xport->traddr);
-found:
-		continue;
-	}
-
-	list_for_each_entry(portid, &target->portid_list, node)
-		if (!portid->valid)
-			print_err("Transport not on %s - %s %s %s",
-				  target->alias, portid->type,
-				  portid->family, portid->address);
-out2:
-	free(xports_hdr);
-out1:
-	return ret;
-}
-
 static int get_inb_config(struct target *target)
 {
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
+
+	if (strcmp(ctrl->portid->type, "rdma") == 0)
+		ctrl->ep.ops = rdma_register_ops();
+	else
+		return -EINVAL;
+
+	ret = connect_ctrl(ctrl);
+	if (ret) {
+		print_err("connect_ctrl to %s returned %d", target->alias, ret);
+		goto out;
+	}
 
 	ret = get_inb_nsdevs(target);
 	if (ret)
-		return ret;
+		goto out;
 
-	return get_inb_xports(target);
-}
-
-static int config_target_inb(struct target *target)
-{
-	struct nvmf_port_config_page_hdr   *port_hdr = NULL;
-	struct nvmf_subsys_config_page_hdr *subsys_hdr = NULL;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
-	int			 len;
-	int			 ret = 0;
-
-	len = build_set_port_inb(target, &port_hdr);
-	if (!len)
-		print_err("build set port INB failed for %s", target->alias);
-	else {
-		ret = send_set_port_config(ep, len, port_hdr);
-		if (ret) {
-			print_err("send set port INB failed for %s",
-				  target->alias);
-			goto out;
-		}
-	}
-
-	len = build_set_subsys_inb(target, &subsys_hdr);
-	if (!len)
-		print_err("build set subsys INB failed for %s", target->alias);
-	else {
-		ret = send_set_subsys_config(ep, len, subsys_hdr);
-		if (ret)
-			print_err("send set subsys INB failed for %s",
-				  target->alias);
-	}
-
-	if (port_hdr)
-		free(port_hdr);
+	ret = get_inb_xports(target);
 out:
-	if (subsys_hdr)
-		free(subsys_hdr);
+	disconnect_ctrl(&ctrl->ep, 0);
 
 	return ret;
 }
 
-/* config command handlers */
+/* set config command handlers */
+
+static int config_portid_inb(struct target *target, struct portid *portid)
+{
+	struct nvmf_port_config_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
+
+	len = build_set_port_config_inb(portid, &entry);
+	if (!len)
+		print_err("build set port config INB failed for %s",
+			  target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_set_port_config, len, entry);
+		if (ret)
+			print_err("send set port INB failed %d for %s", ret,
+				  target->alias);
+		free(entry);
+	}
+
+	return ret;
+}
+
+static int config_subsys_inb(struct target *target, struct subsystem *subsys)
+{
+	struct nvmf_subsys_config_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
+
+	len = build_subsys_config_inb(subsys, &entry);
+	if (!len)
+		print_err("build subsys config INB failed for %s",
+			  target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_set_subsys_config, len, entry);
+		if (ret)
+			print_err("send set subsys INB failed %d for %s", ret,
+				  target->alias);
+		free(entry);
+	}
+
+	return ret;
+}
 
 /* HOST */
 
+static int send_host_config_inb(struct target *target, struct host *host)
+{
+	struct nvmf_host_config_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
+
+	len = build_host_config_inb(host->nqn, &entry);
+	if (!len)
+		print_err("build host config INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_set_host_config, len, entry);
+		if (ret)
+			print_err("send link host INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
+
+	return ret;
+}
+
 static int send_link_host_inb(struct subsystem *subsys, struct host *host)
 {
-	UNUSED(host);
-	UNUSED(subsys);
+	struct nvmf_link_host_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB set acl");
+	len = build_link_host_inb(subsys, host, &entry);
+	if (!len)
+		print_err("build link host INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_link_host_config, len, entry);
+		if (ret)
+			print_err("send link host INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_link_host_oob(struct subsystem *subsys, struct host *host)
@@ -611,12 +734,24 @@ static inline int _link_host(struct subsystem *subsys, struct host *host)
 
 static int send_unlink_host_inb(struct subsystem *subsys, struct host *host)
 {
-	UNUSED(host);
-	UNUSED(subsys);
+	struct nvmf_link_host_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB del acl");
+	len = build_link_host_inb(subsys, host, &entry);
+	if (!len)
+		print_err("build link host INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_unlink_host_config, len, entry);
+		if (ret)
+			print_err("send unlink host INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_unlink_host_oob(struct subsystem *subsys, struct host *host)
@@ -648,12 +783,23 @@ static inline int _unlink_host(struct subsystem *subsys, struct host *host)
 
 static int send_del_host_inb(struct target *target, char *hostnqn)
 {
-	UNUSED(hostnqn);
-	UNUSED(target);
+	struct nvmf_host_delete_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB del host");
+	len = build_host_delete_inb(hostnqn, &entry);
+	if (!len)
+		print_err("build host delete INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_del_host_config, len, entry);
+		if (ret)
+			print_err("send del host INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_del_host_oob(struct target *target, char *hostnqn)
@@ -846,17 +992,29 @@ out:
 	return ret;
 }
 
-static int link_portid_inb(struct subsystem *subsys, struct portid *portid)
+static int send_link_portid_inb(struct subsystem *subsys, struct portid *portid)
 {
-	UNUSED(subsys);
-	UNUSED(portid);
+	struct nvmf_link_port_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB link portid");
+	len = build_link_port_inb(subsys, portid, &entry);
+	if (!len)
+		print_err("build link port INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_link_port_config, len, entry);
+		if (ret)
+			print_err("send link port INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
-static int link_portid_oob(struct subsystem *subsys, struct portid *portid)
+static int send_link_portid_oob(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
 	char			*alias = target->alias;
@@ -878,24 +1036,38 @@ static inline int _link_portid(struct subsystem *subsys, struct portid *portid)
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = link_portid_inb(subsys, portid);
+		ret = send_link_portid_inb(subsys, portid);
 	else
-		ret = link_portid_oob(subsys, portid);
+		ret = send_link_portid_oob(subsys, portid);
 
 	return ret;
 }
 
-static int unlink_portid_inb(struct subsystem *subsys, struct portid *portid)
+static int send_unlink_portid_inb(struct subsystem *subsys,
+				  struct portid *portid)
 {
-	UNUSED(subsys);
-	UNUSED(portid);
+	struct nvmf_link_port_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB unlink portid");
+	len = build_link_port_inb(subsys, portid, &entry);
+	if (!len)
+		print_err("build link port INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_unlink_port_config, len, entry);
+		if (ret)
+			print_err("send unlink port INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
-static int unlink_portid_oob(struct subsystem *subsys, struct portid *portid)
+static int send_unlink_portid_oob(struct subsystem *subsys,
+				  struct portid *portid)
 {
 	struct target		*target = subsys->target;
 	char			 uri[MAX_URI_SIZE];
@@ -918,9 +1090,9 @@ static inline int _unlink_portid(struct subsystem *subsys,
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = unlink_portid_inb(subsys, portid);
+		ret = send_unlink_portid_inb(subsys, portid);
 	else
-		ret = unlink_portid_oob(subsys, portid);
+		ret = send_unlink_portid_oob(subsys, portid);
 
 	return ret;
 }
@@ -929,11 +1101,25 @@ static inline int _unlink_portid(struct subsystem *subsys,
 
 static int send_del_subsys_inb(struct subsystem *subsys)
 {
-	UNUSED(subsys);
+	struct nvmf_subsys_delete_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB del subsys");
+	len = build_subsys_delete_inb(subsys, &entry);
+	if (!len)
+		print_err("build subsys delete INB failed for %s",
+			  target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_del_subsys_config, len, entry);
+		if (ret)
+			print_err("send del subsys INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_del_subsys_oob(struct subsystem *subsys)
@@ -1029,7 +1215,7 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 	}
 
 	list_for_each_entry(portid, &target->portid_list, node)
-		link_portid_oob(subsys, portid);
+		send_link_portid_oob(subsys, portid);
 
 	return 0;
 }
@@ -1040,7 +1226,7 @@ static inline int _config_subsys(struct target *target,
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		print_debug("TODO - INB create config_subsys_inb");
+		ret = config_subsys_inb(target, subsys);
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
 
@@ -1056,7 +1242,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	int			 ret;
 
 	memset(&new_ss, 0, sizeof(new_ss));
-	new_ss.access = -1;
+	new_ss.access = UNDEFINED_ACCESS;
 
 	ret = set_json_subsys(alias, nqn, data, resp, &new_ss);
 	if (ret)
@@ -1081,13 +1267,13 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 		len = strlen(new_ss.nqn);
 		if ((len && strcmp(nqn, new_ss.nqn)) ||
-		    ((new_ss.access != -1) &&
+		    ((new_ss.access != UNDEFINED_ACCESS) &&
 		     (new_ss.access != subsys->access))) {
 			_del_subsys(subsys);
 
 			if (len)
 				strcpy(subsys->nqn, new_ss.nqn);
-			if (new_ss.access != -1)
+			if (new_ss.access != UNDEFINED_ACCESS)
 				subsys->access = new_ss.access;
 		}
 	}
@@ -1103,12 +1289,23 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 static int send_del_portid_inb(struct target *target, struct portid *portid)
 {
-	UNUSED(target);
-	UNUSED(portid);
+	struct nvmf_port_delete_entry *entry;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB del portid");
+	len = build_port_delete_inb(portid, &entry);
+	if (!len)
+		print_err("build port delete INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_del_port_config, len, entry);
+		if (ret)
+			print_err("send del port INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_del_portid_oob(struct target *target, struct portid *portid)
@@ -1159,16 +1356,6 @@ int del_portid(char *alias, int id, char *resp)
 	list_del(&portid->node);
 out:
 	return ret;
-}
-
-static int config_portid_inb(struct target *target, struct portid *portid)
-{
-	UNUSED(target);
-	UNUSED(portid);
-
-	print_debug("TODO need to send INB set portid");
-
-	return 0;
 }
 
 static int config_portid_oob(struct target *target, struct portid *portid)
@@ -1246,12 +1433,24 @@ out:
 
 static int send_set_ns_inb(struct subsystem *subsys, struct ns *ns)
 {
-	UNUSED(subsys);
-	UNUSED(ns);
+	struct nvmf_ns_config_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB set ns");
+	len = build_ns_config_inb(subsys, ns, &entry);
+	if (!len)
+		print_err("build ns config INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_set_ns_config, len, entry);
+		if (ret)
+			print_err("send set ns config INB failed %d for %s",
+				  ret, target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_set_ns_oob(struct subsystem *subsys, struct ns *ns)
@@ -1348,12 +1547,24 @@ out:
 
 static int send_del_ns_inb(struct subsystem *subsys, struct ns *ns)
 {
-	UNUSED(subsys);
-	UNUSED(ns);
+	struct nvmf_ns_delete_entry *entry;
+	struct target		*target = subsys->target;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 len;
+	int			 ret;
 
-	print_debug("TODO need to send INB del ns");
+	len = build_ns_delete_inb(subsys, ns, &entry);
+	if (!len)
+		print_err("build ns delete INB failed for %s", target->alias);
+	else {
+		ret = send_set_config(ep, nvmf_del_ns_config, len, entry);
+		if (ret)
+			print_err("send del ns config INB failed for %s",
+				  target->alias);
+		free(entry);
+	}
 
-	return 0;
+	return ret;
 }
 
 static int send_del_ns_oob(struct subsystem *subsys, struct ns *ns)
@@ -1459,6 +1670,59 @@ static int get_oob_config(struct target *target)
 	return get_oob_xports(target);
 }
 
+static int config_target_inb(struct target *target)
+{
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
+	struct portid		*portid;
+	struct subsystem	*subsys;
+	struct ns		*ns;
+	struct host		*host;
+	int			 ret;
+
+	ret = connect_ctrl(ctrl);
+	if (ret) {
+		print_err("connect_ctrl to %s returned %d", target->alias, ret);
+		goto out1;
+	}
+
+	list_for_each_entry(portid, &target->portid_list, node) {
+		ret = config_portid_inb(target, portid);
+		if (ret)
+			goto out2;
+	}
+
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		ret = config_subsys_inb(target, subsys);
+		if (ret)
+			break;
+		if (!subsys->access)
+			list_for_each_entry(host, &subsys->host_list, node) {
+				ret = send_host_config_inb(target, host);
+				if (ret)
+					goto out2;
+				ret = send_link_host_inb(subsys, host);
+				if (ret)
+					goto out2;
+			}
+
+		list_for_each_entry(ns, &subsys->ns_list, node) {
+			ret = send_set_ns_inb(subsys, ns);
+			if (ret)
+				goto out2;
+		}
+
+		list_for_each_entry(portid, &target->portid_list, node) {
+			ret = send_link_portid_inb(subsys, portid);
+			if (ret)
+				goto out2;
+		}
+	}
+out2:
+	disconnect_ctrl(&ctrl->ep, 0);
+out1:
+	return ret;
+}
+
 static int config_target_oob(struct target *target)
 {
 	struct portid		*portid;
@@ -1506,8 +1770,14 @@ int config_target(struct target *target)
 
 static int send_del_target_inb(struct target *target)
 {
-	UNUSED(target);
-	return 0;
+	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	int			 ret;
+
+	ret = send_set_config(ep, nvmf_del_target_config, 0, NULL);
+	if (ret)
+		print_err("send del target INB failed for %s", target->alias);
+
+	return ret;
 }
 
 static int send_del_target_oob(struct target *target)
@@ -1571,6 +1841,11 @@ out:
 static inline void set_oob_interface(union sc_iface *iface,
 				     union sc_iface *result)
 {
+	if (iface->inb.portid) {
+		free(iface->inb.portid);
+		iface->inb.portid = NULL;
+	}
+
 	iface->oob.port = result->oob.port;
 	strcpy(iface->oob.address, result->oob.address);
 }
@@ -1578,11 +1853,18 @@ static inline void set_oob_interface(union sc_iface *iface,
 static inline void set_inb_interface(union sc_iface *iface,
 				     union sc_iface *result)
 {
-	struct portid	*portid = &iface->inb.portid;
+	struct portid		*portid = iface->inb.portid;
 
-	strcpy(portid->port, result->inb.portid.port);
-	strcpy(portid->type, result->inb.portid.type);
-	strcpy(portid->address, result->inb.portid.address);
+	if (!iface->inb.portid) {
+		portid = malloc(sizeof(*portid));
+		if (!portid)
+			return;
+		iface->inb.portid = portid;
+	}
+
+	strcpy(portid->port, result->inb.portid->port);
+	strcpy(portid->type, result->inb.portid->type);
+	strcpy(portid->address, result->inb.portid->address);
 }
 
 int set_interface(char *alias, char *data, char *resp)
@@ -1633,11 +1915,15 @@ int add_target(char *alias, char *resp)
 
 int update_target(char *alias, char *data, char *resp)
 {
-	struct target		  result;
-	struct target		 *target;
-	int			  ret;
+	struct target		 result;
+	struct target		*target;
+	struct portid		 portid;
+	int			 ret;
 
 	memset(&result, 0, sizeof(result));
+	memset(&portid, 0, sizeof(portid));
+
+	result.sc_iface.inb.portid = &portid;
 
 	ret = update_json_target(alias, data, resp, &result);
 	if (ret)

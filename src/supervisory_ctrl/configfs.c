@@ -484,10 +484,11 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 	} else if (req == NVMF_TREQ_NOT_REQUIRED) {
 		if (strcmp(val, NOT_REQUIRED))
 			goto out;
-	} else {
+	}/* TODO REVIEW THIS - else {
 		if (strcmp(val, NOT_SPECIFIED))
 			goto out;
 	}
+	*/
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
 	read_str(CFS_TR_SVCID, val);
 	if (strcmp(val, str))
@@ -805,6 +806,8 @@ int enumerate_interfaces(void)
 	char			 config_file[FILENAME_MAX + 1];
 	struct portid		*iface;
 	int			 cnt = 0;
+	int			 adrfam = 0;
+	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
 	for_each_dir(entry, dir) {
@@ -833,6 +836,46 @@ int enumerate_interfaces(void)
 			read_dem_config(fd, iface);
 
 		fclose(fd);
+
+		if ((strcmp(iface->type, TRTYPE_STR_RDMA) != 0) &&
+		    (strcmp(iface->type, TRTYPE_STR_TCP) != 0) &&
+		    (strcmp(iface->type, TRTYPE_STR_FC) != 0)) {
+			print_err("Ignored invalid trtype %s: expect %s/%s/%s",
+				   iface->type, TRTYPE_STR_RDMA,
+				   TRTYPE_STR_TCP, TRTYPE_STR_FC);
+			continue;
+		}
+
+		if (strcmp(iface->family, ADRFAM_STR_IPV4) == 0)
+			adrfam = NVMF_ADDR_FAMILY_IP4;
+		else if (strcmp(iface->family, ADRFAM_STR_IPV6) == 0)
+			adrfam = NVMF_ADDR_FAMILY_IP6;
+		else if (strcmp(iface->family, ADRFAM_STR_FC) == 0)
+			adrfam = NVMF_ADDR_FAMILY_FC;
+
+		if (!adrfam) {
+			print_err("Ignored invalid adrfam %s: expect %s/%s/%s",
+				   iface->family, ADRFAM_STR_IPV4,
+				   ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+			continue;
+		}
+
+		switch (adrfam) {
+		case NVMF_ADDR_FAMILY_IP4:
+			ret = ipv4_to_addr(iface->address, iface->addr);
+			break;
+		case NVMF_ADDR_FAMILY_IP6:
+			ret = ipv6_to_addr(iface->address, iface->addr);
+			break;
+		case NVMF_ADDR_FAMILY_FC:
+			ret = fc_to_addr(iface->address, iface->addr);
+			break;
+		}
+
+		if (ret < 0) {
+			print_err("Ignored invalid traddr %s", iface->address);
+			continue;
+		}
 
 		print_debug("adding interface for %s %s %s",
 			    iface->type, iface->family,

@@ -40,6 +40,7 @@
 
 #include "common.h"
 #include "tags.h"
+#include "dem.h"
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -50,27 +51,7 @@ static int			 run_as_daemon;
 int				 stopped;
 static int			 signalled;
 static int			 debug;
-static struct discovery_queue	 discovery_queue;
-
-static const char *arg_str(const char * const *strings, size_t array_size,
-			   size_t idx)
-{
-	if (idx < array_size && strings[idx])
-		return strings[idx];
-
-	return "unrecognized";
-}
-
-static const char * const trtypes[] = {
-	[NVMF_TRTYPE_RDMA]	= "rdma",
-	[NVMF_TRTYPE_FC]	= "fibre-channel",
-	[NVMF_TRTYPE_LOOP]	= "loop",
-};
-
-static const char *trtype_str(u8 trtype)
-{
-	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
-}
+static struct ctrl_queue	 discovery_queue;
 
 static void shutdown_dem(void)
 {
@@ -144,7 +125,7 @@ static void show_help(char *app)
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 }
 
-static int init_dq(struct discovery_queue *dq)
+static int init_dq(struct ctrl_queue *dq)
 {
 	struct portid		*portid;
 	struct target		*target;
@@ -179,7 +160,7 @@ static int init_dq(struct discovery_queue *dq)
 	return 0;
 }
 
-static int parse_args(int argc, char *argv[], struct discovery_queue *dq)
+static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 {
 	struct portid		*portid = dq->portid;
 	int			 opt;
@@ -267,7 +248,7 @@ out:
 	return 1;
 }
 
-static int validate_dq(struct discovery_queue *dq)
+static int validate_dq(struct ctrl_queue *dq)
 {
 	struct portid		*portid = dq->portid;
 	int			 ret;
@@ -383,7 +364,7 @@ static inline int match_logpage(struct logpage *logpage,
 
 static inline void store_logpage(struct logpage *logpage,
 				 struct nvmf_disc_rsp_page_entry *e,
-				 struct discovery_queue *dq)
+				 struct ctrl_queue *dq)
 {
 	logpage->e = *e;
 	logpage->valid = 1;
@@ -391,7 +372,7 @@ static inline void store_logpage(struct logpage *logpage,
 }
 
 static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
-			   struct target *target, struct discovery_queue *dq)
+			   struct target *target, struct ctrl_queue *dq)
 {
 	int				 i;
 	int				 found;
@@ -445,7 +426,7 @@ next:
 	}
 }
 
-static void fetch_log_pages(struct discovery_queue *dq)
+static void fetch_log_pages(struct ctrl_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = NULL;
 	struct target			*target = dq->target;
@@ -465,7 +446,7 @@ static void fetch_log_pages(struct discovery_queue *dq)
 	free(log);
 }
 
-static void mark_connected_subsystems(struct discovery_queue *dq)
+static void mark_connected_subsystems(struct ctrl_queue *dq)
 {
 	struct subsystem	*subsys;
 	struct logpage		*logpage;
@@ -474,7 +455,7 @@ static void mark_connected_subsystems(struct discovery_queue *dq)
 	FILE			*fd;
 	char			 path[FILENAME_MAX + 1];
 	char			 val[MAX_NQN_SIZE + 1];
-	char			 address[MAX_ADDR_SIZE + 1];
+	char			 address[CONFIG_ADDRESS_SIZE + 1];
 	char			*port;
 	char			*addr;
 	int			 pos;
@@ -536,7 +517,7 @@ static void mark_connected_subsystems(struct discovery_queue *dq)
 	}
 }
 
-static void connect_one_subsystem(struct discovery_queue *dq)
+static void connect_one_subsystem(struct ctrl_queue *dq)
 {
 	struct subsystem	*subsys;
 	struct logpage		*logpage;
@@ -561,13 +542,13 @@ static void connect_one_subsystem(struct discovery_queue *dq)
 	}
 }
 
-static void cleanup_dq(struct discovery_queue *dq)
+static void cleanup_dq(struct ctrl_queue *dq)
 {
 	struct subsystem	*subsys, *next_subsys;
 	struct logpage		*logpage, *next_logpage;
 
 	if (dq->connected) {
-		disconnect_target(&dq->ep, 0);
+		disconnect_ctrl(&dq->ep, 0);
 		dq->connected = DISCONNECTED;
 	}
 
@@ -585,7 +566,7 @@ int main(int argc, char *argv[])
 {
 	int			 ret = 1;
 	int			 cnt = 0;
-	struct discovery_queue	*dq = &discovery_queue;
+	struct ctrl_queue	*dq = &discovery_queue;
 	const char		*dc_str = "Discovery controller";
 
 	if (init_dq(dq))
@@ -608,7 +589,7 @@ int main(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	if (connect_target(dq))
+	if (connect_ctrl(dq))
 		print_info("Unable to connect to %s", dc_str);
 	else {
 		dq->connected = CONNECTED;
@@ -625,7 +606,7 @@ int main(int argc, char *argv[])
 	while (!stopped) {
 		usleep(DELAY);
 		if (!dq->connected) {
-			if (!connect_target(dq)) {
+			if (!connect_ctrl(dq)) {
 				print_info("Connected to %s", dc_str);
 				cnt = 0;
 				usleep(100);

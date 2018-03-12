@@ -187,13 +187,9 @@ static void show_subsystems(json_t *parent)
 		printf("    No Subsystems defined\n");
 }
 
-static void show_interface(json_t *iter, int indent)
+static void show_oob_interface(json_t *iter)
 {
 	json_t			*obj;
-	char			 tab[8];
-
-	memset(tab, 0, sizeof(tab));
-	memset(tab, ' ', indent);
 
 	obj = json_object_get(iter, TAG_IFFAMILY);
 	if (obj)
@@ -204,6 +200,27 @@ static void show_interface(json_t *iter, int indent)
 		printf("%s ", json_string_value(obj));
 
 	obj = json_object_get(iter, TAG_IFPORT);
+	if (obj)
+		printf("%lld", json_integer_value(obj));
+}
+
+static void show_inb_interface(json_t *iter)
+{
+	json_t			*obj;
+
+	obj = json_object_get(iter, TAG_TYPE);
+	if (obj)
+		printf("%s ", json_string_value(obj));
+
+	obj = json_object_get(iter, TAG_FAMILY);
+	if (obj)
+		printf("%s ", json_string_value(obj));
+
+	obj = json_object_get(iter, TAG_ADDRESS);
+	if (obj)
+		printf("%s ", json_string_value(obj));
+
+	obj = json_object_get(iter, TAG_TRSVCID);
 	if (obj)
 		printf("%lld", json_integer_value(obj));
 }
@@ -412,13 +429,18 @@ void show_target_data(json_t *parent)
 		printf("\n  Management Mode: ");
 		if (strcmp(mode, TAG_LOCAL_MGMT) == 0)
 			printf("Local");
-		else if (strcmp(mode, TAG_IN_BAND_MGMT) == 0)
-			printf("In-Band");
-		else if (strcmp(mode, TAG_OUT_OF_BAND_MGMT) == 0) {
+		else if (strcmp(mode, TAG_IN_BAND_MGMT) == 0) {
+			printf("In-Band - ");
+			attrs = json_object_get(parent, TAG_INTERFACE);
+			if (attrs)
+				show_inb_interface(attrs);
+			else
+				printf("Interface undefined");
+		} else if (strcmp(mode, TAG_OUT_OF_BAND_MGMT) == 0) {
 			printf("Out-of-Band - ");
 			attrs = json_object_get(parent, TAG_INTERFACE);
 			if (attrs)
-				show_interface(attrs, 4);
+				show_oob_interface(attrs);
 			else
 				printf("Interface undefined");
 		} else

@@ -76,8 +76,9 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _LINK		"link"
 #define _UNLINK		"unlink"
 #define _USAGE		"usage"
-#define _INTERFACE	"interface"
-#define _MODE		"mode"
+#define _INB_MGMT	"inband"
+#define _OOB_MGMT	"outofband"
+#define _LOCAL_MGMT	"local"
 
 #define DELETE_PROMPT	"Are you sure you want to delete "
 
@@ -423,7 +424,36 @@ static int set_target(char *base, int n, char **p)
 	return exec_put(base, data, len);
 }
 
-static int set_interface(char *base, int n, char **p)
+static int set_inb_mgmt(char *base, int n, char **p)
+{
+	char			 url[128];
+	char			 data[256];
+	char			*alias = *p++;
+	char			*type = *p++;
+	char			*family = *p++;
+	char			*address = *p++;
+	char			*q = data;
+	int			 port = atoi(*p);
+	int			 len;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s", base, alias);
+
+	len = snprintf(data, sizeof(data),
+		     "{" JSSTR ",", TAG_MGMT_MODE, TAG_IN_BAND_MGMT);
+
+	q += len;
+
+	len += snprintf(q, sizeof(data) - len,
+			JSTAG "{" JSSTR "," JSSTR "," JSSTR "," JSINT "}}",
+			TAG_INTERFACE, TAG_TYPE, type, TAG_FAMILY, family,
+			TAG_ADDRESS, address, TAG_TRSVCID, port);
+
+	return exec_patch(url, data, len);
+}
+
+static int set_oob_mgmt(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
@@ -438,36 +468,27 @@ static int set_interface(char *base, int n, char **p)
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
 	len = snprintf(data, sizeof(data),
-		     "{" JSTAG "{" JSSTR "," JSSTR "," JSINT "}}",
-		     TAG_INTERFACE, TAG_IFFAMILY, family,
-		     TAG_IFADDRESS, address, TAG_IFPORT, port);
+		       "{" JSSTR "," JSTAG "{" JSSTR "," JSSTR "," JSINT "}}",
+		       TAG_MGMT_MODE, TAG_OUT_OF_BAND_MGMT,
+		       TAG_INTERFACE, TAG_IFFAMILY, family,
+		       TAG_IFADDRESS, address, TAG_IFPORT, port);
 
 	return exec_patch(url, data, len);
 }
 
-static int set_mode(char *base, int n, char **p)
+static int set_local_mgmt(char *base, int n, char **p)
 {
 	char			 url[128];
 	char			 data[256];
-	char			 mode[32];
 	char			*alias = *p++;
-	char			*val = *p;
 	int			 len;
 
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s", base, alias);
 
-	if (val[0] == 'o')
-		strcpy(mode, TAG_OUT_OF_BAND_MGMT);
-	else if (val[0] == 'i')
-		strcpy(mode, TAG_IN_BAND_MGMT);
-	else if (val[0] == 'l')
-		strcpy(mode, TAG_LOCAL_MGMT);
-	else
-		return -EINVAL;
-
-	len = snprintf(data, sizeof(data), "{" JSSTR "}", TAG_MGMT_MODE, mode);
+	len = snprintf(data, sizeof(data), "{" JSSTR "}",
+		       TAG_MGMT_MODE, TAG_LOCAL_MGMT);
 
 	return exec_patch(url, data, len);
 }
@@ -537,6 +558,18 @@ static int refresh_target(char *base, int n, char **p)
 	UNUSED(n);
 
 	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_REFRESH);
+
+	return exec_post(url, NULL, 0);
+}
+
+static int reconfig_target(char *base, int n, char **p)
+{
+	char			 url[128];
+	char			*alias = *p;
+
+	UNUSED(n);
+
+	snprintf(url, sizeof(url), "%s/%s/%s", base, alias, METHOD_RECONFIG);
 
 	return exec_post(url, NULL, 0);
 }
@@ -1126,17 +1159,22 @@ static struct verbs verb_list[] = {
 	  "show the specified target e.g. ports, subsys's, and ns's" },
 	{ del_target,	 TARGET,  -1, _DEL,  _TARGET, "<alias> {<alias> ...}",
 	  "delete target(s) and all associated subsystems and port ids" },
-	{ set_mode,	 TARGET,  2, _SET,  _MODE, "<alias> <mode>",
-	  "update a target's management mode: out-of-band, in-band, or local" },
-	{ set_interface, TARGET,  4, _SET,  _INTERFACE,
+	{ set_local_mgmt, TARGET,  1, _SET,  _LOCAL_MGMT, "<alias>",
+	  "update a target's management mode to local" },
+	{ set_inb_mgmt, TARGET,  5, _SET,  _INB_MGMT,
+	  "<alias> <trtype> <adrfam> <traddr> <trsvcid>",
+	  "update a target's management mode to in-of-band" },
+	{ set_oob_mgmt, TARGET,  4, _SET,  _OOB_MGMT,
 	  "<alias> <family> <address> <port>",
-	  "update a target's out-of-band interface" },
+	  "update a target's managment mode to out-of-band" },
 	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refresh>",
 	  "update a target's refresh rate in minutes" },
 	{ rename_target, TARGET,  2, _RENA, _TARGET, "<old> <new>",
 	  "rename a target in the specified group (using PATCH)" },
 	{ refresh_target, TARGET, 1, "refresh", _TARGET, "<alias>",
 	  "signal the dem to refresh the log pages of a target" },
+	{ reconfig_target, TARGET, 1, "reconfigure", _TARGET, "<alias>",
+	  "signal the dem to reconfigure the target" },
 	{ usage_target,	 TARGET,  1, "usage", _TARGET, "<alias>",
 	  "get usage for subsystems of a target" },
 	{ link_target,	 GROUP,   2, _LINK,  _TARGET, "<alias> <group>",

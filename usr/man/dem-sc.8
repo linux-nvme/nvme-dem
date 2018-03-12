@@ -1,17 +1,17 @@
-.\" dem-ec.8 --
+.\" dem-sc.8 --
 .\" Copyright 2018 Intel Corporation, Inc.
 .\" May be distributed under the GNU General Public License
-.TH DEM-EC 8 "March 2018" "nvmeof-dem" "System Administration"
+.TH DEM-SC 8 "March 2018" "nvmeof-dem" "System Administration"
 .SH NAME
-dem-ec \-
-Distributed Endpoint Management - Endpoint Configuration
+dem-sc \-
+Distributed Endpoint Management - Supervisory Controller
 .SH SYNOPSIS
-.B dem-ec
+.B dem-sc
 is used on an Endpoint to allow a Discovery controller to configure NVMe-oF
 resources to be exports on the NVMe-of network using Distributed Endpoint
 Management
 .SH DESCRIPTION
-.B dem-ec
+.B dem-sc
 is a program that can run as a daemon or standalone to interact with a
 Discovery controller to configure the Endpoint's Subsystems and Port IDs.
 the Discovery controller may configure the Endpoint In-Band over the same
@@ -25,8 +25,10 @@ This program doesnot provide log pages or access to the Subsystem it mananger.
 .I -d
 enable debug prints in log files
 .TP
-.I -s
+.I -S
 run as a standalone process (default is daemon)
+.TP
+.B Out-of-Band Management Mode
 .TP
 .I -p <port>
 port from RESTful interface (see help for default)
@@ -36,11 +38,25 @@ root for RESTful interface (see help for default)
 .TP
 .I -c <cert_file>
 cert file for RESTful interface use with ssl
+.TP
+.B In-Band Management Mode
+.TP
+.I -t <trtype>
+transport type to use, i.e. rdma, tcp, fc
+.TP
+.I -f <adrfam>
+address family, i.e. ipv4, ipv6, fc
+.TP
+.I -a <traddr>
+transport address to use, must match address family definition of an address
+.TP
+.I -s <trsvcid>
+transport service id (a.k.a. Port Number) to use.
 
 .SH SEE ALSO
 .BR dem (1),
-.BR dem-ac (8),
+.BR dem-hac (8),
 .BR dem-dc (8),
 .SH AVAILABILITY
-The dem-ec command is part of the nvmeof-dem package and is available from
+The dem-sc command is part of the nvmeof-dem package and is available from
 http://github.com/linux-nvme/dem.

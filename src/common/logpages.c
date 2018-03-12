@@ -130,8 +130,8 @@ static const char *cms_str(u8 cm)
 }
 #endif
 
-int get_logpages(struct discovery_queue *dq,
-		 struct nvmf_disc_rsp_page_hdr **logp, u32 *numrec)
+int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
+		 u32 *numrec)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
 	unsigned int			 log_size = 0;
