@@ -71,8 +71,6 @@ extern struct list_head		*interfaces;
 #define FC_OFFSET		4
 #define FC_DELIM		":"
 
-#define NULLB_DEVID		-1
-
 struct host {
 	struct list_head	 node;
 	struct subsystem	*subsystem;
@@ -153,7 +151,6 @@ struct target {
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
-	int			 dirty;
 };
 
 struct mg_connection;

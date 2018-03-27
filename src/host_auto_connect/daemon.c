@@ -547,10 +547,8 @@ static void cleanup_dq(struct ctrl_queue *dq)
 	struct subsystem	*subsys, *next_subsys;
 	struct logpage		*logpage, *next_logpage;
 
-	if (dq->connected) {
-		disconnect_ctrl(&dq->ep, 0);
-		dq->connected = DISCONNECTED;
-	}
+	if (dq->connected)
+		disconnect_ctrl(dq, 0);
 
 	list_for_each_entry_safe(subsys, next_subsys,
 				 &dq->target->subsys_list, node) {

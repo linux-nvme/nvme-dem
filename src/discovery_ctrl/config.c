@@ -292,7 +292,12 @@ static int build_ns_config_inb(struct subsystem *subsys, struct ns *ns,
 
 	strcpy(entry->subnqn, subsys->nqn);
 	entry->nsid = ns->nsid;
-	entry->deviceid = ns->devid;
+
+	if (ns->devid == NULLB_DEVID)
+		entry->deviceid = NVMF_NULLB_DEVID;
+	else
+		entry->deviceid = ns->devid;
+
 	entry->devicensid = ns->devns;
 
 	*_entry = entry;
@@ -427,11 +432,12 @@ static inline int get_inb_nsdevs(struct target *target)
 	struct endpoint		*ep = &target->sc_iface.inb.ep;
 	char			*alias = target->alias;
 	int			 i;
+	int			 devid;
 	int			 ret;
 
 	ret = send_get_config(ep, nvmf_get_ns_config, (void **) &hdr);
 	if (ret) {
-		print_err("send get nsdevs INB failed %d for %s", ret, alias);
+		print_err("send get nsdevs INB failed for %s", alias);
 		goto out1;
 	}
 
@@ -446,8 +452,12 @@ static inline int get_inb_nsdevs(struct target *target)
 		nsdev->valid = 0;
 
 	for (i = hdr->num_entries; i > 0; i--, entry++) {
+		devid = entry->devid;
+		if (devid == NVMF_NULLB_DEVID)
+			devid = NULLB_DEVID;
+
 		list_for_each_entry(nsdev, &target->device_list, node)
-			if (nsdev->nsdev == entry->devid &&
+			if (nsdev->nsdev == devid &&
 			    nsdev->nsid == entry->nsid) {
 				nsdev->valid = 1;
 				goto found;
@@ -461,14 +471,13 @@ static inline int get_inb_nsdevs(struct target *target)
 		}
 
 		nsdev->valid = 1;
-		nsdev->nsdev = entry->devid;
+		nsdev->nsdev = devid;
 		nsdev->nsid = entry->nsid;
 
 		list_add_tail(&nsdev->node, &target->device_list);
 
 		print_debug("Added %s %d:%d to %s '%s'",
-			    TAG_DEVID, entry->devid, entry->nsid,
-			    TAG_TARGET, alias);
+			    TAG_DEVID, devid, entry->nsid, TAG_TARGET, alias);
 found:
 		continue;
 	}
@@ -500,8 +509,7 @@ static inline int get_inb_xports(struct target *target)
 
 	ret = send_get_config(ep, nvmf_get_xport_config, (void **) &hdr);
 	if (ret) {
-		print_err("send get xports INB failed %d for %s", ret,
-			  target->alias);
+		print_err("send get xports INB failed for %s", target->alias);
 		goto out1;
 	}
 
@@ -590,40 +598,62 @@ static int get_inb_config(struct target *target)
 	ret = connect_ctrl(ctrl);
 	if (ret) {
 		print_err("connect_ctrl to %s returned %d", target->alias, ret);
-		goto out;
+		return ret;
 	}
 
-	ret = get_inb_nsdevs(target);
-	if (ret)
-		goto out;
+	ctrl->connected = 1;
 
-	ret = get_inb_xports(target);
-out:
-	disconnect_ctrl(&ctrl->ep, 0);
+	ret = get_inb_nsdevs(target);
+	if (!ret)
+		ret = get_inb_xports(target);
+
+	if (ret)
+		disconnect_ctrl(ctrl, 0);
 
 	return ret;
 }
 
-/* set config command handlers */
+/* set config (INB) command handlers */
+
+static int _send_set_config(struct ctrl_queue *ctrl, int id, int len, void *p)
+{
+	int			 ret;
+
+	if (ctrl->connected) {
+		ret = send_set_config(&ctrl->ep, id, len, p);
+		if (!ret)
+			return 0;
+
+		ctrl->connected = 0;
+	}
+
+	ret = connect_ctrl(ctrl);
+	if (ret)
+		return ret;
+
+	ctrl->connected = 1;
+
+	return send_set_config(&ctrl->ep, id, len, p);
+}
 
 static int config_portid_inb(struct target *target, struct portid *portid)
 {
 	struct nvmf_port_config_entry *entry;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_set_port_config_inb(portid, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build set port config INB failed for %s",
 			  target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_set_port_config, len, entry);
-		if (ret)
-			print_err("send set port INB failed %d for %s", ret,
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_set_port_config, len, entry);
+	if (ret)
+		print_err("send set port INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -631,21 +661,21 @@ static int config_portid_inb(struct target *target, struct portid *portid)
 static int config_subsys_inb(struct target *target, struct subsystem *subsys)
 {
 	struct nvmf_subsys_config_entry *entry;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_subsys_config_inb(subsys, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build subsys config INB failed for %s",
 			  target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_set_subsys_config, len, entry);
-		if (ret)
-			print_err("send set subsys INB failed %d for %s", ret,
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_set_subsys_config, len, entry);
+	if (ret)
+		print_err("send set subsys INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -655,20 +685,20 @@ static int config_subsys_inb(struct target *target, struct subsystem *subsys)
 static int send_host_config_inb(struct target *target, struct host *host)
 {
 	struct nvmf_host_config_entry *entry;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_host_config_inb(host->nqn, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build host config INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_set_host_config, len, entry);
-		if (ret)
-			print_err("send link host INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_set_host_config, len, entry);
+	if (ret)
+		print_err("send link host INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -677,20 +707,20 @@ static int send_link_host_inb(struct subsystem *subsys, struct host *host)
 {
 	struct nvmf_link_host_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_link_host_inb(subsys, host, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build link host INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_link_host_config, len, entry);
-		if (ret)
-			print_err("send link host INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_link_host_config, len, entry);
+	if (ret)
+		print_err("send link host INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -736,20 +766,20 @@ static int send_unlink_host_inb(struct subsystem *subsys, struct host *host)
 {
 	struct nvmf_link_host_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_link_host_inb(subsys, host, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build link host INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_unlink_host_config, len, entry);
-		if (ret)
-			print_err("send unlink host INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_unlink_host_config, len, entry);
+	if (ret)
+		print_err("send unlink host INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -784,20 +814,20 @@ static inline int _unlink_host(struct subsystem *subsys, struct host *host)
 static int send_del_host_inb(struct target *target, char *hostnqn)
 {
 	struct nvmf_host_delete_entry *entry;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_host_delete_inb(hostnqn, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build host delete INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_del_host_config, len, entry);
-		if (ret)
-			print_err("send del host INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_del_host_config, len, entry);
+	if (ret)
+		print_err("send del host INB failed for %s", target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -996,20 +1026,21 @@ static int send_link_portid_inb(struct subsystem *subsys, struct portid *portid)
 {
 	struct nvmf_link_port_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_link_port_inb(subsys, portid, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build link port INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_link_port_config, len, entry);
-		if (ret)
-			print_err("send link port INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_link_port_config, len, entry);
+	if (ret)
+		print_err("send link port INB failed for %s", target->alias);
+
+	free(entry);
 
 	return ret;
 }
@@ -1048,20 +1079,21 @@ static int send_unlink_portid_inb(struct subsystem *subsys,
 {
 	struct nvmf_link_port_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_link_port_inb(subsys, portid, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build link port INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_unlink_port_config, len, entry);
-		if (ret)
-			print_err("send unlink port INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_unlink_port_config, len, entry);
+	if (ret)
+		print_err("send unlink port INB failed for %s", target->alias);
+
+	free(entry);
 
 	return ret;
 }
@@ -1103,21 +1135,22 @@ static int send_del_subsys_inb(struct subsystem *subsys)
 {
 	struct nvmf_subsys_delete_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_subsys_delete_inb(subsys, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build subsys delete INB failed for %s",
 			  target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_del_subsys_config, len, entry);
-		if (ret)
-			print_err("send del subsys INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_del_subsys_config, len, entry);
+	if (ret)
+		print_err("send del subsys INB failed for %s", target->alias);
+
+	free(entry);
 
 	return ret;
 }
@@ -1290,20 +1323,21 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 static int send_del_portid_inb(struct target *target, struct portid *portid)
 {
 	struct nvmf_port_delete_entry *entry;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_port_delete_inb(portid, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build port delete INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_del_port_config, len, entry);
-		if (ret)
-			print_err("send del port INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_del_port_config, len, entry);
+	if (ret)
+		print_err("send del port INB failed for %s", target->alias);
+
+	free(entry);
 
 	return ret;
 }
@@ -1435,20 +1469,21 @@ static int send_set_ns_inb(struct subsystem *subsys, struct ns *ns)
 {
 	struct nvmf_ns_config_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_ns_config_inb(subsys, ns, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build ns config INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_set_ns_config, len, entry);
-		if (ret)
-			print_err("send set ns config INB failed %d for %s",
-				  ret, target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_set_ns_config, len, entry);
+	if (ret)
+		print_err("send set ns config INB failed for %s",
+			  target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -1549,20 +1584,21 @@ static int send_del_ns_inb(struct subsystem *subsys, struct ns *ns)
 {
 	struct nvmf_ns_delete_entry *entry;
 	struct target		*target = subsys->target;
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 len;
 	int			 ret;
 
 	len = build_ns_delete_inb(subsys, ns, &entry);
-	if (!len)
+	if (!len) {
 		print_err("build ns delete INB failed for %s", target->alias);
-	else {
-		ret = send_set_config(ep, nvmf_del_ns_config, len, entry);
-		if (ret)
-			print_err("send del ns config INB failed for %s",
-				  target->alias);
-		free(entry);
+		return -ENOMEM;
 	}
+
+	ret = _send_set_config(ctrl, nvmf_del_ns_config, len, entry);
+	if (ret)
+		print_err("send del ns config INB failed for %s",
+			  target->alias);
+	free(entry);
 
 	return ret;
 }
@@ -1679,10 +1715,13 @@ static int config_target_inb(struct target *target)
 	struct host		*host;
 	int			 ret;
 
-	ret = connect_ctrl(ctrl);
-	if (ret) {
-		print_err("connect_ctrl to %s returned %d", target->alias, ret);
-		goto out1;
+	if (!ctrl->connected) {
+		ret = connect_ctrl(ctrl);
+		if (ret) {
+			print_err("connect_ctrl to %s returned %d",
+				  target->alias, ret);
+			goto out1;
+		}
 	}
 
 	list_for_each_entry(portid, &target->portid_list, node) {
@@ -1694,7 +1733,8 @@ static int config_target_inb(struct target *target)
 	list_for_each_entry(subsys, &target->subsys_list, node) {
 		ret = config_subsys_inb(target, subsys);
 		if (ret)
-			break;
+			goto out2;
+
 		if (!subsys->access)
 			list_for_each_entry(host, &subsys->host_list, node) {
 				ret = send_host_config_inb(target, host);
@@ -1717,8 +1757,10 @@ static int config_target_inb(struct target *target)
 				goto out2;
 		}
 	}
+
+	return 0;
 out2:
-	disconnect_ctrl(&ctrl->ep, 0);
+	disconnect_ctrl(ctrl, 0);
 out1:
 	return ret;
 }
@@ -1770,10 +1812,10 @@ int config_target(struct target *target)
 
 static int send_del_target_inb(struct target *target)
 {
-	struct endpoint		*ep = &target->sc_iface.inb.ep;
+	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
 
-	ret = send_set_config(ep, nvmf_del_target_config, 0, NULL);
+	ret = _send_set_config(ctrl, nvmf_del_target_config, 0, NULL);
 	if (ret)
 		print_err("send del target INB failed for %s", target->alias);
 

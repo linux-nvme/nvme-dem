@@ -104,6 +104,99 @@ void dump(u8 *buf, int len)
 	}
 }
 
+struct {
+	int			 status;
+	char			*str;
+} nvme_status_array[] = {
+	{ NVME_SC_INVALID_OPCODE,	"NVME_SC_INVALID_OPCODE" },
+	{ NVME_SC_INVALID_FIELD,	"NVME_SC_INVALID_FIELD" },
+	{ NVME_SC_CMDID_CONFLICT,	"NVME_SC_CMDID_CONFLICT" },
+	{ NVME_SC_DATA_XFER_ERROR,	"NVME_SC_DATA_XFER_ERROR" },
+	{ NVME_SC_POWER_LOSS,		"NVME_SC_POWER_LOSS" },
+	{ NVME_SC_INTERNAL,		"NVME_SC_INTERNAL" },
+	{ NVME_SC_ABORT_REQ,		"NVME_SC_ABORT_REQ" },
+	{ NVME_SC_ABORT_QUEUE,		"NVME_SC_ABORT_QUEUE" },
+	{ NVME_SC_FUSED_FAIL,		"NVME_SC_FUSED_FAIL" },
+	{ NVME_SC_FUSED_MISSING,	"NVME_SC_FUSED_MISSING" },
+	{ NVME_SC_INVALID_NS,		"NVME_SC_INVALID_NS" },
+	{ NVME_SC_CMD_SEQ_ERROR,	"NVME_SC_CMD_SEQ_ERROR" },
+	{ NVME_SC_SGL_INVALID_LAST,	"NVME_SC_SGL_INVALID_LAST" },
+	{ NVME_SC_SGL_INVALID_COUNT,	"NVME_SC_SGL_INVALID_COUNT" },
+	{ NVME_SC_SGL_INVALID_DATA,	"NVME_SC_SGL_INVALID_DATA" },
+	{ NVME_SC_SGL_INVALID_METADATA,	"NVME_SC_SGL_INVALID_METADATA" },
+	{ NVME_SC_SGL_INVALID_TYPE,	"NVME_SC_SGL_INVALID_TYPE" },
+	{ NVME_SC_SGL_INVALID_OFFSET,	"NVME_SC_SGL_INVALID_OFFSET" },
+	{ NVME_SC_SGL_INVALID_SUBTYPE,	"NVME_SC_SGL_INVALID_SUBTYPE" },
+	{ NVME_SC_LBA_RANGE,		"NVME_SC_LBA_RANGE" },
+	{ NVME_SC_CAP_EXCEEDED,		"NVME_SC_CAP_EXCEEDED" },
+	{ NVME_SC_NS_NOT_READY,		"NVME_SC_NS_NOT_READY" },
+	{ NVME_SC_RESERVATION_CONFLICT,	"NVME_SC_RESERVATION_CONFLICT" },
+	{ NVME_SC_CQ_INVALID,		"NVME_SC_CQ_INVALID" },
+	{ NVME_SC_QID_INVALID,		"NVME_SC_QID_INVALID" },
+	{ NVME_SC_QUEUE_SIZE,		"NVME_SC_QUEUE_SIZE" },
+	{ NVME_SC_ABORT_LIMIT,		"NVME_SC_ABORT_LIMIT" },
+	{ NVME_SC_ABORT_MISSING,	"NVME_SC_ABORT_MISSING" },
+	{ NVME_SC_ASYNC_LIMIT,		"NVME_SC_ASYNC_LIMIT" },
+	{ NVME_SC_FIRMWARE_SLOT,	"NVME_SC_FIRMWARE_SLOT" },
+	{ NVME_SC_FIRMWARE_IMAGE,	"NVME_SC_FIRMWARE_IMAGE" },
+	{ NVME_SC_INVALID_VECTOR,	"NVME_SC_INVALID_VECTOR" },
+	{ NVME_SC_INVALID_LOG_PAGE,	"NVME_SC_INVALID_LOG_PAGE" },
+	{ NVME_SC_INVALID_FORMAT,	"NVME_SC_INVALID_FORMAT" },
+	{ NVME_SC_FW_NEEDS_CONV_RESET,	"NVME_SC_FW_NEEDS_CONV_RESET" },
+	{ NVME_SC_INVALID_QUEUE,	"NVME_SC_INVALID_QUEUE" },
+	{ NVME_SC_FEATURE_NOT_SAVEABLE,	"NVME_SC_FEATURE_NOT_SAVEABLE" },
+	{ NVME_SC_FEATURE_NOT_CHANGEABLE, "NVME_SC_FEATURE_NOT_CHANGEABLE" },
+	{ NVME_SC_FEATURE_NOT_PER_NS,	"NVME_SC_FEATURE_NOT_PER_NS" },
+	{ NVME_SC_FW_NEEDS_SUBSYS_RESET, "NVME_SC_FW_NEEDS_SUBSYS_RESET" },
+	{ NVME_SC_FW_NEEDS_RESET,	"NVME_SC_FW_NEEDS_RESET" },
+	{ NVME_SC_FW_NEEDS_MAX_TIME,	"NVME_SC_FW_NEEDS_MAX_TIME" },
+	{ NVME_SC_FW_ACIVATE_PROHIBITED, "NVME_SC_FW_ACIVATE_PROHIBITED" },
+	{ NVME_SC_OVERLAPPING_RANGE,	"NVME_SC_OVERLAPPING_RANGE" },
+	{ NVME_SC_NS_INSUFFICENT_CAP,	"NVME_SC_NS_INSUFFICENT_CAP" },
+	{ NVME_SC_NS_ID_UNAVAILABLE,	"NVME_SC_NS_ID_UNAVAILABLE" },
+	{ NVME_SC_NS_ALREADY_ATTACHED,	"NVME_SC_NS_ALREADY_ATTACHED" },
+	{ NVME_SC_NS_IS_PRIVATE,	"NVME_SC_NS_IS_PRIVATE" },
+	{ NVME_SC_NS_NOT_ATTACHED,	"NVME_SC_NS_NOT_ATTACHED" },
+	{ NVME_SC_THIN_PROV_NOT_SUPP,	"NVME_SC_THIN_PROV_NOT_SUPP" },
+	{ NVME_SC_CTRL_LIST_INVALID,	"NVME_SC_CTRL_LIST_INVALID" },
+	{ NVME_SC_BAD_ATTRIBUTES,	"NVME_SC_BAD_ATTRIBUTES" },
+	{ NVME_SC_INVALID_PI,		"NVME_SC_INVALID_PI" },
+	{ NVME_SC_READ_ONLY,		"NVME_SC_READ_ONLY" },
+	{ NVME_SC_ONCS_NOT_SUPPORTED,	"NVME_SC_ONCS_NOT_SUPPORTED" },
+	{ NVME_SC_CONNECT_FORMAT,	"NVME_SC_CONNECT_FORMAT" },
+	{ NVME_SC_CONNECT_CTRL_BUSY,	"NVME_SC_CONNECT_CTRL_BUSY" },
+	{ NVME_SC_CONNECT_INVALID_PARAM, "NVME_SC_CONNECT_INVALID_PARAM" },
+	{ NVME_SC_CONNECT_RESTART_DISC,	"NVME_SC_CONNECT_RESTART_DISC" },
+	{ NVME_SC_CONNECT_INVALID_HOST,	"NVME_SC_CONNECT_INVALID_HOST" },
+	{ NVME_SC_DISCOVERY_RESTART,	"NVME_SC_DISCOVERY_RESTART" },
+	{ NVME_SC_AUTH_REQUIRED,	"NVME_SC_AUTH_REQUIRED" },
+	{ NVME_SC_WRITE_FAULT,		"NVME_SC_WRITE_FAULT" },
+	{ NVME_SC_READ_ERROR,		"NVME_SC_READ_ERROR" },
+	{ NVME_SC_GUARD_CHECK,		"NVME_SC_GUARD_CHECK" },
+	{ NVME_SC_APPTAG_CHECK,		"NVME_SC_APPTAG_CHECK" },
+	{ NVME_SC_REFTAG_CHECK,		"NVME_SC_REFTAG_CHECK" },
+	{ NVME_SC_COMPARE_FAILED,	"NVME_SC_COMPARE_FAILED" },
+	{ NVME_SC_ACCESS_DENIED,	"NVME_SC_ACCESS_DENIED" },
+	{ NVME_SC_UNWRITTEN_BLOCK,	"NVME_SC_UNWRITTEN_BLOCK" },
+};
+
+static inline char *nvme_str_status(u16 _status)
+{
+	int			 i;
+	u16			 status = _status & 0x3fff;
+	static char		 str[80] = { 0 };
+
+	for (i = 0; i < (int) ARRAY_SIZE(nvme_status_array); i++)
+		if (nvme_status_array[i].status == status) {
+			strcpy(str, nvme_status_array[i].str);
+			break;
+		}
+
+	if (_status & NVME_SC_DNR)
+		strcpy(str + strlen(str), " | NVME_SC_DNR");
+
+	return str;
+}
 
 static inline void put_unaligned_le24(u32 val, u8 *p)
 {
@@ -132,7 +225,7 @@ static inline int send_cmd(struct endpoint *ep, struct nvme_command *cmd,
 	return ep->ops->send_msg(ep->ep, cmd, bytes, ep->mr);
 }
 
-static int process_nvme_rsp(struct endpoint *ep)
+static int process_nvme_rsp(struct endpoint *ep, int ignore_status)
 {
 	struct xp_qe		*qe;
 	struct nvme_completion	*rsp;
@@ -161,26 +254,26 @@ static int process_nvme_rsp(struct endpoint *ep)
 	if (bytes != sizeof(*rsp))
 		return -EINVAL;
 
-	ret = rsp->status;
+	ret = rsp->status >> 1;
 
-	if (ret)
-		print_err("error status %x", ret);
+	if (ret && ret != ignore_status)
+		print_err("error status %s (0x%x)", nvme_str_status(ret), ret);
 
 	ep->ops->repost_recv(ep->ep, qe);
 
 	return ret;
 }
 
-static int send_fabric_connect(struct target *target, struct endpoint *ep,
-			       char *hostnqn)
+static int send_fabric_connect(struct ctrl_queue *ctrl)
 {
-	struct nvmf_connect_data	*data;
-	struct nvme_keyed_sgl_desc	*sg;
-	struct nvme_command		*cmd = ep->cmd;
-	int				 bytes;
-	int				 key;
-	int				 retry;
-	int				 ret;
+	struct endpoint		*ep = &ctrl->ep;
+	struct nvmf_connect_data *data;
+	struct nvme_keyed_sgl_desc *sg;
+	struct nvme_command	*cmd = ep->cmd;
+	int			 bytes;
+	int			 key;
+	int			 ret;
+	int			 ignore_status;
 
 	data = ep->data;
 	key = ep->ops->remote_key(ep->data_mr);
@@ -194,13 +287,12 @@ static int send_fabric_connect(struct target *target, struct endpoint *ep,
 	cmd->connect.qid	= htole16(0);
 	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
 
-	if (target->mgmt_mode == IN_BAND_MGMT ||
-	    target->mgmt_mode == DISCOVERY_CTRL)
+	if (!ctrl->failed_kato)
 		cmd->connect.kato = htole16(NVME_DISC_KATO);
 
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	strncpy(data->hostnqn, hostnqn, NVMF_NQN_SIZE);
+	strncpy(data->hostnqn, ctrl->hostnqn, NVMF_NQN_SIZE);
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -213,30 +305,20 @@ static int send_fabric_connect(struct target *target, struct endpoint *ep,
 	if (ret)
 		return ret;
 
-	ret = process_nvme_rsp(ep);
-	if (!ret || (target->mgmt_mode != IN_BAND_MGMT))
+	ignore_status = NVME_SC_DNR | NVME_SC_INVALID_FIELD;
+
+	ret = process_nvme_rsp(ep, ignore_status);
+	if (ret != ignore_status)
 		return ret;
 
-	retry = RETRY_COUNT;
-	while (ret == -EAGAIN) {
-		usleep(100);
-		ret = process_nvme_rsp(ep);
-		if (!ret)
-			return ret;
-		if (!--retry)
-			break;
-	}
-
-	print_err("misconfigured target %s, retry as locally managed",
-		  target->alias);
-
 	cmd->connect.kato = 0;
+	ctrl->failed_kato = 1;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
 		return ret;
 
-	return  process_nvme_rsp(ep);
+	return process_nvme_rsp(ep, 0);
 }
 
 int send_keep_alive(struct endpoint *ep)
@@ -268,7 +350,7 @@ int send_keep_alive(struct endpoint *ep)
 	if (ret)
 		return ret;
 
-	process_nvme_rsp(ep);
+	process_nvme_rsp(ep, 0);
 
 	return 0;
 }
@@ -327,7 +409,7 @@ int send_get_config(struct endpoint *ep, int config_id, void **_data)
 
 	do {
 		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep);
+		ret = process_nvme_rsp(ep, 0);
 	} while (ret == -EAGAIN && --cnt);
 out:
 	ep->ops->dealloc_key(mr);
@@ -377,7 +459,7 @@ int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 
 	do {
 		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep);
+		ret = process_nvme_rsp(ep, 0);
 	} while (ret == -EAGAIN && --cnt);
 out:
 	ep->ops->dealloc_key(mr);
@@ -422,7 +504,7 @@ int send_get_subsys_usage(struct endpoint *ep, int len,
 	if (ret)
 		return ret;
 
-	ret = process_nvme_rsp(ep);
+	ret = process_nvme_rsp(ep, 0);
 
 	return ret;
 }
@@ -459,7 +541,7 @@ static int send_get_property(struct endpoint *ep, u32 reg)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep);
+	return process_nvme_rsp(ep, 0);
 }
 
 static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
@@ -499,7 +581,7 @@ static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep);
+	return process_nvme_rsp(ep, 0);
 }
 
 static int post_set_property(struct endpoint *ep, u32 reg, u64 val)
@@ -567,15 +649,14 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	if (ret)
 		free(data);
 	else
-		ret =  process_nvme_rsp(ep);
+		ret =  process_nvme_rsp(ep, 0);
 
 	ep->ops->dealloc_key(mr);
 
 	return ret;
 }
 
-
-void disconnect_ctrl(struct endpoint *ep, int shutdown)
+void disconnect_endpoint(struct endpoint *ep, int shutdown)
 {
 	if (shutdown && (ep->state == CONNECTED))
 		post_set_property(ep, NVME_REG_CC, NVME_CTRL_DISABLE);
@@ -591,6 +672,13 @@ void disconnect_ctrl(struct endpoint *ep, int shutdown)
 
 	if (ep->cmd)
 		free(ep->cmd);
+}
+
+void disconnect_ctrl(struct ctrl_queue *ctrl, int shutdown)
+{
+	disconnect_endpoint(&ctrl->ep, shutdown);
+
+	ctrl->connected = 0;
 }
 
 static int build_connect_data(struct nvme_rdma_cm_req **req, char *hostnqn)
@@ -624,7 +712,6 @@ static int build_connect_data(struct nvme_rdma_cm_req **req, char *hostnqn)
 
 int connect_ctrl(struct ctrl_queue *ctrl)
 {
-	struct target		*target = ctrl->target;
 	struct portid		*portid = ctrl->portid;
 	struct endpoint		*ep = &ctrl->ep;
 	struct sockaddr		 dest = { 0 };
@@ -697,13 +784,14 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 
 	ep->data = data;
 
-	ret = send_fabric_connect(target, ep, ctrl->hostnqn);
+	ret = send_fabric_connect(ctrl);
 	if (ret)
 		goto out;
 
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
 out:
-	disconnect_ctrl(ep, 0);
+	disconnect_endpoint(ep, 0);
+
 	return ret;
 }
 

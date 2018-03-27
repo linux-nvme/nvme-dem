@@ -41,7 +41,7 @@
 #include "common.h"
 #include "ops.h"
 
-#define RETRY_COUNT	200	// 20 sec since multiplier of delay timeout
+#define RETRY_COUNT	1200	// 2 min since multiplier of delay timeout
 #define DELAY_TIMEOUT	100	// ms
 #define KATO_INTERVAL	500	// ms per spec
 
@@ -68,7 +68,7 @@ static int handle_property_set(struct nvme_command *cmd, int *csts)
 	if (cmd->prop_set.offset == NVME_REG_CC)
 		*csts = (cmd->prop_set.value == 0x460001) ? 1 : 8;
 	else
-		ret = -EINVAL;
+		ret = NVME_SC_INVALID_FIELD;
 
 	return ret;
 }
@@ -88,9 +88,10 @@ static int handle_property_get(struct nvme_command *cmd,
 	else if (cmd->prop_get.offset == NVME_REG_VS)
 		value = NVME_VER;
 	else
-		return -EINVAL;
+		return NVME_SC_INVALID_FIELD;
 
 	resp->result.U64 = htole64(value);
+
 	return 0;
 }
 
@@ -107,7 +108,7 @@ static int handle_set_features(struct nvme_command *cmd, u32 *kato)
 		*kato = ntohl(cmd->common.cdw10[1]);
 		ret = 0;
 	} else
-		ret = -EINVAL;
+		ret = NVME_SC_FEATURE_NOT_CHANGEABLE;
 
 	return ret;
 }
@@ -135,13 +136,13 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 		print_err("bad subsystem '%s', expecting '%s' or '%s'",
 			  data->subsysnqn, NVME_DISC_SUBSYS_NAME,
 			  NVME_DOMAIN_SUBSYS_NAME);
-		ret = -EINVAL;
+		ret = NVME_SC_CONNECT_INVALID_HOST;
 	}
 
 	if (data->cntlid != 0xffff) {
 		print_err("bad controller id %x, expecting %x",
 			  data->cntlid, 0xffff);
-		ret = -EINVAL;
+		ret = NVME_SC_CONNECT_INVALID_PARAM;
 	}
 out:
 	return ret;
@@ -159,7 +160,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 
 	if (htole32(cmd->identify.cns) != NVME_ID_CNS_CTRL) {
 		print_err("unexpected identify command");
-		return -EINVAL;
+		return NVME_SC_BAD_ATTRIBUTES;
 	}
 
 	memset(id, 0, sizeof(*id));
@@ -180,8 +181,10 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 		len = sizeof(*id);
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
-	if (ret)
+	if (ret) {
 		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
 
 	return ret;
 }
@@ -229,7 +232,7 @@ static int get_xport(void *data)
 		memset(entry, 0, sizeof(*entry));
 		entry->trtype = to_trtype(xport->type);
 		entry->adrfam = to_adrfam(xport->family);
-		strcpy(entry->traddr, xport->address); 
+		strcpy(entry->traddr, xport->address);
 		cnt++;
 		entry++;
 	}
@@ -257,8 +260,10 @@ static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
 	}
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
-	if (ret)
+	if (ret) {
 		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
 
 	return ret;
 }
@@ -268,7 +273,7 @@ static inline int set_portid(void *data)
 	struct nvmf_port_config_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - set_portid");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_port_config_entry *) data;
@@ -283,7 +288,7 @@ static inline int del_portid(void *data)
 	struct nvmf_port_delete_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - del_portid");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_port_delete_entry *) data;
@@ -296,7 +301,7 @@ static inline int set_subsys(void *data)
 	struct nvmf_subsys_config_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - set_subsys");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_subsys_config_entry *) data;
@@ -309,7 +314,7 @@ static inline int del_subsys(void *data)
 	struct nvmf_subsys_delete_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - del_subsys");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_subsys_delete_entry *) data;
@@ -322,7 +327,7 @@ static inline int set_ns(void *data)
 	struct nvmf_ns_config_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - set_ns");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_ns_config_entry *) data;
@@ -336,7 +341,7 @@ static inline int del_ns(void *data)
 	struct nvmf_ns_delete_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - del_ns");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_ns_delete_entry *) data;
@@ -349,7 +354,7 @@ static inline int set_host(void *data)
 	struct nvmf_host_config_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - set_host");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_host_config_entry *) data;
@@ -362,7 +367,7 @@ static inline int del_host(void *data)
 	struct nvmf_host_delete_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config del_host");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_host_delete_entry *) data;
@@ -375,7 +380,7 @@ static inline int link_portid(void *data)
 	struct nvmf_link_port_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config link_portid");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_link_port_entry *) data;
@@ -388,7 +393,7 @@ static inline int unlink_portid(void *data)
 	struct nvmf_link_port_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - unlink_portid");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_link_port_entry *) data;
@@ -401,7 +406,7 @@ static inline int link_host(void *data)
 	struct nvmf_link_host_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - link_host");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_link_host_entry *) data;
@@ -414,7 +419,7 @@ static inline int unlink_host(void *data)
 	struct nvmf_link_host_entry *entry;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_set_config - unlink_host");
+	print_debug("nvme_fabrics_set_config - %s", __func__);
 #endif
 
 	entry = (struct nvmf_link_host_entry *) data;
@@ -441,50 +446,75 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 		break;
 	case nvmf_set_port_config:
 		ret = set_portid(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_del_port_config:
 		ret = del_portid(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_link_port_config:
 		ret = link_portid(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_unlink_port_config:
 		ret = unlink_portid(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_set_subsys_config:
 		ret = set_subsys(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_del_subsys_config:
 		ret = del_subsys(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_set_ns_config:
 		ret = set_ns(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_del_ns_config:
 		ret = del_ns(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_set_host_config:
 		ret = set_host(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_del_host_config:
 		ret = del_host(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_link_host_config:
 		ret = link_host(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	case nvmf_unlink_host_config:
 		ret = unlink_host(ep->data);
+		if (ret)
+			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	default:
 		print_err("Unknown set config id %x", c->config_id);
+		ret = NVME_SC_INVALID_FIELD;
 	}
 
 out:
 	return ret;
 }
 
-static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
-			   int length)
+static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
+			  int length)
 {
 	struct endpoint			*ep = host->ep;
 	struct nvme_command		*cmd = (struct nvme_command *) buf;
@@ -529,7 +559,7 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
-			ret = -EINVAL;
+			ret = NVME_SC_INVALID_OPCODE;
 		}
 	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
@@ -538,19 +568,21 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	else if (cmd->common.opcode == nvme_admin_set_features) {
 		ret = handle_set_features(cmd, &kato);
 		if (ret)
-			ret = 0;
+			ret = NVME_SC_INVALID_FIELD;
 		else
 			host->kato = kato * (KATO_INTERVAL / DELAY_TIMEOUT);
 	} else {
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
-		ret = -EINVAL;
+		ret = NVME_SC_INVALID_OPCODE;
 	}
 
 	if (ret)
-		resp->status = NVME_SC_DNR;
+		resp->status = (NVME_SC_DNR | ret) << 1;
 
 	ep->ops->send_msg(ep->ep, resp, sizeof(*resp), ep->mr);
 	ep->ops->repost_recv(ep->ep, qe->qe);
+
+	return ret;
 }
 
 #define HOST_QUEUE_MAX 3 /* min of 3 otherwise cannot tell if full */
@@ -649,20 +681,19 @@ static void *host_thread(void *arg)
 loop:
 			ret = ep->ops->poll_for_msg(ep->ep, &qe.qe, &buf, &len);
 			if (!ret) {
-print_debug("call handle_request");
-				handle_request(host, &qe, buf, len);
-
-				host->countdown	= host->kato;
-				host->timeval	= timeval;
-
-				goto loop;
+				ret = handle_request(host, &qe, buf, len);
+				if (!ret) {
+					host->countdown	= host->kato;
+					host->timeval	= timeval;
+					goto loop;
+				}
 			}
 
 			if (ret == -EAGAIN)
 				if (--host->countdown > 0)
 					continue;
 
-			disconnect_ctrl(ep, !stopped);
+			disconnect_endpoint(ep, !stopped);
 
 			print_info("host '%s' disconnected", ep->nqn);
 
@@ -677,14 +708,14 @@ print_debug("call handle_request");
 	}
 out:
 	list_for_each_entry_safe(host, next, &host_list, node) {
-		disconnect_ctrl(host->ep, 1);
+		disconnect_endpoint(host->ep, 1);
 		free(host->ep);
 		free(host);
 	}
 
 	while (!is_empty(q))
 		if (!get_new_host_conn(q, &ep)) {
-			disconnect_ctrl(ep, 1);
+			disconnect_endpoint(ep, 1);
 			free(ep);
 		}
 

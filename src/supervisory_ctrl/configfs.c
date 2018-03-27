@@ -484,11 +484,13 @@ int create_portid(int portid, char *fam, char *typ, int req, char *addr,
 	} else if (req == NVMF_TREQ_NOT_REQUIRED) {
 		if (strcmp(val, NOT_REQUIRED))
 			goto out;
-	}/* TODO REVIEW THIS - else {
+#if 0 // TODO REVIEW THIS
+	} else {
 		if (strcmp(val, NOT_SPECIFIED))
 			goto out;
+#endif
 	}
-	*/
+
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
 	read_str(CFS_TR_SVCID, val);
 	if (strcmp(val, str))

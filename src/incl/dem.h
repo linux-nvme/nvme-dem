@@ -36,15 +36,17 @@
 
 #define unlikely __glibc_unlikely
 
-#define NVMF_UUID_FMT	"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
+#define NVMF_UUID_FMT		"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
 
-#define PAGE_SIZE	4096
-#define BUF_SIZE	4096
-#define BODY_SIZE	1024
-#define NVMF_DQ_DEPTH	1
-#define IDLE_TIMEOUT	100
-#define MINUTES		(60 * 1000) /* convert ms to minutes */
-#define LOG_PAGE_RETRY	200
+#define PAGE_SIZE		4096
+#define BUF_SIZE		4096
+#define BODY_SIZE		1024
+#define NVMF_DQ_DEPTH		1
+#define IDLE_TIMEOUT		100
+#define MINUTES			(60 * 1000) /* convert ms to minutes */
+#define LOG_PAGE_RETRY		200
+
+#define NULLB_DEVID		-1
 
 // TODO disable DEV_DEBUG before pushing to gitlab
 #if 1
@@ -176,6 +178,7 @@ struct ctrl_queue {
 	struct endpoint		 ep;
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 connected;
+	int			 failed_kato;
 };
 
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT, DISCOVERY_CTRL };
@@ -186,9 +189,10 @@ int ipv4_to_addr(char *p, int *addr);
 int ipv6_to_addr(char *p, int *addr);
 int fc_to_addr(char *p, int *addr);
 
-int connect_ctrl(struct ctrl_queue *queue);
-void disconnect_ctrl(struct endpoint *ep, int shutdown);
+int connect_ctrl(struct ctrl_queue *ctrl);
+void disconnect_ctrl(struct ctrl_queue *ctrl, int shutdown);
 int client_connect(struct endpoint *ep, void *data, int bytes);
+void disconnect_endpoint(struct endpoint *ep, int shutdown);
 
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);

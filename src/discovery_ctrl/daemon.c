@@ -46,7 +46,7 @@
 #define CURL_DEBUG		0
 
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
-#define KEEP_ALIVE_TIMER	100000 /* ms */
+#define KEEP_ALIVE_TIMER	120000 /* ms */
 
 static LIST_HEAD(target_list_head);
 
@@ -94,27 +94,40 @@ static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 static int keep_alive_work(struct target *target)
 {
 	struct ctrl_queue	*dq;
+	struct ctrl_queue	*ctrl;
 	int			 ret;
 
-	if (target->kato_countdown == 0) {
-		list_for_each_entry(dq, &target->discovery_queue_list, node) {
-			if (!dq->connected)
-				continue;
+	if (--target->kato_countdown > 0)
+		return 0;
 
-			ret = send_keep_alive(&dq->ep);
-			if (ret) {
-				print_err("keep alive failed %s",
-					  target->alias);
-				disconnect_ctrl(&dq->ep, 0);
-				dq->connected = 0;
-				target->log_page_retry_count = LOG_PAGE_RETRY;
-				return ret;
-			}
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (!dq->connected || dq->failed_kato)
+			continue;
+
+		ret = send_keep_alive(&dq->ep);
+		if (ret) {
+			print_err("keep alive failed %s", target->alias);
+			disconnect_ctrl(dq, 0);
+			target->log_page_retry_count = LOG_PAGE_RETRY;
+
+			return ret;
 		}
+	}
 
-		target->kato_countdown = KEEP_ALIVE_TIMER / IDLE_TIMEOUT;
-	} else
-		target->kato_countdown--;
+	if (target->mgmt_mode == IN_BAND_MGMT) {
+		ctrl = &target->sc_iface.inb;
+		if (!ctrl->connected) {
+			ret = connect_ctrl(ctrl);
+			if (!ret)
+				ctrl->connected = 1;
+		} else {
+			ret = send_keep_alive(&ctrl->ep);
+			if (ret)
+				ctrl->connected = 0;
+		}
+	}
+
+	target->kato_countdown = KEEP_ALIVE_TIMER / IDLE_TIMEOUT / 2;
 
 	return 0;
 }
@@ -125,9 +138,8 @@ static void periodic_work(void)
 	struct ctrl_queue	*dq;
 
 	list_for_each_entry(target, target_list, node) {
-		if (target->mgmt_mode == IN_BAND_MGMT)
-			if (keep_alive_work(target))
-				continue;
+		if (keep_alive_work(target))
+			continue;
 
 		if (target->log_page_retry_count)
 			if (--target->log_page_retry_count)
@@ -141,7 +153,7 @@ static void periodic_work(void)
 			get_config(target);
 
 		list_for_each_entry(dq, &target->discovery_queue_list, node) {
-			if (connect_ctrl(dq)) {
+			if (!dq->connected && connect_ctrl(dq)) {
 				print_err("Could not connect to target %s",
 					  target->alias);
 				target->log_page_retry_count = LOG_PAGE_RETRY;
@@ -150,8 +162,8 @@ static void periodic_work(void)
 
 			fetch_log_pages(dq);
 
-			if (target->mgmt_mode != IN_BAND_MGMT)
-				disconnect_ctrl(&dq->ep, 0);
+			if (dq->failed_kato)
+				disconnect_ctrl(dq, 0);
 		}
 
 		target->refresh_countdown =
@@ -415,53 +427,49 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 	uuid_t			 id;
 	char			 uuid[40];
 
-	while (1) {
-		list_for_each_entry(subsys, &target->subsys_list, node) {
-			if (check_logpage_portid(subsys, portid))
-				continue;
-			dq = malloc(sizeof(*dq));
-			if (!dq) {
-				print_err("failed to malloc dq");
-				return;
-			}
+repeat:
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		if (check_logpage_portid(subsys, portid))
+			continue;
 
-			memset(dq, 0, sizeof(*dq));
+		dq = malloc(sizeof(*dq));
+		if (!dq) {
+			print_err("failed to malloc dq");
+			return;
+		}
 
-			dq->portid = portid;
-			dq->target = target;
+		memset(dq, 0, sizeof(*dq));
 
-			if (strcmp(dq->portid->type, "rdma") == 0)
-				dq->ep.ops = rdma_register_ops();
-			else {
-				free(dq);
-				continue;
-			}
+		dq->portid = portid;
+		dq->target = target;
 
-			list_add_tail(&dq->node, &target->discovery_queue_list);
-
-			if (subsys->access == ALLOW_ANY) {
-				uuid_generate(id);
-				uuid_unparse_lower(id, uuid);
-				sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
-			} else {
-				host = list_first_entry(&subsys->host_list,
-							struct host, node);
-				sprintf(dq->hostnqn, host->nqn);
-			}
-
-			if (connect_ctrl(dq))
-				continue;
-
-			fetch_log_pages(dq);
-
-			if (target->mgmt_mode != IN_BAND_MGMT)
-				disconnect_ctrl(&dq->ep, 0);
-			else
-				dq->connected = 1;
-
+		if (strcmp(dq->portid->type, "rdma") == 0)
+			dq->ep.ops = rdma_register_ops();
+		else {
+			free(dq);
 			continue;
 		}
-		break;
+
+		list_add_tail(&dq->node, &target->discovery_queue_list);
+
+		if (subsys->access == ALLOW_ANY) {
+			uuid_generate(id);
+			uuid_unparse_lower(id, uuid);
+			sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
+		} else {
+			host = list_first_entry(&subsys->host_list,
+						struct host, node);
+			sprintf(dq->hostnqn, host->nqn);
+		}
+
+		if (connect_ctrl(dq))
+			continue;
+
+		fetch_log_pages(dq);
+
+		disconnect_ctrl(dq, 0);
+
+		goto repeat;
 	}
 }
 
@@ -514,7 +522,8 @@ void cleanup_targets(void)
 		list_for_each_entry_safe(dq, next_dq,
 					 &target->discovery_queue_list, node) {
 			if (dq->connected)
-				disconnect_ctrl(&dq->ep, 0);
+				disconnect_ctrl(dq, 0);
+
 			free(dq);
 		}
 

@@ -68,7 +68,7 @@ static int handle_property_set(struct nvme_command *cmd, int *csts)
 	if (cmd->prop_set.offset == NVME_REG_CC)
 		*csts = (cmd->prop_set.value == 0x460001) ? 1 : 8;
 	else
-		ret = -EINVAL;
+		ret = NVME_SC_INVALID_FIELD;
 
 	return ret;
 }
@@ -88,7 +88,7 @@ static int handle_property_get(struct nvme_command *cmd,
 	else if (cmd->prop_get.offset == NVME_REG_VS)
 		value = NVME_VER;
 	else
-		return -EINVAL;
+		return NVME_SC_INVALID_FIELD;
 
 	resp->result.U64 = htole64(value);
 	return 0;
@@ -107,7 +107,7 @@ static int handle_set_features(struct nvme_command *cmd, u32 *kato)
 		*kato = ntohl(cmd->common.cdw10[1]);
 		ret = 0;
 	} else
-		ret = -EINVAL;
+		ret = NVME_SC_INVALID_FIELD;
 
 	return ret;
 }
@@ -120,6 +120,7 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
 		print_err("rma_read returned %d", ret);
+		ret = NVME_SC_READ_ERROR;
 		goto out;
 	}
 
@@ -131,13 +132,13 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 		print_err("bad subsystem '%s', expecting '%s' or '%s'",
 			  data->subsysnqn, NVME_DISC_SUBSYS_NAME,
 			  NVME_DOMAIN_SUBSYS_NAME);
-		ret = -EINVAL;
+		ret = NVME_SC_CONNECT_INVALID_HOST;
 	}
 
 	if (data->cntlid != 0xffff) {
 		print_err("bad controller id %x, expecting %x",
 			  data->cntlid, 0xffff);
-		ret = -EINVAL;
+		ret = NVME_SC_CONNECT_INVALID_PARAM;
 	}
 out:
 	return ret;
@@ -151,7 +152,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 
 	if (htole32(cmd->identify.cns) != NVME_ID_CNS_CTRL) {
 		print_err("unexpected identify command");
-		return -EINVAL;
+		return NVME_SC_BAD_ATTRIBUTES;
 	}
 
 	memset(id, 0, sizeof(*id));
@@ -172,8 +173,10 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 		len = sizeof(*id);
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
-	if (ret)
+	if (ret) {
 		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
 
 	return ret;
 }
@@ -219,8 +222,10 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
 #endif
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
-	if (ret)
+	if (ret) {
 		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
 
 	return ret;
 }
@@ -238,12 +243,12 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 
 	log = malloc(len);
 	if (!log)
-		return -ENOMEM;
+		return NVME_SC_INTERNAL;
 
 	ret = ep->ops->alloc_key(ep->ep, log, len, &mr);
 	if (ret) {
 		print_err("alloc_key returned %d", ret);
-		return ret;
+		return NVME_SC_INTERNAL;
 	}
 
 	e = (void *) (&log[1]);
@@ -265,8 +270,10 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	log->genctr = 1;
 
 	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr);
-	if (ret)
+	if (ret) {
 		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
 
 	ep->ops->dealloc_key(mr);
 	free(log);
@@ -274,8 +281,8 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	return ret;
 }
 
-static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
-			   int length)
+static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
+			  int length)
 {
 	struct endpoint			*ep = host->ep;
 	struct nvme_command		*cmd = (struct nvme_command *) buf;
@@ -314,7 +321,7 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
-			ret = -EINVAL;
+			ret = NVME_SC_INVALID_OPCODE;
 		}
 	} else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
@@ -328,19 +335,21 @@ static void handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	} else if (cmd->common.opcode == nvme_admin_set_features) {
 		ret = handle_set_features(cmd, &kato);
 		if (ret)
-			ret = 0;
+			ret = NVME_SC_INVALID_FIELD;
 		else
 			host->kato = kato * (KATO_INTERVAL / DELAY_TIMEOUT);
 	} else {
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
-		ret = -EINVAL;
+		ret = NVME_SC_INVALID_OPCODE;
 	}
 
 	if (ret)
-		resp->status = NVME_SC_DNR;
+		resp->status = (NVME_SC_DNR | ret) << 1;
 
 	ep->ops->send_msg(ep->ep, resp, sizeof(*resp), ep->mr);
 	ep->ops->repost_recv(ep->ep, qe->qe);
+
+	return ret;
 }
 
 #define HOST_QUEUE_MAX 3 /* min of 3 otherwise cannot tell if full */
@@ -436,21 +445,22 @@ static void *host_thread(void *arg)
 		/* Service Host requests */
 		list_for_each_entry_safe(host, next, &host_list, node) {
 			ep = host->ep;
+loop:
 			ret = ep->ops->poll_for_msg(ep->ep, &qe.qe, &buf, &len);
 			if (!ret) {
-				handle_request(host, &qe, buf, len);
-
-				host->countdown	= host->kato;
-				host->timeval	= timeval;
-
-				continue;
+				ret = handle_request(host, &qe, buf, len);
+				if (!ret) {
+					host->countdown	= host->kato;
+					host->timeval	= timeval;
+					goto loop;
+				}
 			}
 
 			if (ret == -EAGAIN)
 				if (--host->countdown > 0)
 					continue;
 
-			disconnect_ctrl(ep, !stopped);
+			disconnect_endpoint(ep, !stopped);
 
 			print_info("host '%s' disconnected", ep->nqn);
 
@@ -465,14 +475,14 @@ static void *host_thread(void *arg)
 	}
 out:
 	list_for_each_entry_safe(host, next, &host_list, node) {
-		disconnect_ctrl(host->ep, 1);
+		disconnect_endpoint(host->ep, 1);
 		free(host->ep);
 		free(host);
 	}
 
 	while (!is_empty(q))
 		if (!get_new_host_conn(q, &ep)) {
-			disconnect_ctrl(ep, 1);
+			disconnect_endpoint(ep, 1);
 			free(ep);
 		}
 

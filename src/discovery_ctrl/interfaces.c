@@ -167,7 +167,7 @@ found:
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
 		if (!connect_ctrl(dq)) {
 			fetch_log_pages(dq);
-			disconnect_ctrl(&dq->ep, 0);
+			disconnect_ctrl(dq, 0);
 		}
 	}
 

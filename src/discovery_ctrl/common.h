@@ -103,6 +103,7 @@ struct portid {
 	int			 adrfam;
 	int			 trtype;
 	int			 valid;
+	int			 kato;
 };
 
 struct host_iface {
@@ -189,7 +190,6 @@ struct target {
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
-	int			 dirty;
 };
 
 struct mg_connection;
