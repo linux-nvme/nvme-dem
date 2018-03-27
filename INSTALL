@@ -1,0 +1,6 @@
+as root, run the follow
+
+# automake.sh
+# ./configure
+# make
+# make install

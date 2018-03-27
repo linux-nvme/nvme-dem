@@ -96,11 +96,7 @@ must_be_root:
 	[ `whoami` == "root" ]
 
 install: must_be_root
-	#cp ${BIN_DIR}/* /bin
-	ln -sf `pwd`/${BIN_DIR}/dem /bin/dem
-	ln -sf `pwd`/${BIN_DIR}/dem-hac /bin/dem-hac
-	ln -sf `pwd`/${BIN_DIR}/dem-dc /bin/dem-dc
-	ln -sf `pwd`/${BIN_DIR}/dem-sc /bin/dem-sc
+	cp ${BIN_DIR}/* /bin
 	cp usr/nvmeof.conf /etc/nvme
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
 	cp usr/nvmeof /usr/libexec/
@@ -143,7 +139,7 @@ jansson/libjansson.a: jansson/src/.libs/libjansson.a
 archive: clean
 	[ -d archive ] || mkdir archive
 	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz .gitignore .git/config \
-		files/ html/ Makefile src/ usr/ 
+		files/ html/ Makefile src/ usr/
 
 test_cli: dem
 	./dem config

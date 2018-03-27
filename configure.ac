@@ -1,0 +1,3 @@
+AC_INIT(dem,0.1)
+AM_INIT_AUTOMAKE
+AC_OUTPUT(Makefile)
