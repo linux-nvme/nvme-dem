@@ -12,9 +12,9 @@
 
 /**
  * Casts a member of a structure out to the containing structure
- * @param ptr	  the pointer to the member.
- * @param type	  the type of the container struct this is embedded in.
- * @param member  the name of the member within the struct.
+ * @param ptr	 the pointer to the member.
+ * @param type	 the type of the container struct this is embedded in.
+ * @param member the name of the member within the struct.
  *
  */
 #ifndef container_of
@@ -28,8 +28,8 @@
  * under normal circumstances, used to verify that nobody uses
  * non-initialized list entries.
  */
-#define LIST_POISON1  ((void *) 0x00100100)
-#define LIST_POISON2  ((void *) 0x00200200)
+#define LIST_POISON1	((void *) 0x00100100)
+#define LIST_POISON2	((void *) 0x00200200)
 
 /**
  * Simple doubly linked list implementation.

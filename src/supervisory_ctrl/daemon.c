@@ -50,11 +50,6 @@
 
 #define DEFAULT_HTTP_ROOT	"/"
 
-// TODO disable DEV_DEBUG before pushing to gitlab
-#if 1
-#define DEV_DEBUG
-#endif
-
 static LIST_HEAD(device_list_head);
 static LIST_HEAD(interface_list_head);
 

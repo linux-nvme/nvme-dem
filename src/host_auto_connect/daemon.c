@@ -42,11 +42,6 @@
 #include "tags.h"
 #include "dem.h"
 
-// TODO disable DEV_DEBUG before pushing to gitlab
-#if 1
-#define DEV_DEBUG
-#endif
-
 static int			 run_as_daemon;
 int				 stopped;
 static int			 signalled;

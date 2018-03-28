@@ -38,10 +38,10 @@ typedef __signed__ long long __s64;
 typedef unsigned long long __u64;
 #endif
 
-#define  u8  __u8
-#define  u16 __u16
-#define  u32 __u32
-#define  u64 __u64
+#define u8	__u8
+#define u16	__u16
+#define u32	__u32
+#define u64	__u64
 
 /* complex for_each that checkpatch has issues with but is correct and
  * used in multiple include files in the kernel

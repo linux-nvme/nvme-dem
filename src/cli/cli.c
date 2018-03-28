@@ -1336,7 +1336,7 @@ static int valid_arguments(char *prog, int argc, int target, int expect)
 
 	if (expect < 0) {
 		expect = -expect; // get absolute value
-		if (argc < base  + expect) {
+		if (argc < base + expect) {
 			show_help(prog, "missing attrs", NULL);
 			ret = -1;
 		}

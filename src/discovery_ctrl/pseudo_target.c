@@ -294,9 +294,9 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	u32				 kato;
 	int				 ret;
 
-	addr = c->dptr.ksgl.addr;
-	len  = get_unaligned_le24(c->dptr.ksgl.length);
-	key  = get_unaligned_le32(c->dptr.ksgl.key);
+	addr	= c->dptr.ksgl.addr;
+	len	= get_unaligned_le24(c->dptr.ksgl.length);
+	key	= get_unaligned_le32(c->dptr.ksgl.key);
 
 	memset(resp, 0, sizeof(*resp));
 

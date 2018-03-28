@@ -336,12 +336,12 @@ static int post_target_request(char *target, char **p, int n,
 			ret = HTTP_ERR_INTERNAL;
 		} else
 			sprintf(resp, "%s '%s' refreshed", TAG_TARGET, target);
-	} else { // check for the value of n well.
+	} else {
 		if (strcmp(*p, URI_SUBSYSTEM) == 0) {
 			sprintf(data, "{" JSSTR "," JSINDX "}",
 				TAG_SUBNQN, p[1], TAG_ALLOW_ANY, 1);
 			ret = set_subsys(target, NULL, data, resp);
-		} else  //check if its portid
+		} else
 			ret = -EINVAL;
 	}
 

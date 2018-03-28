@@ -423,9 +423,9 @@ enum {
 };
 
 struct nvme_effects_log {
-	__le32 acs[256];
-	__le32 iocs[256];
-	__u8   resv[2048];
+	__le32			acs[256];
+	__le32			iocs[256];
+	__u8			resv[2048];
 };
 
 enum {

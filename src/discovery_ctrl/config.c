@@ -540,7 +540,7 @@ static inline int get_inb_xports(struct target *target)
 				else
 					goto found;
 			}
-			// TODO revisit once TCP transport is  supported
+			// TODO revisit once TCP transport is supported
 			if ((entry->trtype == NVMF_TRTYPE_RDMA) &&
 			    (strcmp(iface->type, TRTYPE_STR_TCP) == 0)) {
 				iface->valid = 1;
@@ -846,7 +846,7 @@ static int send_del_host_oob(struct target *target, char *hostnqn)
 	return exec_delete(uri);
 }
 
-static inline void _del_host(struct target  *target, char *hostnqn)
+static inline void _del_host(struct target *target, char *hostnqn)
 {
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		send_del_host_inb(target, hostnqn);

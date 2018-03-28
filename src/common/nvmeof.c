@@ -628,9 +628,9 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 
 	memset(cmd, 0, BUF_SIZE);
 
-	size  = htole32((log_size / 4) - 1);
-	numdl = size & 0xffff;
-	numdu = (size >> 16) & 0xffff;
+	size	= htole32((log_size / 4) - 1);
+	numdl	= size & 0xffff;
+	numdu	= (size >> 16) & 0xffff;
 
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 	cmd->common.opcode	= nvme_admin_get_log_page;
