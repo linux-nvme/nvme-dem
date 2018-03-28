@@ -432,11 +432,14 @@ int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 
 	bytes = sizeof(*cmd);
 
-	ret = ep->ops->alloc_key(ep->ep, data, len, &mr);
-	if (ret)
-		return ret;
+	if (data && len) {
+		ret = ep->ops->alloc_key(ep->ep, data, len, &mr);
+		if (ret)
+			return ret;
 
-	key = ep->ops->remote_key(mr);
+		key = ep->ops->remote_key(mr);
+	} else
+		key = 0;
 
 	memset(cmd, 0, BUF_SIZE);
 
@@ -462,7 +465,8 @@ int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 		ret = process_nvme_rsp(ep, 0);
 	} while (ret == -EAGAIN && --cnt);
 out:
-	ep->ops->dealloc_key(mr);
+	if (key)
+		ep->ops->dealloc_key(mr);
 
 	return ret;
 }

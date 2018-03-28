@@ -427,7 +427,6 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 	uuid_t			 id;
 	char			 uuid[40];
 
-repeat:
 	list_for_each_entry(subsys, &target->subsys_list, node) {
 		if (check_logpage_portid(subsys, portid))
 			continue;
@@ -468,8 +467,6 @@ repeat:
 		fetch_log_pages(dq);
 
 		disconnect_ctrl(dq, 0);
-
-		goto repeat;
 	}
 }
 

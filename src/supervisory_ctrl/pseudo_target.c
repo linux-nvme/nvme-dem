@@ -325,6 +325,7 @@ static inline int del_subsys(void *data)
 static inline int set_ns(void *data)
 {
 	struct nvmf_ns_config_entry *entry;
+	int			 devid;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_set_config - %s", __func__);
@@ -332,8 +333,12 @@ static inline int set_ns(void *data)
 
 	entry = (struct nvmf_ns_config_entry *) data;
 
-	return create_ns(entry->subnqn, entry->nsid, entry->deviceid,
-			 entry->devicensid);
+	if (entry->deviceid == NVMF_NULLB_DEVID)
+		devid = NULLB_DEVID;
+	else
+		devid = entry->deviceid;
+
+	return create_ns(entry->subnqn, entry->nsid, devid, entry->devicensid);
 }
 
 static inline int del_ns(void *data)

@@ -151,7 +151,7 @@ static int build_set_port_config_inb(struct portid *portid,
 	entry->trtype = to_trtype(portid->type);
 	entry->adrfam = to_adrfam(portid->family);
 	strcpy(entry->traddr, portid->address);
-	strcpy(entry->trsvcid, portid->port);
+	sprintf(entry->trsvcid, "%d", portid->port_num);
 
 	*_entry = entry;
 

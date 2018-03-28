@@ -322,7 +322,7 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 
 	chdir(path);
 
-	if (devid < 0)
+	if (devid == NULLB_DEVID)
 		write_str(CFS_DEV_PATH, NULL_BLK_DEVICE);
 	else {
 		sprintf(path, NVME_DEVICE, devid, devnsid);
