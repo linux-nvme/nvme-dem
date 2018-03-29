@@ -164,10 +164,10 @@ static void show_help(char *app)
 	print_info("  -c - SSL cert file (default no SSL)");
 
 	print_info("  In-Band (Supervisory Controller) interface:");
-	print_info("  -t - type (TRTYPE) [ rdma, tcp. fc ]");
-	print_info("  -f - family (ADRFAM) [ ipv4, ipv6. fc ]");
-	print_info("  -a - address (TRADDR)");
-	print_info("  -s - service id (TRSRVID)");
+	print_info("  -t - transport type [ rdma, tcp. fc ]");
+	print_info("  -f - address family [ ipv4, ipv6. fc ]");
+	print_info("  -a - transport address");
+	print_info("  -s - transport service id");
 }
 
 static int validate_host_iface(void)

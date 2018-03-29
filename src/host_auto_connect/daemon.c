@@ -99,11 +99,12 @@ static void show_help(char *app)
 #else
 	const char		*app_args = "{-d} {-S}";
 #endif
+	const char		*hac_args = "{-h <hostnqn>}";
 	const char		*dc_args =
-		"{-t <typ>} {-f <fam>} {-a <adr>} {-s <port>} {-h <nqn>}";
+		"{-t <tryp>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 	const char		*dc_str = "Discovery controller";
 
-	print_info("Usage: %s %s %s", app, app_args, dc_args);
+	print_info("Usage: %s %s %s\n\t%s", app, app_args, hac_args, dc_args);
 #ifdef DEV_DEBUG
 	print_info("  -q - quite mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
@@ -111,13 +112,12 @@ static void show_help(char *app)
 	print_info("  -d - enable debug prints in log files");
 	print_info("  -S - run as a standalone process (default is daemon)");
 #endif
-	print_info("  -t - %s: interface type (default %s)",
-		   dc_str, DEFAULT_TYPE);
-	print_info("  -f - %s: address family (default %s)",
-		   dc_str, DEFAULT_FAMILY);
-	print_info("  -a - %s: address (default %s)", dc_str, DEFAULT_ADDR);
-	print_info("  -s - %s: port/svcid (default %s)", dc_str, DEFAULT_PORT);
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
+	print_info("%s info:", dc_str);
+	print_info("  -t - transport type (default %s)", DEFAULT_TYPE);
+	print_info("  -f - address family (default %s)", DEFAULT_FAMILY);
+	print_info("  -a - transport address (default %s)", DEFAULT_ADDR);
+	print_info("  -s - transport sevice id (default %s)", DEFAULT_PORT);
 }
 
 static int init_dq(struct ctrl_queue *dq)
