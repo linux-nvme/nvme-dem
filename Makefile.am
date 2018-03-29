@@ -19,7 +19,7 @@ CFLAGS += -Imongoose -Ijansson/src -I${INCL_DIR}
 # a modified version of mongoose.h can be created and stored in /files
 # for sparse testing but is not valid for executable
 ALT_CFLAGS = -W -Wall -Werror -Wno-unused-function
-ALT_CFLAGS += -Ifiles -Ijansson/src -I${INCL_DIR}
+ALT_CFLAGS += -Ifiles -Ijansson/src -I${INCL_DIR} -I${DC_DIR}
 
 SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 

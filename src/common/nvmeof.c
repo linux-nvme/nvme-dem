@@ -104,7 +104,7 @@ void dump(u8 *buf, int len)
 	}
 }
 
-struct {
+static struct {
 	int			 status;
 	char			*str;
 } nvme_status_array[] = {
