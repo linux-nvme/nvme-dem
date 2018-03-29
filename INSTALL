@@ -1,6 +1,9 @@
+run the following (as root or not, it does not matter)
+
+$ ./autoconf.sh
+$ ./configure
+$ make
+
 as root, run the following
 
-# automake.sh
-# ./configure
-# make
 # make install
