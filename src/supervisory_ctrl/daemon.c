@@ -144,7 +144,7 @@ static void show_help(char *app)
 	const char		*oob_args =
 		"{-p <port>} {-r <root>} {-c <cert_file>}";
 	const char		*inb_args =
-		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsrvcid>}";
+		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 
 	print_info("Usage: %s %s", app, arg_list);
 	print_info(" FOR Out-of-Band (HTTP) -- %s", oob_args);

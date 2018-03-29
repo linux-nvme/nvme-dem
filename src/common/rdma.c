@@ -361,7 +361,7 @@ static int rdma_create_endpoint(struct xp_ep **_ep, void *id, int depth)
 	return 0;
 }
 
-static int rdma_init_listener(struct xp_pep **_pep, char *srvc)
+static int rdma_init_listener(struct xp_pep **_pep, char *port)
 {
 	struct rdma_pep			*pep;
 	struct sockaddr_in		 addr = { 0 };
@@ -372,7 +372,7 @@ static int rdma_init_listener(struct xp_pep **_pep, char *srvc)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;
-	addr.sin_port = htons(atoi(srvc));
+	addr.sin_port = htons(atoi(port));
 
 	ec = rdma_create_event_channel();
 	if (!ec)
