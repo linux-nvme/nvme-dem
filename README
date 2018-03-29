@@ -1,0 +1,11 @@
+Notes:
+
+both jansson and mongoose are cloned from gitlab so initial make need to
+be done on a system with internet access or otherwise copied to the system
+before attempting to run make.
+
+the test directory is a unit test for the transports which use the ops.h
+include file to define the set of indirect functions call used in the dem.
+the unit test is a simple client/server app to ensure a connection can be
+made and distroyed as well as sending messages and doing rma reads and
+writes  
