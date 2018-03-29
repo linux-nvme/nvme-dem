@@ -97,10 +97,10 @@ static void show_help(char *app)
 #ifdef DEV_DEBUG
 	const char		*app_args = "{-q} {-d}";
 #else
-	const char		*app_args = "{-d} {-s}";
+	const char		*app_args = "{-d} {-S}";
 #endif
 	const char		*dc_args =
-		"{-t <typ>} {-f <fam>} {-a <adr>} {-p <port>} {-h <nqn>}";
+		"{-t <typ>} {-f <fam>} {-a <adr>} {-s <port>} {-h <nqn>}";
 	const char		*dc_str = "Discovery controller";
 
 	print_info("Usage: %s %s %s", app, app_args, dc_args);
@@ -109,14 +109,14 @@ static void show_help(char *app)
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
 	print_info("  -d - enable debug prints in log files");
-	print_info("  -s - run as a standalone process (default is daemon)");
+	print_info("  -S - run as a standalone process (default is daemon)");
 #endif
 	print_info("  -t - %s: interface type (default %s)",
 		   dc_str, DEFAULT_TYPE);
 	print_info("  -f - %s: address family (default %s)",
 		   dc_str, DEFAULT_FAMILY);
 	print_info("  -a - %s: address (default %s)", dc_str, DEFAULT_ADDR);
-	print_info("  -p - %s: port/svcid (default %s)", dc_str, DEFAULT_PORT);
+	print_info("  -s - %s: port/svcid (default %s)", dc_str, DEFAULT_PORT);
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 }
 
@@ -160,9 +160,9 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 	struct portid		*portid = dq->portid;
 	int			 opt;
 #ifdef DEV_DEBUG
-	const char		*opt_list = "?qdt:f:a:p:h:";
+	const char		*opt_list = "?qdt:f:a:s:h:";
 #else
-	const char		*opt_list = "?dst:f:a:p:h:";
+	const char		*opt_list = "?dSt:f:a:s:h:";
 #endif
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
@@ -189,7 +189,7 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 		case 'd':
 			debug = 0;
 			break;
-		case 's':
+		case 'S':
 			run_as_daemon = 1;
 			break;
 #endif
@@ -217,7 +217,7 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 
 			strncpy(portid->address, optarg, CONFIG_ADDRESS_SIZE);
 			break;
-		case 'p':
+		case 's':
 			if (!optarg) {
 				print_info("Invalid trsvcid");
 				goto out;

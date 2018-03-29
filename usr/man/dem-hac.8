@@ -23,12 +23,24 @@ to appear as a local NMVe device to the Host.
 .I -d
 enable debug prints in log files
 .TP
-.I -s
+.I -S
 run as a standalone process (default is daemon)
 .TP
 .I -q <hostnqn>
 the Host NQN to use for connecting to be the Discovery controller and Endpoints
 .TP
+.I -t <trtype>
+transport type to use, i.e. rdma, tcp, fc (see help for default)
+.TP
+.I -f <adrfam>
+address family, i.e. ipv4, ipv6, fc (see help for default)
+.TP
+.I -a <traddr>
+transport address to use, must match address family definition of an address
+(see help for default)
+.TP
+.I -s <trsvcid>
+transport service id (a.k.a. Port Number) to use. (see help for default)
 
 .SH SEE ALSO
 .BR dem (1),
