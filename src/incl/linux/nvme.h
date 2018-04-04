@@ -1137,10 +1137,7 @@ struct nvmf_link_port_entry {
 struct nvmf_get_transports_entry {
 	__u8		trtype;
 	__u8		adrfam;
-	__u8		rsvd1;   /* subtype */
-	__u8		treq;
-	__le16		rsvd2;
-	char		trsvcid[NVMF_TRSVCID_SIZE];
+	__u8		rsvd[6];
 	char		traddr[NVMF_TRADDR_SIZE];
 };
 
