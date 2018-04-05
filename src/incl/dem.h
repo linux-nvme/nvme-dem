@@ -197,10 +197,10 @@ void disconnect_endpoint(struct endpoint *ep, int shutdown);
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
 int send_keep_alive(struct endpoint *ep);
-int send_set_config(struct endpoint *ep, int config_id, int len, void *data);
-int send_get_config(struct endpoint *ep, int config_id, void **data);
-int send_get_subsys_usage(struct endpoint *ep, int len,
-			  struct nvmf_subsys_usage_hdr *hdr);
+int send_reset_config(struct endpoint *ep);
+int send_set_config(struct endpoint *ep, int cid, int len, void *data);
+int send_get_config(struct endpoint *ep, int cid, int len, void **data);
+
 int send_del_target(struct target *target);
 
 void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec);

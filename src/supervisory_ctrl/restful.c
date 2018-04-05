@@ -648,8 +648,8 @@ static int delete_request(char *p[], int n, char *resp)
 {
 	int			 ret = 0;
 
-	if (n == 1 && strcmp(p[0], URI_TARGET) == 0) {
-		delete_target();
+	if (n == 1 && strcmp(p[0], URI_CONFIG) == 0) {
+		reset_config();
 		strcpy(resp, "Target configuration deleted");
 	} else if (n == 2) {
 		if (strcmp(p[0], URI_SUBSYSTEM) == 0)

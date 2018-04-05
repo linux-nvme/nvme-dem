@@ -162,7 +162,7 @@ void *interface_thread(void *arg);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
 
-void delete_target(void);
+void reset_config(void);
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);
 int create_ns(char *subsys, int nsid, int devid, int devnsid);

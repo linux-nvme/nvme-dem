@@ -435,7 +435,8 @@ static inline int get_inb_nsdevs(struct target *target)
 	int			 devid;
 	int			 ret;
 
-	ret = send_get_config(ep, nvmf_get_ns_config, (void **) &hdr);
+	ret = send_get_config(ep, nvmf_get_ns_config, PAGE_SIZE,
+			      (void **) &hdr);
 	if (ret) {
 		print_err("send get nsdevs INB failed for %s", alias);
 		goto out1;
@@ -507,7 +508,8 @@ static inline int get_inb_xports(struct target *target)
 	int			 i, rdma_found;
 	int			 ret;
 
-	ret = send_get_config(ep, nvmf_get_xport_config, (void **) &hdr);
+	ret = send_get_config(ep, nvmf_get_xport_config, PAGE_SIZE,
+			      (void **) &hdr);
 	if (ret) {
 		print_err("send get xports INB failed for %s", target->alias);
 		goto out1;
@@ -720,6 +722,7 @@ static int send_link_host_inb(struct subsystem *subsys, struct host *host)
 	ret = _send_set_config(ctrl, nvmf_link_host_config, len, entry);
 	if (ret)
 		print_err("send link host INB failed for %s", target->alias);
+
 	free(entry);
 
 	return ret;
@@ -754,9 +757,11 @@ static inline int _link_host(struct subsystem *subsys, struct host *host)
 	struct target		*target = subsys->target;
 	int			 ret = 0;
 
-	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_link_host_inb(subsys, host);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+	if (target->mgmt_mode == IN_BAND_MGMT) {
+		ret = send_host_config_inb(target, host);
+		if (!ret)
+			ret = send_link_host_inb(subsys, host);
+	} else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_link_host_oob(subsys, host);
 
 	return ret;
@@ -966,6 +971,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 		return -ENOMEM;
 
 	memset(host, 0, sizeof(*host));
+	goto skip_unlink;
 found:
 	ret = _unlink_host(subsys, host);
 	if (ret) {
@@ -973,6 +979,7 @@ found:
 		goto out;
 	}
 
+skip_unlink:
 	strcpy(host->alias, alias);
 	strcpy(host->nqn, hostnqn);
 
@@ -1543,6 +1550,9 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 	if (target->mgmt_mode == LOCAL_MGMT)
 		goto found;
 
+	if (result.devid == NULLB_DEVID)
+		result.devns = 0;
+
 	list_for_each_entry(nsdev, &target->device_list, node)
 		if ((nsdev->nsdev == result.devid) &&
 		    (nsdev->nsid == result.devns))
@@ -1740,6 +1750,7 @@ static int config_target_inb(struct target *target)
 				ret = send_host_config_inb(target, host);
 				if (ret)
 					goto out2;
+
 				ret = send_link_host_inb(subsys, host);
 				if (ret)
 					goto out2;
@@ -1810,14 +1821,35 @@ int config_target(struct target *target)
 	return ret;
 }
 
+static int _send_reset_config(struct ctrl_queue *ctrl)
+{
+	int			 ret;
+
+	if (ctrl->connected) {
+		ret = send_reset_config(&ctrl->ep);
+		if (!ret)
+			return 0;
+
+		ctrl->connected = 0;
+	}
+
+	ret = connect_ctrl(ctrl);
+	if (ret)
+		return ret;
+
+	ctrl->connected = 1;
+
+	return send_reset_config(&ctrl->ep);
+}
+
 static int send_del_target_inb(struct target *target)
 {
 	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
 
-	ret = _send_set_config(ctrl, nvmf_del_target_config, 0, NULL);
+	ret = _send_reset_config(ctrl);
 	if (ret)
-		print_err("send del target INB failed for %s", target->alias);
+		print_err("send reset config INB failed for %s", target->alias);
 
 	return ret;
 }
@@ -1831,7 +1863,7 @@ static int send_del_target_oob(struct target *target)
 	len = get_uri(target, uri);
 	p += len;
 
-	strcpy(p, URI_TARGET);
+	strcpy(p, URI_CONFIG);
 
 	return exec_delete(uri);
 }

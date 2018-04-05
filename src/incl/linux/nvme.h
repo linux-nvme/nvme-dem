@@ -909,9 +909,9 @@ enum nvmf_capsule_command {
 	nvme_fabrics_type_property_set		= 0x00,
 	nvme_fabrics_type_connect		= 0x01,
 	nvme_fabrics_type_property_get		= 0x04,
-	nvme_fabrics_type_set_config		= 0x23,
-	nvme_fabrics_type_get_config		= 0x24,
-	nvme_fabrics_type_get_subsys_usage	= 0x25,
+	nvme_fabrics_type_resource_config_reset	= 0x08,
+	nvme_fabrics_type_resource_config_set	= 0x09,
+	nvme_fabrics_type_resource_config_get	= 0x0A,
 };
 
 struct nvmf_common_command {
@@ -1024,7 +1024,7 @@ struct nvmf_property_get_command {
 enum {
 	nvmf_get_ns_config	= 0x01,
 	nvmf_get_xport_config	= 0x02,
-	nvmf_del_target_config	= 0x03,
+	nvmf_reset_config	= 0x03,
 	nvmf_set_port_config	= 0x04,
 	nvmf_del_port_config	= 0x05,
 	nvmf_link_port_config	= 0x06,
@@ -1039,24 +1039,12 @@ enum {
 	nvmf_unlink_host_config	= 0x0f,
 };
 
-struct nvmf_set_config_command {
+struct nvmf_resource_config_command {
 	__u8		opcode;
 	__u8		resv1;
 	__u16		command_id;
 	__u8		fctype;
-	__u8		resv2[35];
-	__u8		config_id;
-	__u8		resv3[23];
-};
-
-struct nvmf_get_config_command {
-	__u8		opcode;
-	__u8		resv1;
-	__u16		command_id;
-	__u8		fctype;
-	__u8		resv2[35];
-	__u8		config_id;
-	__u8		resv4[23];
+	__u8		resv2[59];
 };
 
 struct nvme_dbbuf {
@@ -1159,17 +1147,6 @@ struct nvmf_get_ns_devices_hdr {
 	__u8		data;	/* Reference to first entry */
 };
 
-struct nvmf_subsys_usage_entry {
-	char		subnqn[NVMF_NQN_FIELD_LEN];
-	__u8		num_entries;
-	__u8		data;	/* Reference to first entry */
-};
-
-struct nvmf_subsys_usage_hdr {
-	__u8		num_entries;
-	__u8		data;	/* Reference to first entry */
-};
-
 struct nvme_command {
 	union {
 		struct nvme_common_command common;
@@ -1189,8 +1166,7 @@ struct nvme_command {
 		struct nvmf_connect_command connect;
 		struct nvmf_property_set_command prop_set;
 		struct nvmf_property_get_command prop_get;
-		struct nvmf_set_config_command set_config;
-		struct nvmf_get_config_command get_config;
+		struct nvmf_resource_config_command config;
 		struct nvme_dbbuf dbbuf;
 		struct nvme_directive_cmd directive;
 	};

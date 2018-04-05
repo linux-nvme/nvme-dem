@@ -77,6 +77,7 @@
 #define TAG_NSDEVS		"NSDevices"
 #define URI_NSDEV		"nsdev"
 #define URI_NAMESPACE		"namespace"
+#define URI_CONFIG		"config"
 
 /* JSON config specific */
 #define TAG_ID			"ID"

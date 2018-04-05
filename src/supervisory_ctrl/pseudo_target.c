@@ -242,32 +242,6 @@ static int get_xport(void *data)
 	return cnt * sizeof(*entry) + sizeof(*hdr) - 1;
 }
 
-static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
-			     u64 addr, u64 key, u64 len)
-{
-	struct nvmf_get_config_command *c = &cmd->get_config;
-	int			  ret;
-
-	switch (c->config_id) {
-	case nvmf_get_ns_config:
-		len = get_nsdev(ep->data);
-		break;
-	case nvmf_get_xport_config:
-		len = get_xport(ep->data);
-		break;
-	default:
-		print_err("Unknown set config id %x", c->config_id);
-	}
-
-	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
-	if (ret) {
-		print_err("rma_write returned %d", ret);
-		ret = NVME_SC_WRITE_FAULT;
-	}
-
-	return ret;
-}
-
 static inline int set_portid(void *data)
 {
 	struct nvmf_port_config_entry *entry;
@@ -432,10 +406,54 @@ static inline int unlink_host(void *data)
 	return unlink_host_from_subsys(entry->subnqn, entry->hostnqn);
 }
 
+static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
+			     u64 addr, u64 key, u64 len)
+{
+	struct nvmf_resource_config_command *c = &cmd->config;
+	int			  ret;
+
+	switch (c->command_id) {
+	case nvmf_get_ns_config:
+		len = get_nsdev(ep->data);
+		break;
+	case nvmf_get_xport_config:
+		len = get_xport(ep->data);
+		break;
+	default:
+		print_err("Unknown set config id %x", c->command_id);
+	}
+
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
+	if (ret) {
+		print_err("rma_write returned %d", ret);
+		ret = NVME_SC_WRITE_FAULT;
+	}
+
+	return ret;
+}
+
+static int handle_reset_config(struct nvme_command *cmd)
+{
+	struct nvmf_resource_config_command *c = &cmd->config;
+	int			  ret;
+
+	switch (c->command_id) {
+	case nvmf_reset_config:
+		reset_config();
+		ret = 0;
+		break;
+	default:
+		print_err("Unknown set command id %x", c->command_id);
+		ret = NVME_SC_INVALID_FIELD;
+	}
+
+	return ret;
+}
+
 static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 			     u64 addr, u64 key, u64 len)
 {
-	struct nvmf_set_config_command *c = &cmd->set_config;
+	struct nvmf_resource_config_command *c = &cmd->config;
 	int			  ret;
 
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
@@ -444,11 +462,7 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 		goto out;
 	}
 
-	switch (c->config_id) {
-	case nvmf_del_target_config:
-		delete_target();
-		ret = 0;
-		break;
+	switch (c->command_id) {
 	case nvmf_set_port_config:
 		ret = set_portid(ep->data);
 		if (ret)
@@ -510,7 +524,7 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	default:
-		print_err("Unknown set config id %x", c->config_id);
+		print_err("Unknown set config id %x", c->command_id);
 		ret = NVME_SC_INVALID_FIELD;
 	}
 
@@ -556,11 +570,14 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 		case nvme_fabrics_type_connect:
 			ret = handle_connect(ep, addr, key, len);
 			break;
-		case nvme_fabrics_type_get_config:
+		case nvme_fabrics_type_resource_config_get:
 			ret = handle_get_config(cmd, ep, addr, key, len);
 			break;
-		case nvme_fabrics_type_set_config:
+		case nvme_fabrics_type_resource_config_set:
 			ret = handle_set_config(cmd, ep, addr, key, len);
+			break;
+		case nvme_fabrics_type_resource_config_reset:
+			ret = handle_reset_config(cmd);
 			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);

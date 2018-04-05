@@ -355,7 +355,7 @@ int send_keep_alive(struct endpoint *ep)
 	return 0;
 }
 
-int send_get_config(struct endpoint *ep, int config_id, void **_data)
+int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
@@ -371,7 +371,7 @@ int send_get_config(struct endpoint *ep, int config_id, void **_data)
 
 	bytes = sizeof(*cmd);
 
-	if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+	if (posix_memalign((void **) &data, PAGE_SIZE, len)) {
 		print_err("no memory for buffer, errno %d", errno);
 		return errno;
 	}
@@ -389,13 +389,13 @@ int send_get_config(struct endpoint *ep, int config_id, void **_data)
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 	cmd->common.opcode	= nvme_fabrics_command;
 
-	cmd->get_config.config_id	= config_id;
-	cmd->get_config.fctype		= nvme_fabrics_type_get_config;
+	cmd->config.command_id	= cid;
+	cmd->config.fctype	= nvme_fabrics_type_resource_config_get;
 
 	sg = &cmd->common.dptr.ksgl;
 
 	sg->addr = (u64) data;
-	put_unaligned_le24(PAGE_SIZE, sg->length);
+	put_unaligned_le24(len, sg->length);
 	put_unaligned_le32(key, sg->key);
 	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
@@ -417,7 +417,40 @@ out:
 	return ret;
 }
 
-int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
+int send_reset_config(struct endpoint *ep)
+{
+	struct nvme_command		*cmd = ep->cmd;
+	int				 bytes;
+	int				 cnt = CONFIG_RETRY_COUNT;
+	int				 ret;
+
+	if (!cmd)
+		return -EINVAL;
+
+	bytes = sizeof(*cmd);
+
+	memset(cmd, 0, BUF_SIZE);
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= nvme_fabrics_command;
+
+	cmd->config.command_id	= nvmf_reset_config;
+	cmd->config.fctype	= nvme_fabrics_type_resource_config_reset;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		goto out;
+
+	do {
+		usleep(CONFIG_TIMEOUT);
+		ret = process_nvme_rsp(ep, 0);
+	} while (ret == -EAGAIN && --cnt);
+out:
+
+	return ret;
+}
+
+int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 {
 	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
@@ -432,22 +465,19 @@ int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 
 	bytes = sizeof(*cmd);
 
-	if (data && len) {
-		ret = ep->ops->alloc_key(ep->ep, data, len, &mr);
-		if (ret)
-			return ret;
+	ret = ep->ops->alloc_key(ep->ep, data, len, &mr);
+	if (ret)
+		return ret;
 
-		key = ep->ops->remote_key(mr);
-	} else
-		key = 0;
+	key = ep->ops->remote_key(mr);
 
 	memset(cmd, 0, BUF_SIZE);
 
 	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 	cmd->common.opcode	= nvme_fabrics_command;
 
-	cmd->set_config.config_id	= config_id;
-	cmd->set_config.fctype		= nvme_fabrics_type_set_config;
+	cmd->config.command_id	= cid;
+	cmd->config.fctype	= nvme_fabrics_type_resource_config_set;
 
 	sg = &cmd->common.dptr.ksgl;
 
@@ -465,50 +495,6 @@ int send_set_config(struct endpoint *ep, int config_id, int len, void *data)
 		ret = process_nvme_rsp(ep, 0);
 	} while (ret == -EAGAIN && --cnt);
 out:
-	if (key)
-		ep->ops->dealloc_key(mr);
-
-	return ret;
-}
-
-int send_get_subsys_usage(struct endpoint *ep, int len,
-			  struct nvmf_subsys_usage_hdr *hdr)
-{
-	struct nvme_keyed_sgl_desc	*sg;
-	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	int				 bytes;
-	int				 key;
-	int				 ret;
-
-	bytes = sizeof(*cmd);
-
-	ret = ep->ops->alloc_key(ep->ep, hdr, len, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
-	cmd->fabrics.fctype	= nvme_fabrics_type_get_subsys_usage;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) hdr;
-	put_unaligned_le24(len, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
-	ret = send_cmd(ep, cmd, bytes);
-
-	ep->ops->dealloc_key(mr);
-	if (ret)
-		return ret;
-
-	ret = process_nvme_rsp(ep, 0);
 
 	return ret;
 }

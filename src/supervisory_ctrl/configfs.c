@@ -119,7 +119,7 @@
  * # rmdir ports/~
  * # rmdir hosts/~
  */
-void delete_target(void)
+void reset_config(void)
 {
 	char			 dir[MAXPATHLEN];
 	DIR			*subdir;
@@ -387,11 +387,8 @@ int create_host(char *host)
 		return -errno;
 
 	ret = mkdir(host, 0x755);
-	if (ret && errno == EEXIST)
-		ret = 0;
-	else if (ret)
-		ret = -errno;
-
+	if (ret)
+		ret = (errno == EEXIST) ? 0 : -errno;
 	chdir(dir);
 	return ret;
 }
@@ -562,10 +559,8 @@ int link_host_to_subsys(char *subsys, char *host)
 	sprintf(link, "%s/" CFS_ALLOWED "%s", subsys, host);
 
 	ret = symlink(path, link);
-	if (ret && errno == EEXIST)
-		ret = 0;
-	else if (ret)
-		ret = -errno;
+	if (ret)
+		ret = (errno == EEXIST) ? 0 : -errno;
 
 	chdir(dir);
 	return ret;
@@ -590,7 +585,7 @@ int unlink_host_from_subsys(char *subsys, char *host)
 	sprintf(path, "%s/" CFS_ALLOWED "%s", subsys, host);
 	ret = remove(path);
 	if (ret)
-		ret = -errno;
+		ret = (errno == ENOENT) ? 0 : -errno;
 
 	chdir(dir);
 	return ret;
@@ -617,10 +612,8 @@ int link_port_to_subsys(char *subsys, int portid)
 	sprintf(link, "%d/" CFS_SUBSYS "%s", portid, subsys);
 
 	ret = symlink(path, link);
-	if (ret && errno == EEXIST)
-		ret = 0;
-	else if (ret)
-		ret = -errno;
+	if (ret)
+		ret = (errno == EEXIST) ? 0 : -errno;
 
 	chdir(dir);
 	return ret;
@@ -645,7 +638,7 @@ int unlink_port_from_subsys(char *subsys, int portid)
 	sprintf(path, "%d/" CFS_SUBSYS "%s", portid, subsys);
 	ret = remove(path);
 	if (ret)
-		ret = -errno;
+		ret = (errno == ENOENT) ? 0 : -errno;
 
 	chdir(dir);
 	return ret;
