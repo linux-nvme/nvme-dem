@@ -113,18 +113,18 @@ start_service()
     load_modules $LOAD_NVMEOF_MODULES
     RC=$[ $RC + $? ]
 
-    if [ "${START_DEM_HEC}" == "yes" ]; then
-        if [ `/usr/bin/dem_hec --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_HEC_OPTS=-d
+    if [ "${START_DEM_HAC}" == "yes" ]; then
+        if [ `/usr/bin/dem_hac --help | grep -c ^-d` -eq 1 ] ; then
+            DEM_HAC_OPTS="$DEM_HAC_OPTS -d"
         fi
-        /usr/bin/dem_hec $DEM_HEC_OPTS
+        /usr/bin/dem_hac $DEM_HAC_OPTS
         res=$?
         RC=$[ $RC + $res ]
     fi
 
     if [ "${START_DEM_DC}" == "yes" ]; then
         if [ `/usr/bin/dem_dc --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_DC_OPTS=-d
+            DEM_DC_OPTS="$DEM_DC_OPTS -d"
         fi
         /usr/bin/dem_dc $DEM_DC_OPTS
         res=$?
@@ -133,7 +133,7 @@ start_service()
 
     if [ "${START_DEM_SC}" == "yes" ]; then
         if [ `/usr/bin/dem_sc --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_SC_OPTS=-d
+            DEM_SC_OPTS="$DEM_SC_OPTS -d"
         fi
         /usr/bin/dem_sc $DEM_SC_OPTS
         res=$?
