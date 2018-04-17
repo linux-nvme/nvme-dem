@@ -275,7 +275,7 @@ function formTargetAlias(obj) {
   var hidden = " style='display:none'";
   var selected = " selected";
   var args = $("#parentargs").html().trim().split(",");
-  var mode = "";
+  var mode = "LocalMgmt";
   var typ = "";
   var fam = "";
   var adr = "";
