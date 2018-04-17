@@ -96,7 +96,7 @@ must_be_root:
 	[ `whoami` == "root" ]
 
 install: must_be_root
-	cp ${BIN_DIR}/* /bin
+	[ -L /bin/dem ] || cp ${BIN_DIR}/* /bin
 	cp usr/nvmeof.conf /etc/nvme
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
 	cp usr/nvmeof /usr/libexec/
