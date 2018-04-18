@@ -71,8 +71,9 @@ extern int			 curl_show_results;
 extern int			 num_interfaces;
 extern struct host_iface	*interfaces;
 extern struct list_head		*target_list;
+extern struct list_head		*group_list;
+extern struct list_head		*host_list;
 
-/*HACK*/
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
 #define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 #define NUM_CONFIG_ITEMS	3
@@ -190,6 +191,25 @@ struct target {
 	int			 log_page_retry_count;
 	int			 refresh_countdown;
 	int			 kato_countdown;
+	bool			 group_member;
+};
+
+struct group {
+	struct list_head	 node;
+	struct list_head	 target_list;
+	char			 name[MAX_ALIAS_SIZE + 1];
+};
+
+struct group_target_link {
+	struct list_head	 node;
+	struct target		*target;
+};
+
+struct group_host_link {
+	struct list_head	 node;
+	struct group		*group;
+	char			 alias[MAX_ALIAS_SIZE + 1];
+	char			 nqn[MAX_NQN_SIZE + 1];
 };
 
 struct mg_connection;
@@ -212,9 +232,14 @@ void *interface_thread(void *arg);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
 
-void build_target_list(void);
-void init_targets(void);
-void cleanup_targets(void);
+void build_lists(void);
+struct group *init_group(char *name);
+void add_host_to_group(struct group *group, char *alias);
+void add_target_to_group(struct group *group, char *alias);
+bool shared_group(struct target *target, char *nqn);
+bool indirect_shared_group(struct target *target, char *alias);
+struct target *find_target(char *alias);
+
 void get_host_nqn(void *context, void *haddr, char *nqn);
 
 struct subsystem *new_subsys(struct target *target, char *nqn);

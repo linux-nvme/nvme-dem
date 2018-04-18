@@ -205,15 +205,21 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
 	int				 numrec = 0;
 	int				 ret;
 
-	list_for_each_entry(target, target_list, node)
+	list_for_each_entry(target, target_list, node) {
+		if (target->group_member && !shared_group(target, ep->nqn))
+			continue;
+
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			list_for_each_entry(p, &subsys->logpage_list, node) {
 				if (!p->valid)
 					continue;
+
 				if (subsys->access ||
 				    host_access(subsys, ep->nqn))
 					numrec++;
 			}
+	}
+
 	log->numrec = numrec;
 	log->genctr = 1;
 
@@ -253,11 +259,15 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 
 	e = (void *) (&log[1]);
 
-	list_for_each_entry(target, target_list, node)
+	list_for_each_entry(target, target_list, node) {
+		if (target->group_member && !shared_group(target, ep->nqn))
+			continue;
+
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			list_for_each_entry(p, &subsys->logpage_list, node) {
 				if (!p->valid)
 					continue;
+
 				if (subsys->access ||
 				    host_access(subsys, ep->nqn)) {
 					memcpy(e, &p->e, sizeof(*e));
@@ -265,6 +275,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 					e++;
 				}
 			}
+	}
 
 	log->numrec = numrec;
 	log->genctr = 1;

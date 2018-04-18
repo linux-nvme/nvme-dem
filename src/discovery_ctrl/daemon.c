@@ -49,6 +49,8 @@
 #define KEEP_ALIVE_TIMER	120000 /* ms */
 
 static LIST_HEAD(target_list_head);
+static LIST_HEAD(group_list_head);
+static LIST_HEAD(host_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_HTTP_PORT;
@@ -58,6 +60,8 @@ int					 curl_show_results;
 struct host_iface			*interfaces;
 int					 num_interfaces;
 struct list_head			*target_list = &target_list_head;
+struct list_head			*group_list = &group_list_head;
+struct list_head			*host_list = &host_list_head;
 static pthread_t			*listen_threads;
 static int				 signalled;
 
@@ -470,12 +474,10 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 	}
 }
 
-void init_targets(void)
+static void init_targets(void)
 {
 	struct target		*target;
 	struct portid		*portid;
-
-	build_target_list();
 
 	list_for_each_entry(target, target_list, node) {
 		target->refresh_countdown =
@@ -493,7 +495,7 @@ void init_targets(void)
 	}
 }
 
-void cleanup_targets(void)
+static void cleanup_target_list(void)
 {
 	struct target		*target, *next_target;
 	struct subsystem	*subsys, *next_subsys;
@@ -529,6 +531,33 @@ void cleanup_targets(void)
 
 		free(target);
 	}
+}
+
+static void cleanup_host_list(void)
+{
+	struct group_host_link *host, *next;
+
+	list_for_each_entry_safe(host, next, host_list, node)
+		free(host);
+}
+
+static void cleanup_group_list(void)
+{
+	struct group		*group, *g;
+	struct group_target_link *target, *t;
+
+	list_for_each_entry_safe(group, g, group_list, node) {
+		list_for_each_entry_safe(target, t, &group->target_list, node)
+			free(target);
+		free(group);
+	}
+}
+
+static void cleanup_lists(void)
+{
+	cleanup_host_list();
+	cleanup_group_list();
+	cleanup_target_list();
 }
 
 static void set_signature(void)
@@ -589,6 +618,8 @@ int main(int argc, char *argv[])
 	if (num_interfaces <= 0)
 		goto out2;
 
+	build_lists();
+
 	init_targets();
 
 	signalled = stopped = 0;
@@ -609,7 +640,7 @@ int main(int argc, char *argv[])
 	ret = 0;
 out3:
 	free(interfaces);
-	cleanup_targets();
+	cleanup_lists();
 out2:
 	if (s_signature == &s_signature_user)
 		free((char *) s_signature->p);

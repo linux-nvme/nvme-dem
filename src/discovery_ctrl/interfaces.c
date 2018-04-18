@@ -285,7 +285,11 @@ int host_logpage(char *alias, char **resp)
 	u64			 n, len = 0;
 	u64			 bytes = MAX_BODY_SIZE;
 
-	list_for_each_entry(target, target_list, node)
+	list_for_each_entry(target, target_list, node) {
+		if (target->group_member &&
+		    !indirect_shared_group(target, alias))
+			continue;
+
 		list_for_each_entry(subsys, &target->subsys_list, node) {
 			if (subsys->access == ALLOW_ANY)
 				goto found;
@@ -317,6 +321,7 @@ found:
 				len += n;
 			}
 		}
+	}
 
 	if (!len)
 		sprintf(*resp, "No valid Log Pages");
@@ -735,7 +740,48 @@ static void get_address_str(const struct sockaddr *sa, char *s, size_t len)
 	}
 }
 
-void build_target_list(void)
+static void build_group_list(void)
+{
+	struct json_context	*ctx = get_json_context();
+	struct group		*group;
+	json_t			*array;
+	json_t			*iter;
+	json_t			*links;
+	json_t			*obj;
+	int			 i, j, num_groups, num_links;
+
+	array = json_object_get(ctx->root, TAG_GROUPS);
+	if (!array)
+		return;
+	num_groups = json_array_size(array);
+	if (!num_groups)
+		return;
+
+	for (i = 0; i < num_groups; i++) {
+		iter = json_array_get(array, i);
+
+		obj = json_object_get(iter, TAG_NAME);
+		group = init_group((char *) json_string_value(obj));
+
+		links = json_object_get(iter, TAG_TARGETS);
+		num_links = json_array_size(links);
+		for (j = 0; j < num_links; j++) {
+			obj = json_array_get(links, j);
+			add_target_to_group(group,
+					    (char *) json_string_value(obj));
+		}
+
+		links = json_object_get(iter, TAG_HOSTS);
+		num_links = json_array_size(links);
+		for (j = 0; j < num_links; j++) {
+			obj = json_array_get(links, j);
+			add_host_to_group(group,
+					  (char *) json_string_value(obj));
+		}
+	}
+}
+
+static void build_target_list(void)
 {
 	struct json_context	*ctx = get_json_context();
 	struct target		*target;
@@ -767,6 +813,12 @@ void build_target_list(void)
 			}
 		}
 	}
+}
+
+void build_lists(void)
+{
+	build_target_list();
+	build_group_list();
 }
 
 static int count_dem_config_files(void)

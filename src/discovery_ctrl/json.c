@@ -526,7 +526,7 @@ int add_json_group(char *group, char *resp)
 	return 0;
 }
 
-int update_json_group(char *group, char *data, char *resp)
+int update_json_group(char *group, char *data, char *resp, char *_name)
 {
 	json_t			*groups;
 	json_t			*iter;
@@ -589,6 +589,8 @@ int update_json_group(char *group, char *data, char *resp)
 		json_object_set_new(iter, TAG_TARGETS, tmp);
 	}
 
+	strcpy(_name, newname);
+
 	sprintf(resp, "%s '%s' %s", TAG_GROUP, newname,
 		(!group) ? "added" : "updated");
 out:
@@ -598,7 +600,7 @@ out:
 }
 
 int set_json_group_member(char *group, char *data, char *alias, char *tag,
-			  char *parent_tag, char *resp)
+			  char *parent_tag, char *resp, char *_alias)
 {
 	json_t			*groups;
 	json_t			*parent;
@@ -666,7 +668,10 @@ int set_json_group_member(char *group, char *data, char *alias, char *tag,
 	if (find_array_string(parent, alias) < 0)
 		json_array_append_new(parent, json_string(alias));
 
-	sprintf(resp, "%s '%s' updated", TAG_GROUP, group);
+	strcpy(_alias, alias);
+
+	sprintf(resp, "Added %s '%s' to %s '%s'", tag, alias,
+		TAG_GROUP, group);
 out:
 	return ret;
 }
@@ -708,7 +713,8 @@ int del_json_group_member(char *group, char *member, char *tag,
 
 	json_array_remove(parent, i);
 
-	sprintf(resp, "%s '%s' updated", TAG_GROUP, group);
+	sprintf(resp, "Removed %s '%s' from %s '%s'", tag, member,
+		TAG_GROUP, group);
 
 	return ret;
 }
@@ -891,6 +897,30 @@ int add_json_host(char *host, char *resp)
 	return 0;
 }
 
+int get_json_host_nqn(char *host, char *nqn)
+{
+	json_t			*hosts;
+	json_t			*iter;
+	json_t			*obj;
+	int			 i;
+
+	hosts = json_object_get(ctx->root, TAG_HOSTS);
+	if (!hosts)
+		return -ENOENT;
+
+	i = find_array(hosts, TAG_ALIAS, host, &iter);
+	if (i < 0)
+		return -ENOENT;
+
+	obj = json_object_get(iter, TAG_HOSTNQN);
+	if (!obj)
+		return -EINVAL;
+
+	strcpy(nqn, (char *) json_string_value(obj));
+
+	return 0;
+}
+
 int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 {
 	json_t			*hosts;
@@ -1048,13 +1078,14 @@ static inline void add_host_subsys(json_t *alias, json_t *nqn, json_t *list)
 
 static void get_host_subsystems(char *host, json_t *parent)
 {
+	struct target		*target;
 	json_t			*targets;
 	json_t			*alias;
 	json_t			*subsys;
 	json_t			*nqn;
 	json_t			*any;
 	json_t			*item;
-	json_t			*target;
+	json_t			*iter;
 	json_t			*array;
 	json_t			*list;
 	json_t			*restricted;
@@ -1073,19 +1104,28 @@ static void get_host_subsystems(char *host, json_t *parent)
 
 	num_targets = json_array_size(targets);
 	for (i = 0; i < num_targets; i++) {
-		target = json_array_get(targets, i);
-		alias = json_object_get(target, TAG_ALIAS);
+		iter = json_array_get(targets, i);
+
+		alias = json_object_get(iter, TAG_ALIAS);
 		if (!alias)
 			continue;
-		json_get_array(target, TAG_SUBSYSTEMS, array);
+
+		json_get_array(iter, TAG_SUBSYSTEMS, array);
 		if (!array)
 			continue;
+
+		target = find_target((char *) json_string_value(alias));
+		if (target && target->group_member)
+			if (!indirect_shared_group(target, host))
+				continue;
+
 		num_subsys = json_array_size(array);
 		for (j = 0; j < num_subsys; j++) {
 			subsys = json_array_get(array, j);
 			nqn = json_object_get(subsys, TAG_SUBNQN);
 			if (!nqn)
 				continue;
+
 			any = json_object_get(subsys, TAG_ALLOW_ANY);
 			if (any && json_integer_value(any))
 				add_host_subsys(alias, nqn, shared);

@@ -46,12 +46,12 @@ void store_json_config_file(void);
 int list_json_group(char **resp);
 int show_json_group(char *grp, char **resp);
 int add_json_group(char *grp, char *resp);
-int update_json_group(char *grp, char *data, char *resp);
+int update_json_group(char *grp, char *data, char *resp, char *new_name);
 int set_json_group_target(char *alias, char *data, char *resp);
 int set_json_group_host(char *host, char *data, char *resp);
 int del_json_group(char *grp, char *resp);
 int set_json_group_member(char *group, char *data, char *alias, char *tag,
-			  char *parent_tag, char *resp);
+			  char *parent_tag, char *resp, char *_alias);
 int del_json_group_member(char *group, char *member, char *tag,
 			  char *parent_tag, char *resp);
 
@@ -68,6 +68,7 @@ int update_json_host(char *alias, char *data, char *resp,
 int list_json_host(char **resp);
 int show_json_host(char *alias, char **resp);
 int del_json_host(char *alias, char *resp, char *nqn);
+int get_json_host_nqn(char *host, char *nqn);
 
 int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 		    struct subsystem *subsys);

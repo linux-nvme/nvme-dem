@@ -63,38 +63,7 @@ int get_mgmt_mode(char *mode)
 	return mgmt_mode;
 }
 
-/* config functions that are not send to the target */
-
-int add_group(char *group, char *resp)
-{
-	return add_json_group(group, resp);
-}
-
-int update_group(char *group, char *data, char *resp)
-{
-	return update_json_group(group, data, resp);
-}
-
-int set_group_member(char *group, char *data, char *alias, char *tag,
-		     char *parent_tag, char *resp)
-{
-	return set_json_group_member(group, data, alias, tag, parent_tag, resp);
-}
-
-int del_group_member(char *group, char *member, char *tag, char *parent_tag,
-		     char *resp)
-{
-	return del_json_group_member(group, member, tag, parent_tag, resp);
-}
-
-int del_group(char *group, char *resp)
-{
-	return del_json_group(group, resp);
-}
-
-/* internal helper functions */
-
-static inline struct target *find_target(char *alias)
+struct target *find_target(char *alias)
 {
 	struct target		*target;
 
@@ -132,6 +101,269 @@ static inline struct ns *find_ns(struct subsystem *subsys, int nsid)
 		if (ns->nsid == nsid)
 			return ns;
 	return NULL;
+}
+
+static inline struct group *find_group(char *name)
+{
+	struct group		*group;
+
+	list_for_each_entry(group, group_list, node)
+		if (!strcmp(group->name, name))
+			return group;
+	return NULL;
+}
+
+static inline
+struct group_target_link *find_group_target(struct group *group,
+					    struct target *target)
+{
+	struct group_target_link *link;
+
+	list_for_each_entry(link, &group->target_list, node)
+		if (link->target == target)
+			return link;
+	return NULL;
+}
+
+static inline
+struct group_host_link *find_group_host(struct group *group, char *nqn)
+{
+	struct group_host_link *link;
+
+	list_for_each_entry(link, host_list, node)
+		if (link->group == group && !strcmp(link->nqn, nqn))
+			return link;
+	return NULL;
+}
+
+/* config functions that are not send to the target */
+
+struct group *init_group(char *name)
+{
+	struct group		*group;
+
+	group = malloc(sizeof(*group));
+	if (!group)
+		return NULL;
+
+	strncpy(group->name, name, MAX_ALIAS_SIZE);
+
+	INIT_LIST_HEAD(&group->target_list);
+
+	list_add_tail(&group->node, group_list);
+
+	return group;
+}
+
+int add_group(char *name, char *resp)
+{
+	struct group		*group;
+	int			 ret;
+
+	ret = add_json_group(name, resp);
+	if (ret)
+		return ret;
+
+	group = init_group(name);
+	if (!group) {
+		print_err("unable to alloc group");
+		return -ENOMEM;
+	}
+
+	return 0;
+}
+
+int update_group(char *name, char *data, char *resp)
+{
+	struct group		*group;
+	char			 _name[MAX_ALIAS_SIZE + 1];
+	int			 ret;
+
+	ret = update_json_group(name, data, resp, _name);
+	if (ret)
+		return ret;
+
+	group = find_group(_name);
+	if (!group) {
+		group = init_group(_name);
+		if (!group) {
+			print_err("unable to alloc group");
+			return -ENOMEM;
+		}
+	} else
+		strncpy(group->name, _name, MAX_ALIAS_SIZE);
+
+	return 0;
+}
+
+void add_host_to_group(struct group *group, char *alias)
+{
+	struct group_host_link	*link;
+	char			 nqn[MAX_NQN_SIZE + 1];
+
+	link = malloc(sizeof(*link));
+	if (!link)
+		return;
+
+	link->group = group;
+
+	get_json_host_nqn(alias, nqn);
+
+	strcpy(link->alias, alias);
+	strcpy(link->nqn, nqn);
+
+	list_add_tail(&link->node, host_list);
+}
+
+void add_target_to_group(struct group *group, char *alias)
+{
+	struct target		*target;
+	struct group_target_link *link;
+
+	target = find_target(alias);
+
+	link = malloc(sizeof(*link));
+	if (!link)
+		return;
+
+	link->target = target;
+	target->group_member = true;
+
+	list_add_tail(&link->node, &group->target_list);
+}
+
+int set_group_member(char *name, char *data, char *alias, char *tag,
+		     char *parent_tag, char *resp)
+{
+	struct group		*group;
+	char			 _alias[MAX_ALIAS_SIZE + 1];
+	int			 ret;
+
+	ret = set_json_group_member(name, data, alias, tag, parent_tag, resp,
+				    _alias);
+	if (ret)
+		return ret;
+
+	group = find_group(name);
+
+	if (strcmp(tag, TAG_TARGET))
+		add_host_to_group(group, _alias);
+	else
+		add_target_to_group(group, _alias);
+
+	return 0;
+}
+
+static inline void del_host_from_group(struct group *group, char *alias)
+{
+	struct group_host_link *link;
+
+	link = find_group_host(group, alias);
+	if (!link)
+		return;
+
+	list_del(&link->node);
+	free(link);
+}
+
+static inline void del_target_from_group(struct group *group, char *alias)
+{
+	struct target		*target;
+	struct group_target_link *link;
+
+	target = find_target(alias);
+	if (!target)
+		return;
+
+	link = find_group_target(group, target);
+	if (!link)
+		return;
+
+	list_del(&link->node);
+	free(link);
+
+	list_for_each_entry(group, group_list, node)
+		list_for_each_entry(link, &group->target_list, node)
+			if (target == link->target)
+				return;
+
+	target->group_member = false;
+}
+
+int del_group_member(char *name, char *alias, char *tag, char *parent_tag,
+		     char *resp)
+{
+	struct group		*group;
+	int			 ret;
+
+	ret = del_json_group_member(name, alias, tag, parent_tag, resp);
+	if (ret)
+		return ret;
+
+	group = find_group(name);
+
+	if (strcmp(tag, TAG_TARGET))
+		del_host_from_group(group, alias);
+	else
+		del_target_from_group(group, alias);
+
+	return 0;
+}
+
+int del_group(char *name, char *resp)
+{
+	struct group_host_link	*link, *next;
+	struct group		*group;
+	int			 ret;
+
+	ret = del_json_group(name, resp);
+	if (ret)
+		return ret;
+
+	group = find_group(name);
+
+	list_for_each_entry_safe(link, next, host_list, node)
+		if (link->group == group) {
+			list_del(&link->node);
+			free(link);
+		}
+
+	list_del(&group->node);
+	free(group);
+
+	return 0;
+}
+
+bool shared_group(struct target *target, char *nqn)
+{
+	struct group_target_link *link;
+	struct group_host_link	*host;
+
+	list_for_each_entry(host, host_list, node) {
+		if (strcmp(host->nqn, nqn))
+			continue;
+		list_for_each_entry(link, &host->group->target_list, node)
+			if (link->target == target)
+				return true;
+	}
+
+	return false;
+}
+
+bool indirect_shared_group(struct target *target, char *alias)
+{
+	struct group_target_link *link;
+	struct group_host_link	*host;
+
+	list_for_each_entry(host, host_list, node) {
+		if (strcmp(host->alias, alias))
+			continue;
+		list_for_each_entry(link, &host->group->target_list, node)
+			if (link->target == target)
+				return true;
+	}
+
+	return false;
 }
 
 /* in band message formatting functions */
@@ -466,7 +698,7 @@ static inline int get_inb_nsdevs(struct target *target)
 
 		nsdev = malloc(sizeof(*nsdev));
 		if (!nsdev) {
-			print_err("unalbe to alloc nsdev");
+			print_err("unable to alloc nsdev");
 			ret = -ENOMEM;
 			goto out2;
 		}
@@ -555,7 +787,7 @@ static inline int get_inb_xports(struct target *target)
 
 		iface = malloc(sizeof(*iface));
 		if (!iface) {
-			print_err("unalbe to alloc iface");
+			print_err("unable to alloc iface");
 			ret = -ENOMEM;
 			goto out2;
 		}
