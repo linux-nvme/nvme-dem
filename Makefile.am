@@ -119,18 +119,19 @@ uninstall: must_be_root
 
 mongoose/.git:
 	echo cloning github.com/cesanta/mongoose.git
-	git clone https://github.com/cesanta/mongoose.git \
-		echo unable to access github, scp mongoose/.git to the mongoose directory and rerun make
-
+	echo NOTE: if no access to github, use scp to copy mongoose/.git
+	git clone https://github.com/cesanta/mongoose.git >/dev/null
 mongoose/mongoose.h: mongoose/.git
 	cd mongoose ; git reset --hard HEAD
-
 mongoose/mongoose.h.orig: mongoose/mongoose.h
 	cd mongoose ; patch -p 1 < ../files/mongoose.patch
 
-jansson/Makefile.am:
+jansson/.git:
 	echo cloning github.com/akheron/jansson.git
+	echo NOTE: if no access to github, use scp to copy jansson/.git
 	git clone https://github.com/akheron/jansson.git >/dev/null
+jansson/Makefile.am: jansson/.git
+	cd jansson ; git reset --hard HEAD
 jansson/configure: jansson/Makefile.am
 	echo configuring jansson
 	cd jansson ; autoreconf -i >/dev/null 2>&1
