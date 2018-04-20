@@ -59,7 +59,7 @@ SC_SRC = ${SC_DIR}/daemon.c ${SC_DIR}/restful.c ${SC_DIR}/configfs.c \
 SC_INC = ${INCL_DIR}/dem.h ${SC_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
-all: ${BIN_DIR} mongoose/ jansson/libjansson.a \
+all: ${BIN_DIR} mongoose/mongoose.h.orig jansson/libjansson.a \
      ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc
 	echo Done.
 
@@ -117,9 +117,15 @@ uninstall: must_be_root
 	mr -f /usr/share/man/man1/dem.1 /usr/share/man/man8/dem-[ade]c.8
 	echo Done.
 
-mongoose/:
+mongoose/.git:
 	echo cloning github.com/cesanta/mongoose.git
-	git clone https://github.com/cesanta/mongoose.git
+	git clone https://github.com/cesanta/mongoose.git \
+		echo unable to access github, scp mongoose/.git to the mongoose directory and rerun make
+
+mongoose/mongoose.h: mongoose/.git
+	cd mongoose ; git reset --hard HEAD
+
+mongoose/mongoose.h.orig: mongoose/mongoose.h
 	cd mongoose ; patch -p 1 < ../files/mongoose.patch
 
 jansson/Makefile.am:

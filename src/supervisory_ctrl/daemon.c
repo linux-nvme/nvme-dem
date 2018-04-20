@@ -37,12 +37,6 @@
 #include <stdio.h>
 #include <sys/stat.h>
 
-#include <rdma/fabric.h>
-#include <rdma/fi_errno.h>
-#include <rdma/fi_eq.h>
-#include <rdma/fi_rma.h>
-#include <rdma/fi_cm.h>
-
 #include "mongoose.h"
 #include "common.h"
 #include "tags.h"

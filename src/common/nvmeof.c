@@ -39,8 +39,6 @@
 #include <sys/socket.h>
 #include <arpa/inet.h>
 
-#include <rdma/fabric.h>
-
 #include "common.h"
 #include "ops.h"
 #include "linux/nvme-rdma.h"
