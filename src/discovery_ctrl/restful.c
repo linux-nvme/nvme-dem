@@ -57,6 +57,8 @@ struct mg_str *s_signature = (struct mg_str *) &s_signature_default;
 #define HTTP_ERR_NOT_IMPLEMENTED	405
 #define HTTP_ERR_FORBIDDEN		403
 #define HTTP_ERR_CONFLICT		409
+#define HTTP_ERR_CONNECT_TIMEOUT	599
+
 #define HTTP_ALLOW			"Access-Control-Allow-Origin:*"
 #define HTTP_ALLOW_CONTROL \
 "Access-Control-Allow-Methods:GET,PUT,POST,DELETE,PATCH,OPTIONS\r\n" \
@@ -79,6 +81,9 @@ static inline int http_error(int err)
 
 	if (err == -EEXIST)
 		return HTTP_ERR_CONFLICT;
+
+	if (err == -ECONNREFUSED || err == -ENOTCONN)
+		return HTTP_ERR_CONNECT_TIMEOUT;
 
 	return HTTP_ERR_INTERNAL;
 }
@@ -323,19 +328,29 @@ static int post_target_request(char *target, char **p, int n,
 		ret = add_target(target, resp);
 	else if (!strcmp(*p, METHOD_RECONFIG)) {
 		ret = target_reconfig(target);
-		if (ret) {
-			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
-			ret = HTTP_ERR_INTERNAL;
-		} else
+		if (!ret)
 			sprintf(resp, "%s '%s' reconfigured",
 				TAG_TARGET, target);
+		else if (ret == -ENOENT)
+			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+		else if (ret == -ECONNREFUSED || ret == -ENOTCONN)
+			sprintf(resp, "%s '%s' not responding",
+				TAG_TARGET, target);
+		else
+			sprintf(resp, "Unable to reconfigure %s '%s' error %d",
+				TAG_TARGET, target, ret);
 	} else if (!strcmp(*p, METHOD_REFRESH)) {
 		ret = target_refresh(target);
-		if (ret) {
-			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
-			ret = HTTP_ERR_INTERNAL;
-		} else
+		if (!ret)
 			sprintf(resp, "%s '%s' refreshed", TAG_TARGET, target);
+		else if (ret == -ENOENT)
+			sprintf(resp, "%s '%s' not found", TAG_TARGET, target);
+		else if (ret == -ECONNREFUSED || ret == -ENOTCONN)
+			sprintf(resp, "%s '%s' not responding",
+				TAG_TARGET, target);
+		else
+			sprintf(resp, "Unable to refresh %s '%s' error %d",
+				TAG_TARGET, target, ret);
 	} else {
 		if (strcmp(*p, URI_SUBSYSTEM) == 0) {
 			sprintf(data, "{" JSSTR "," JSINDX "}",

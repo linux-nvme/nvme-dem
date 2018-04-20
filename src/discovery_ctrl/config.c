@@ -2046,9 +2046,9 @@ int config_target(struct target *target)
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		config_target_inb(target);
+		ret = config_target_inb(target);
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		config_target_oob(target);
+		ret = config_target_oob(target);
 
 	return ret;
 }
