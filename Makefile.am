@@ -98,7 +98,7 @@ must_be_root:
 install: must_be_root
 	[ -L /bin/dem ] || cp ${BIN_DIR}/* /bin
 	cp usr/nvmeof.conf /etc/nvme
-	[ -e /etc/nvme/nvmeof-dem ] || mkdir /etc/nvme/nvmeof-dem
+	[ -e /etc/nvme/nvmeof-dem ] || mkdir -p /etc/nvme/nvmeof-dem
 	cp usr/nvmeof /usr/libexec/
 	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
 	cp usr/bash_completion.d/* /etc/bash_completion.d/
@@ -109,12 +109,13 @@ install: must_be_root
 uninstall: must_be_root
 	[ `whoami` == "root" ]
 	rm -f /etc/bash_completion.d/dem
-	rm -f /bin/dem /bin/dem-dc /bin/dem-sc
+	rm -f /bin/dem /bin/dem-dc /bin/dem-sc /bin/dem-hac
 	rm -f /etc/nvme/nvmeof.conf
 	rm -rf /etc/nvme/nvmeof-dem
 	rm -f /usr/libexec/nvmeof
 	rm -f /usr/lib/systemd/system/nvmeof.service
-	mr -f /usr/share/man/man1/dem.1 /usr/share/man/man8/dem-[ade]c.8
+	rm -f /usr/share/man/man1/dem.1 /usr/share/man/man8/dem-dc.8
+	rm -f /usr/share/man/man1/dem-sc.8 /usr/share/man/man8/dem-hac.8
 	echo Done.
 
 mongoose/.git:
