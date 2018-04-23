@@ -97,8 +97,8 @@ must_be_root:
 
 install: must_be_root
 	[ -L /bin/dem ] || cp ${BIN_DIR}/* /bin
-	cp usr/nvmeof.conf /etc/nvme
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir -p /etc/nvme/nvmeof-dem
+	cp usr/nvmeof.conf /etc/nvme
 	cp usr/nvmeof /usr/libexec/
 	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
 	cp usr/bash_completion.d/* /etc/bash_completion.d/
