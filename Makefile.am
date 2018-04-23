@@ -122,22 +122,29 @@ mongoose/.git:
 	echo cloning github.com/cesanta/mongoose.git
 	echo NOTE: if no access to github, use scp to copy mongoose/.git
 	git clone https://github.com/cesanta/mongoose.git >/dev/null
+	touch $@
 mongoose/mongoose.h: mongoose/.git
-	cd mongoose ; git reset --hard HEAD
+	cd mongoose ; git reset --hard HEAD ; git clean -fx
+	touch $@
 mongoose/mongoose.h.orig: mongoose/mongoose.h
 	cd mongoose ; patch -p 1 < ../files/mongoose.patch
+	touch $@
 
 jansson/.git:
 	echo cloning github.com/akheron/jansson.git
 	echo NOTE: if no access to github, use scp to copy jansson/.git
 	git clone https://github.com/akheron/jansson.git >/dev/null
+	touch $@
 jansson/Makefile.am: jansson/.git
 	cd jansson ; git reset --hard HEAD
+	touch $@
 jansson/configure: jansson/Makefile.am
 	echo configuring jansson
 	cd jansson ; autoreconf -i >/dev/null 2>&1
+	touch $@
 jansson/Makefile: jansson/configure
 	cd jansson ; ./configure >/dev/null
+	touch $@
 jansson/src/.libs/libjansson.a: jansson/Makefile
 	echo building libjansson
 	cd jansson/src ; make libjansson.la >/dev/null
