@@ -253,10 +253,6 @@ function toggleMode() {
   $("#event_note").hide();
   $("#local_note").hide();
   if ($("#mode").val() == "local") {
-    $("#typ").val("");
-    $("#adr").val("");
-    $("#fam").val("");
-    $("#svc").val("");
     $("#local_note").show();
     $("#log_refresh").show();
   } else if ($("#mode").val() == "oob") {
@@ -324,17 +320,17 @@ function formTargetAlias(obj) {
 
   visible = (mode == "InBandMgmt") ? "" : hidden;
   str += "<p><div id='inb_data'" + visible + ">";
-  str += formType(typ, "TRTYPE");
-  str += formFamily(fam, "ADRFAM");
-  str += formAddress(adr, "TRADDR");
-  str += formPort(port, "TRSVCID");
+  str += formType(typ, "TRTYPE", "inb_typ");
+  str += formFamily(fam, "ADRFAM", "inb_fam");
+  str += formAddress(adr, "TRADDR", "inb_adr");
+  str += formPort(port, "TRSVCID", "inb_svc");
   str += "</div></p>";
 
   visible = (mode == "OutOfBandMgmt") ? "" : hidden;
   str += "<p><div id='oob_data'" + visible + ">";
-  str += formFamily(fam, "Family");
-  str += formAddress(adr, "Address");
-  str += formPort(port, "RESTful Port");
+  str += formFamily(fam, "Family", "oob_fam");
+  str += formAddress(adr, "Address", "oob_adr");
+  str += formPort(port, "RESTful Port", "oob_port");
   str += "</div></p>";
 
   str += "<p>Refresh: " +
@@ -480,11 +476,12 @@ function formSubsystem(obj) {
   str += "></input></p>";
   return str;
 }
-function formType(typ, label) {
+function formType(typ, label, tag) {
   var str = "";
   var selected = " selected";
 
-  str += "<p>" + label + ": <select id='typ'><option value=''></option>";
+  str += "<p>" + label + ": <select id='" + tag + "'>";
+  str += "<option value=''></option>";
   str += "<option value='rdma'";
   if (typ == "rdma") str += selected;
   str += ">rdma</option><option value='fc'";
@@ -495,11 +492,12 @@ function formType(typ, label) {
 
   return str;
 }
-function formFamily(fam, label) {
+function formFamily(fam, label, tag) {
   var str = "";
   var selected = " selected";
 
-  str += "<p>" + label + ": <select id='fam'><option value=''></option>";
+  str += "<p>" + label + ": <select id='" + tag + "'>";
+  str += "<option value=''></option>";
   str += "<option value='ipv4'";
   if (fam == "ipv4") str += selected;
   str += ">ipv4</option><option value='ipv6'";
@@ -510,12 +508,12 @@ function formFamily(fam, label) {
 
   return str;
 }
-function formAddress(adr, label) {
-  return "<p>" + label + ": <input id='adr' type='text'" +
+function formAddress(adr, label, tag) {
+  return "<p>" + label + ": <input id='" + tag + "' type='text'" +
          " value='" + adr + "'></input></p>";
 }
-function formPort(svc, label) {
-  return "<p>" + label + ": <input id='svc' type='number' min='0'" +
+function formPort(svc, label, tag) {
+  return "<p>" + label + ": <input id='" + tag + "' type='number' min='0'" +
          " value='" + svc + "'></input></p>";
 }
 function formPortID(sub) {
@@ -538,10 +536,10 @@ function formPortID(sub) {
 
   str += "<p>Port ID: <input id='portid' type='number' min='1'" +
          " value='" + sub + "'></input></p>";
-  str += formType(typ, "TRTYPE");
-  str += formFamily(fam, "ADRFAM");
-  str += formAddress(adr, "TRADDR");
-  str += formPort(svc, "TRSVCID");
+  str += formType(typ, "TRTYPE", "typ");
+  str += formFamily(fam, "ADRFAM", "fam");
+  str += formAddress(adr, "TRADDR", "adr");
+  str += formPort(svc, "TRSVCID", "svc");
 
   return str;
 }
@@ -562,9 +560,9 @@ function formTransport(sub) {
 
   str += "<p>Transport ID: <input id='portid' type='number'" +
          " value='" + sub + "'></input></p>";
-  str += formType(typ, "TRTYPE");
-  str += formFamily(fam, "ADRFAM");
-  str += formAddress(fam, "TRADDR");
+  str += formType(typ, "TRTYPE", "typ");
+  str += formFamily(fam, "ADRFAM", "fam");
+  str += formAddress(fam, "TRADDR", "adr");
   return str;
 }
 function formNSID(sub,val) {
@@ -1523,7 +1521,96 @@ function validateForm() {
     if (name != $("#parentUri").html())
       $("#renamedUri").html(name);
   }
-  if ($("#adr").is(":visible")) {
+  if ($("#oob_data").is(":visible")) {
+    field = $("#oob_adr");
+    fam = $("#oob_fam").val();
+    if (fam == "ipv4") {
+      if (!validateIPv4(field.val())) {
+        str += "<p>Invalid IPv4 address: must be format is x.x.x.x ";
+        str += " where values are decimal numbers from 0 to 255";
+        if (badfield == undefined) badfield = field;
+      }
+    } else if (fam == "ipv6") {
+      if (!validateIPv6(field.val())) {
+        str += "<p>Invalid IPv6 address: must be format is x:x:x:x:x:x ";
+        str += " where values may be omitted or hex numbers from 0 to FFFF";
+        str += " (either upper of lower case hex is valid)";
+        if (badfield == undefined) badfield = field;
+      }
+    } else if (fam == "fc") {
+      if (!validateFC(field.val())) {
+        str += "<p>Invalid FC address:";
+        str += " must be format is xx:xx:xx:xx:xx:xx:xx:xx ";
+        str += " where values may be omitted or hex numbers from 00 to FF";
+        str += " (either upper of lower case hex is valid)";
+        if (badfield == undefined) badfield = field;
+      }
+    } else {
+      field = $("#oob_fam");
+      str += "<p>Invalid Address Family. Please select from ipv4, ipv6, or fc";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#oob_port").is(":visible") && $("#oob_port").val() == "") {
+      field = $("#oob_port");
+      str += "<p>Invalid RESTful Port number."
+      str += " Please specify the RESTful port number to use.";
+      if (badfield == undefined) badfield = field;
+    }
+  }
+  if ($("#inb_data").is(":visible")) {
+    field = $("#inb_adr");
+    fam = $("#inb_fam").val();
+    if (fam == "ipv4") {
+      if (!validateIPv4(field.val())) {
+        str += "<p>Invalid IPv4 address: must be format is x.x.x.x ";
+        str += " where values are decimal numbers from 0 to 255";
+        if (badfield == undefined) badfield = field;
+      }
+    } else if (fam == "ipv6") {
+      if (!validateIPv6(field.val())) {
+        str += "<p>Invalid IPv6 address: must be format is x:x:x:x:x:x ";
+        str += " where values may be omitted or hex numbers from 0 to FFFF";
+        str += " (either upper of lower case hex is valid)";
+        if (badfield == undefined) badfield = field;
+      }
+    } else if (fam == "fc") {
+      if (!validateFC(field.val())) {
+        str += "<p>Invalid FC address:";
+        str += " must be format is xx:xx:xx:xx:xx:xx:xx:xx ";
+        str += " where values may be omitted or hex numbers from 00 to FF";
+        str += " (either upper of lower case hex is valid)";
+        if (badfield == undefined) badfield = field;
+      }
+    } else {
+      field = $("#inb_fam");
+      str += "<p>Invalid Address Family. Please select from ipv4, ipv6, or fc";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#inb_typ").val() == "") {
+      field = $("#inb_typ");
+      str += "<p>Invalid Fabric Type. Please select from rdma, tcp, or fc";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#inb_typ").val() == "fc" && fam != "fc") {
+      field = $("#inb_fam");
+      str += "<p>Invalid Address Family. Please select 'fc' for Family";
+      str += " when Fabric is Fiber Channel.";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#inb_typ").val() != "fc" && fam == "fc") {
+      field = $("#inb_fam");
+      str += "<p>Invalid Address Family. Please select 'ipv4 or ipv6 for";
+      str += " Family when Fabric is not Fiber Channel.";
+      if (badfield == undefined) badfield = field;
+    }
+    if ($("#inb_svc").is(":visible") && $("#inb_svc").val() == "") {
+      field = $("#inb_svc");
+      str += "<p>Invalid Transport Service ID."
+      str += " Please specify the transport service ID to use.";
+      if (badfield == undefined) badfield = field;
+    }
+  }
+  if ($("#typ").is(":visible")) {
     field = $("#adr");
     fam = $("#fam").val();
     if (fam == "ipv4") {
@@ -1547,7 +1634,7 @@ function validateForm() {
         str += " (either upper of lower case hex is valid)";
         if (badfield == undefined) badfield = field;
       }
-    } else if ($("#typ").is(":visible")) {
+    } else {
       field = $("#fam");
       str += "<p>Invalid Address Family. Please select from ipv4, ipv6, or fc";
       if (badfield == undefined) badfield = field;
@@ -1570,12 +1657,10 @@ function validateForm() {
       if (badfield == undefined) badfield = field;
     }
     if ($("#svc").is(":visible") && $("#svc").val() == "") {
-      if ($("#typ").is(":visible") || $("#adr").val() != "") {
-        field = $("#svc");
-        str += "<p>Invalid Transport Service ID."
-        str += " Please specify the transport service ID to use.";
-        if (badfield == undefined) badfield = field;
-      }
+      field = $("#svc");
+      str += "<p>Invalid Transport Service ID."
+      str += " Please specify the transport service ID to use.";
+      if (badfield == undefined) badfield = field;
     }
   }
   if ($("#subnqn").is(":visible")) {
@@ -1677,19 +1762,19 @@ function buildJSON(url) {
     if ($("#mode").val() == "oob") {
       str += ',"MgmtMode":"OutOfBandMgmt"';
       str += ',"Interface":{';
-      if ($("#fam").val() != "")
-        str += '"FAMILY":"' + $("#fam").val() + '",' +
-               '"ADDRESS":"' + $("#adr").val() + '",' +
-               '"PORT":' + $("#svc").val();
+      if ($("#oob_fam").val() != "")
+        str += '"FAMILY":"' + $("#oob_fam").val() + '",' +
+               '"ADDRESS":"' + $("#oob_adr").val() + '",' +
+               '"PORT":' + $("#oob_port").val();
       str += '}';
     } else if ($("#mode").val() == "inb") {
       str += ',"MgmtMode":"InBandMgmt"';
       str += ',"Interface":{';
-      if ($("#typ").val() != "")
-        str += '"TRTYPE":"' + $("#typ").val() + '",' +
-	       '"ADRFAM":"' + $("#fam").val() + '",' +
-               '"TRADDR":"' + $("#adr").val() + '",' +
-               '"TRSVCID":' + $("#svc").val();
+      if ($("#inb_typ").val() != "")
+        str += '"TRTYPE":"' + $("#inb_typ").val() + '",' +
+	       '"ADRFAM":"' + $("#inb_fam").val() + '",' +
+               '"TRADDR":"' + $("#inb_adr").val() + '",' +
+               '"TRSVCID":' + $("#inb_svc").val();
       str += '}';
     } else
       str += ',"MgmtMode":"LocalMgmt"';
