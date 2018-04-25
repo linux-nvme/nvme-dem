@@ -11,6 +11,3 @@ Type=oneshot
 RemainAfterExit=yes
 ExecStart=/usr/libexec/nvmeof
 ExecStop=/usr/libexec/nvmeof stop
-
-[Install]
-WantedBy=sysinit.target
