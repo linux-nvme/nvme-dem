@@ -2217,7 +2217,20 @@ out:
 
 int add_target(char *alias, char *resp)
 {
-	return add_json_target(alias, resp);
+	struct target		*target;
+	int			 ret;
+
+	ret = add_json_target(alias, resp);
+	if (ret) {
+		print_err("Target %s already exists", alias);
+		return -EEXIST;
+	}
+
+	target = alloc_target(alias);
+	if (!target)
+		return -ENOMEM;
+
+	return 0;
 }
 
 int update_target(char *alias, char *data, char *resp)
