@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: DUAL GPL-2.0/BSD */
 /*
  * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
  * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
