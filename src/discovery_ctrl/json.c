@@ -2085,7 +2085,7 @@ int update_json_target(char *alias, char *data, char *resp,
 	if (alias) {
 		i = find_array(targets, TAG_ALIAS, alias, &iter);
 		if (i < 0) {
-			sprintf(resp, "%s '%s' not forund", TAG_TARGET, alias);
+			sprintf(resp, "%s '%s' not found", TAG_TARGET, alias);
 			return -ENOENT;
 		}
 	}
