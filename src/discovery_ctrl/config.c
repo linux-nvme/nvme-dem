@@ -2253,18 +2253,21 @@ int update_target(char *alias, char *data, char *resp)
 		target = alloc_target(result.alias);
 		if (!target)
 			ret = -ENOMEM;
-		else
-			target->mgmt_mode = result.mgmt_mode;
 	} else {
 		target = find_target(alias);
 		if (strcmp(result.alias, alias))
 			strcpy(target->alias, result.alias);
-		target->mgmt_mode = result.mgmt_mode;
-		target->refresh = result.refresh;
-		if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-			set_oob_interface(&target->sc_iface, &result.sc_iface);
-		else if (target->mgmt_mode == IN_BAND_MGMT)
-			set_inb_interface(&target->sc_iface, &result.sc_iface);
+	}
+
+	target->mgmt_mode = result.mgmt_mode;
+	target->refresh	  = result.refresh;
+
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
+		set_oob_interface(&target->sc_iface, &result.sc_iface);
+		get_oob_config(target);
+	} else if (target->mgmt_mode == IN_BAND_MGMT) {
+		set_inb_interface(&target->sc_iface, &result.sc_iface);
+		get_inb_config(target);
 	}
 
 	return ret;
