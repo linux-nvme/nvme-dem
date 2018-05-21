@@ -975,37 +975,40 @@ function parseSubsystems(obj, itemA, itemB) {
   str += ref + ')">';
   str += '</span></h5>' ;
 
-  str += '<div class="details"><br><h5>NSIDs &nbsp;';
-  str += '<img src="plus.png" alt="add" title="add" class="icon" onclick="loadAdd('
-  str += ref + ",'/nsid')" + '"></h5>';
-  if (nsids != undefined) {
-    str += '<div class="subdetails">';
-    nsids.forEach(function(nsid){
-      var listD = Object.keys(nsid);
-      var id = 0;
-      var devid = 0;
-      var devns = 0;
-      listD.forEach(function(itemD) {
-        if (itemD == "NSID")
-          id = nsid[itemD];
-        else if (itemD == "DeviceID")
-          devid = nsid[itemD];
-        else if (itemD == "DeviceNSID")
-          devns = nsid[itemD];
-      })
-      str += '<p>' + id + ":&nbsp; Device: ID " + devid + " &nbsp;";
-      if (devid != -1)
-	 str += "NSID " + devns + " &nbsp;";
-      str += ' <img src="pencil.png" alt="edit" title="edit" class="icon" ';
-      str += 'onclick="saveVal(' + "'" + devid + ',' + devns + "'" + ');';
-      str += 'loadEdit(' + ref + ",'/nsid'," + id  + ')">&nbsp; ';
-      str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
-      str += ref + ",'/nsid'," + id + ')">';
-      str += '</p>';
-    });
-    str += '</div>';
-  } else
-    str += '<br>';
+  str += '<div class="details"><br>';
+  if ($("#parentargs").html().indexOf("Local") < 0) {
+    str += '<h5>NSIDs &nbsp;';
+    str += '<img src="plus.png" alt="add" title="add" class="icon" onclick="loadAdd('
+    str += ref + ",'/nsid')" + '"></h5>';
+    if (nsids != undefined) {
+      str += '<div class="subdetails">';
+      nsids.forEach(function(nsid){
+        var listD = Object.keys(nsid);
+        var id = 0;
+        var devid = 0;
+        var devns = 0;
+        listD.forEach(function(itemD) {
+          if (itemD == "NSID")
+            id = nsid[itemD];
+          else if (itemD == "DeviceID")
+            devid = nsid[itemD];
+          else if (itemD == "DeviceNSID")
+            devns = nsid[itemD];
+        })
+        str += '<p>' + id + ":&nbsp; Device: ID " + devid + " &nbsp;";
+        if (devid != -1)
+	  str += "NSID " + devns + " &nbsp;";
+        str += ' <img src="pencil.png" alt="edit" title="edit" class="icon" ';
+        str += 'onclick="saveVal(' + "'" + devid + ',' + devns + "'" + ');';
+        str += 'loadEdit(' + ref + ",'/nsid'," + id  + ')">&nbsp; ';
+        str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
+        str += ref + ",'/nsid'," + id + ')">';
+        str += '</p>';
+      });
+      str += '</div>';
+    } else
+      str += '<br>';
+  }
 
   if (!allowany) {
     str += "<h5>Allowed Hosts &nbsp;";
