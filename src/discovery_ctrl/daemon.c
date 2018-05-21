@@ -424,55 +424,58 @@ static inline int check_logpage_portid(struct subsystem *subsys,
 	return 0;
 }
 
-static void init_discovery_queue(struct target *target, struct portid *portid)
+void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
 {
 	struct ctrl_queue	*dq;
-	struct subsystem	*subsys;
+	struct target		*target = subsys->target;
 	struct host		*host;
 	uuid_t			 id;
 	char			 uuid[40];
 
-	list_for_each_entry(subsys, &target->subsys_list, node) {
-		if (check_logpage_portid(subsys, portid))
-			continue;
-
-		dq = malloc(sizeof(*dq));
-		if (!dq) {
-			print_err("failed to malloc dq");
-			return;
-		}
-
-		memset(dq, 0, sizeof(*dq));
-
-		dq->portid = portid;
-		dq->target = target;
-
-		if (strcmp(dq->portid->type, "rdma") == 0)
-			dq->ep.ops = rdma_register_ops();
-		else {
-			free(dq);
-			continue;
-		}
-
-		list_add_tail(&dq->node, &target->discovery_queue_list);
-
-		if (subsys->access == ALLOW_ANY) {
-			uuid_generate(id);
-			uuid_unparse_lower(id, uuid);
-			sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
-		} else {
-			host = list_first_entry(&subsys->host_list,
-						struct host, node);
-			sprintf(dq->hostnqn, host->nqn);
-		}
-
-		if (connect_ctrl(dq))
-			continue;
-
-		fetch_log_pages(dq);
-
-		disconnect_ctrl(dq, 0);
+	dq = malloc(sizeof(*dq));
+	if (!dq) {
+		print_err("failed to malloc dq");
+		return;
 	}
+
+	memset(dq, 0, sizeof(*dq));
+
+	dq->portid = portid;
+	dq->target = target;
+
+	if (strcmp(dq->portid->type, "rdma") == 0)
+		dq->ep.ops = rdma_register_ops();
+	else {
+		free(dq);
+		return;
+	}
+
+	list_add_tail(&dq->node, &target->discovery_queue_list);
+
+	if (subsys->access == ALLOW_ANY) {
+		uuid_generate(id);
+		uuid_unparse_lower(id, uuid);
+		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
+	} else {
+		host = list_first_entry(&subsys->host_list, struct host, node);
+		sprintf(dq->hostnqn, host->nqn);
+	}
+
+	if (connect_ctrl(dq))
+		return;
+
+	fetch_log_pages(dq);
+
+	disconnect_ctrl(dq, 0);
+}
+
+static void init_discovery_queue(struct target *target, struct portid *portid)
+{
+	struct subsystem	*subsys;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		if (!check_logpage_portid(subsys, portid))
+			create_discovery_queue(subsys, portid);
 }
 
 static void init_targets(void)

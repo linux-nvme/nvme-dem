@@ -1511,6 +1511,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct subsystem	 new_ss;
+	struct portid		*portid;
 	int			 len;
 	int			 ret;
 
@@ -1519,24 +1520,30 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 	ret = set_json_subsys(alias, nqn, data, resp, &new_ss);
 	if (ret)
-		return ret;
+		goto out;
 
 	resp += strlen(resp);
 
 	target = find_target(alias);
-	if (!target)
-		return -ENOENT;
+	if (!target) {
+		ret = -ENOENT;
+		goto out;
+	}
 
 	if (!nqn) {
 		subsys = new_subsys(target, new_ss.nqn);
-		if (!subsys)
-			return -ENOMEM;
+		if (!subsys) {
+			ret = -ENOMEM;
+			goto out;
+		}
 
 		subsys->access = new_ss.access;
 	} else {
 		subsys = find_subsys(target, nqn);
-		if (!subsys)
-			return -ENOENT;
+		if (!subsys) {
+			ret = -ENOENT;
+			goto out;
+		}
 
 		len = strlen(new_ss.nqn);
 		if ((len && strcmp(nqn, new_ss.nqn)) ||
@@ -1552,9 +1559,14 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	}
 
 	ret = _config_subsys(target, subsys);
-	if (ret)
+	if (ret) {
 		sprintf(resp, CONFIG_ERR);
+		goto out;
+	}
 
+	list_for_each_entry(portid, &target->portid_list, node)
+		create_discovery_queue(subsys, portid);
+out:
 	return ret;
 }
 
@@ -1661,14 +1673,18 @@ static inline int _config_portid(struct target *target, struct portid *portid)
 int set_portid(char *alias, int id, char *data, char *resp)
 {
 	int			 ret;
-	struct portid		 portid;
+	struct portid		*portid;
 	struct portid		 delportid;
 	struct target		*target;
 	struct subsystem	*subsys;
 
-	memset(&portid, 0, sizeof(portid));
+	portid = malloc(sizeof(*portid));
+	if (!portid)
+		return -ENOMEM;
 
-	ret = set_json_portid(alias, id, data, resp, &portid);
+	memset(portid, 0, sizeof(*portid));
+
+	ret = set_json_portid(alias, id, data, resp, portid);
 	if (ret)
 		goto out;
 
@@ -1688,17 +1704,21 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		_unlink_portid(subsys, &delportid);
 
-	if ((portid.portid != id) && id)
+	if ((portid->portid != id) && id)
 		_del_portid(target, &delportid);
 
-	ret = _config_portid(target, &portid);
+	ret = _config_portid(target, portid);
 	if (ret) {
 		sprintf(resp, CONFIG_ERR);
 		goto out;
 	}
 
-	list_for_each_entry(subsys, &target->subsys_list, node)
-		_link_portid(subsys, &portid);
+	list_add_tail(&portid->node, &target->portid_list);
+
+	list_for_each_entry(subsys, &target->subsys_list, node) {
+		_link_portid(subsys, portid);
+		create_discovery_queue(subsys, portid);
+	}
 out:
 	return ret;
 }
