@@ -1623,7 +1623,10 @@ static inline int _del_portid(struct target *target, struct portid *portid)
 int del_portid(char *alias, int id, char *resp)
 {
 	struct target		*target;
+	struct subsystem	*subsys;
 	struct portid		*portid;
+	struct ctrl_queue	*dq, *next_dq;
+	struct logpage		*logpage, *next_log;
 	int			 ret;
 
 	ret = del_json_portid(alias, id, resp);
@@ -1638,8 +1641,27 @@ int del_portid(char *alias, int id, char *resp)
 	if (!portid)
 		goto out;
 
+	list_for_each_entry_safe(dq, next_dq,
+				 &target->discovery_queue_list, node) {
+		if (dq->portid != portid)
+			continue;
+		if (dq->connected)
+			disconnect_ctrl(dq, 0);
+		list_del(&dq->node);
+		free(dq);
+	}
 
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		list_for_each_entry_safe(logpage, next_log,
+					 &subsys->logpage_list, node) {
+			if (logpage->portid != portid)
+				continue;
+			list_del(&logpage->node);
+			free(logpage);
+		}
+		
 	list_del(&portid->node);
+	free(portid);
 out:
 	return ret;
 }
