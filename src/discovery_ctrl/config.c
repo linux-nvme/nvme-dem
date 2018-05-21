@@ -1659,7 +1659,7 @@ int del_portid(char *alias, int id, char *resp)
 			list_del(&logpage->node);
 			free(logpage);
 		}
-		
+
 	list_del(&portid->node);
 	free(portid);
 out:
