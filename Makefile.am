@@ -5,6 +5,7 @@
 COMMON_DIR=src/common
 CLI_DIR=src/cli
 HAC_DIR=src/host_auto_connect
+MON_DIR=src/monitor
 DC_DIR=src/discovery_ctrl
 SC_DIR=src/supervisory_ctrl
 INCL_DIR=src/incl
@@ -29,6 +30,7 @@ VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 DC_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
 SC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
 HAC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
+MON_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
 
 CLI_LIBS = -lcurl jansson/libjansson.a
 
@@ -45,6 +47,10 @@ HAC_SRC = ${HAC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
 	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
 HAC_INC = ${INCL_DIR}/dem.h ${HAC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 
+MON_SRC = ${MON_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
+	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
+MON_INC = ${INCL_DIR}/dem.h ${MON_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
+
 DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
 	 ${DC_DIR}/interfaces.c ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
@@ -60,7 +66,8 @@ SC_INC = ${INCL_DIR}/dem.h ${SC_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
 all: ${BIN_DIR} mongoose/mongoose.h.orig jansson/libjansson.a \
-     ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc
+     ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc \
+     ${BIN_DIR}/dem-mon
 	echo Done.
 
 ${BIN_DIR}:
@@ -68,6 +75,7 @@ ${BIN_DIR}:
 
 dem: ${BIN_DIR}/dem
 dem-hac: ${BIN_DIR}/dem-hac
+dem-mon: ${BIN_DIR}/dem-mon
 dem-dc: ${BIN_DIR}/dem-dc
 dem-sc: ${BIN_DIR}/dem-sc
 
@@ -79,6 +87,11 @@ ${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 ${BIN_DIR}/dem-hac: ${HAC_SRC} ${HAC_INC} Makefile
 	echo CC dem-hac
 	gcc ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${HAC_LIBS} -I${HAC_DIR}
+
+${BIN_DIR}/dem-mon: ${MON_SRC} ${MON_INC} Makefile
+	echo CC dem-mon
+	gcc ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${MON_LIBS} \
+		-I${MON_DIR} -DDEBUG_LOG_PAGES
 
 ${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
 	echo CC dem-dc
@@ -109,7 +122,7 @@ install: must_be_root
 uninstall: must_be_root
 	[ `whoami` == "root" ]
 	rm -f /etc/bash_completion.d/dem
-	rm -f /bin/dem /bin/dem-dc /bin/dem-sc /bin/dem-hac
+	rm -f /bin/dem /bin/dem-dc /bin/dem-sc /bin/dem-hac /bin/dem-mon
 	rm -f /etc/nvme/nvmeof.conf
 	rm -rf /etc/nvme/nvmeof-dem
 	rm -f /usr/libexec/nvmeof

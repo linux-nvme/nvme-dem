@@ -224,7 +224,7 @@ static inline int send_cmd(struct endpoint *ep, struct nvme_command *cmd,
 	return ep->ops->send_msg(ep->ep, cmd, bytes, ep->mr);
 }
 
-static int process_nvme_rsp(struct endpoint *ep, int ignore_status)
+int process_nvme_rsp(struct endpoint *ep, int ignore_status, u64 *result)
 {
 	struct xp_qe		*qe;
 	struct nvme_completion	*rsp;
@@ -255,33 +255,52 @@ static int process_nvme_rsp(struct endpoint *ep, int ignore_status)
 
 	ret = rsp->status >> 1;
 
+	if (!ret && result)
+		*result = rsp->result.U64;
+
 	if (ret && ret != ignore_status)
-		print_err("error status %s (0x%x)", nvme_str_status(ret), ret);
+		print_err("status %s (0x%x)", nvme_str_status(ret), ret);
 
 	ep->ops->repost_recv(ep->ep, qe);
 
 	return ret;
 }
 
+static void prep_admin_cmd(struct nvme_command *cmd, u8 opcode, int len,
+			   void *data, int key)
+{
+	struct nvme_keyed_sgl_desc	*sg;
+
+	memset(cmd, 0, sizeof(*cmd));
+
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
+	cmd->common.opcode	= opcode;
+
+	sg = &cmd->common.dptr.ksgl;
+
+	sg->addr = (u64) data;
+	put_unaligned_le32(key, sg->key);
+	put_unaligned_le24(len, sg->length);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+}
+
 static int send_fabric_connect(struct ctrl_queue *ctrl)
 {
 	struct endpoint		*ep = &ctrl->ep;
 	struct nvmf_connect_data *data;
-	struct nvme_keyed_sgl_desc *sg;
 	struct nvme_command	*cmd = ep->cmd;
 	int			 bytes;
 	int			 key;
 	int			 ret;
 	int			 ignore_status;
 
+	bytes = sizeof(*cmd);
 	data = ep->data;
 	key = ep->ops->remote_key(ep->data_mr);
 
-	bytes = sizeof(*cmd);
-	memset(cmd, 0, bytes);
 
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->connect.opcode	= nvme_fabrics_command;
+	prep_admin_cmd(cmd, nvme_fabrics_command, sizeof(*data), data, key);
+
 	cmd->connect.fctype	= nvme_fabrics_type_connect;
 	cmd->connect.qid	= htole16(0);
 	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
@@ -293,20 +312,13 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
 	strncpy(data->hostnqn, ctrl->hostnqn, NVMF_NQN_SIZE);
 
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(sizeof(*data), sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
 		return ret;
 
 	ignore_status = NVME_SC_DNR | NVME_SC_INVALID_FIELD;
 
-	ret = process_nvme_rsp(ep, ignore_status);
+	ret = process_nvme_rsp(ep, ignore_status, NULL);
 	if (ret != ignore_status)
 		return ret;
 
@@ -317,46 +329,61 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep, 0);
+	return process_nvme_rsp(ep, 0, NULL);
 }
 
-int send_keep_alive(struct endpoint *ep)
+static inline int send_admin_cmd(struct endpoint *ep, u8 opcode)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
+	struct xp_mr			*mr;
 	u64				*data;
 	int				 bytes;
 	int				 key;
 	int				 ret;
 
-	data = ep->data;
-	key = ep->ops->remote_key(ep->data_mr);
-
 	bytes = sizeof(*cmd);
-	memset(cmd, 0, bytes);
+#if 0 // HACK
+        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+                print_err("no memory for buffer, errno %d", errno);
+                return errno;
+        }
 
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_keep_alive;
+        memset(data, 0, PAGE_SIZE);
 
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-
-	ret = send_cmd(ep, cmd, bytes);
+	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
 	if (ret)
 		return ret;
 
-	process_nvme_rsp(ep, 0);
+	key = ep->ops->remote_key(mr);
+#else
+	UNUSED(mr);
+	data = NULL;
+	key = 0;
+#endif
+	prep_admin_cmd(cmd, opcode, 0, data, key);
 
-	return 0;
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		goto out;
+
+	process_nvme_rsp(ep, 0, NULL);
+out:
+	if (data) free(data);
+	return ret;
+}
+
+int send_async_event_request(struct endpoint *ep)
+{
+	return send_admin_cmd(ep, nvme_admin_async_event);
+}
+
+int send_keep_alive(struct endpoint *ep)
+{
+	return send_admin_cmd(ep, nvme_admin_keep_alive);
 }
 
 int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
 	u64				*data;
@@ -383,20 +410,10 @@ int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 
 	key = ep->ops->remote_key(mr);
 
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
+	prep_admin_cmd(cmd, nvme_fabrics_command, len, data, key);
 
 	cmd->config.command_id	= cid;
 	cmd->config.fctype	= nvme_fabrics_type_resource_config_get;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(len, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
 	*_data = data;
 
@@ -408,7 +425,7 @@ int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 
 	do {
 		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep, 0);
+		ret = process_nvme_rsp(ep, 0, NULL);
 	} while (ret == -EAGAIN && --cnt);
 out:
 	ep->ops->dealloc_key(mr);
@@ -442,7 +459,7 @@ int send_reset_config(struct endpoint *ep)
 
 	do {
 		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep, 0);
+		ret = process_nvme_rsp(ep, 0, NULL);
 	} while (ret == -EAGAIN && --cnt);
 out:
 
@@ -451,7 +468,6 @@ out:
 
 int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
 	int				 bytes;
@@ -470,20 +486,10 @@ int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 
 	key = ep->ops->remote_key(mr);
 
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
+	prep_admin_cmd(cmd, nvme_fabrics_command, len, data, key);
 
 	cmd->config.command_id	= cid;
 	cmd->config.fctype	= nvme_fabrics_type_resource_config_set;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(len, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
@@ -491,7 +497,7 @@ int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 
 	do {
 		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep, 0);
+		ret = process_nvme_rsp(ep, 0, NULL);
 	} while (ret == -EAGAIN && --cnt);
 out:
 
@@ -500,63 +506,54 @@ out:
 
 static int send_get_property(struct endpoint *ep, u32 reg)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	u64				*data;
 	int				 bytes;
 	int				 key;
 	int				 ret;
 
+#if 0
 	data = ep->data;
 	key = ep->ops->remote_key(ep->data_mr);
+#else
+	data = NULL;
+	key = 0;
+#endif
 
 	bytes = sizeof(*cmd);
-	memset(cmd, 0, bytes);
 
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
+	prep_admin_cmd(cmd, nvme_fabrics_command, 0, data, key);
+
 	cmd->prop_get.fctype	= nvme_fabrics_type_property_get;
 	cmd->prop_get.attrib	= 1;
 	cmd->prop_get.offset	= htole32(reg);
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	//  sg->length = 0 not sizeof(u64) - put_unaligned_le24(4, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep, 0);
+	return process_nvme_rsp(ep, 0, NULL);
 }
 
 static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	u64				*data;
 	int				 key;
 
+#if 0
 	data = ep->data;
 	key = ep->ops->remote_key(ep->data_mr);
+#else
+	data = NULL;
+	key = 0;
+#endif
 
-	memset(cmd, 0, sizeof(*cmd));
+	prep_admin_cmd(cmd, nvme_fabrics_command, 0, data, key);
 
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
 	cmd->prop_set.fctype	= nvme_fabrics_type_property_set;
 	cmd->prop_set.offset	= htole32(reg);
 	cmd->prop_set.value	= htole64(val);
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	// CAYTON HACK put_unaligned_le24(BUF_SIZE, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 }
 
 static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
@@ -570,7 +567,7 @@ static int send_set_property(struct endpoint *ep, u32 reg, u64 val)
 	if (ret)
 		return ret;
 
-	return process_nvme_rsp(ep, 0);
+	return process_nvme_rsp(ep, 0, NULL);
 }
 
 static int post_set_property(struct endpoint *ep, u32 reg, u64 val)
@@ -585,7 +582,6 @@ static int post_set_property(struct endpoint *ep, u32 reg, u64 val)
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log)
 {
-	struct nvme_keyed_sgl_desc	*sg;
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
 	u64				*data;
@@ -611,26 +607,15 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 
 	key = ep->ops->remote_key(mr);
 
-	memset(cmd, 0, BUF_SIZE);
-
 	size	= htole32((log_size / 4) - 1);
 	numdl	= size & 0xffff;
 	numdu	= (size >> 16) & 0xffff;
 
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_admin_get_log_page;
-	cmd->common.nsid	= 0;
+	prep_admin_cmd(cmd, nvme_admin_get_log_page, log_size, data, key);
 
 	cmd->get_log_page.lid	= NVME_LOG_DISC;
 	cmd->get_log_page.numdl = numdl;
 	cmd->get_log_page.numdu = numdu;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le24(log_size, sg->length);
-	put_unaligned_le32(key, sg->key);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
 
 	*log = (struct nvmf_disc_rsp_page_hdr *) data;
 
@@ -638,10 +623,99 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	if (ret)
 		free(data);
 	else
-		ret =  process_nvme_rsp(ep, 0);
+		ret = process_nvme_rsp(ep, 0, NULL);
 
 	ep->ops->dealloc_key(mr);
 
+	return ret;
+}
+
+int send_get_features(struct endpoint *ep, unsigned fid, u64 *result)
+{
+	struct nvme_command		*cmd = ep->cmd;
+	struct xp_mr			*mr;
+	u64				*data;
+	int				 bytes;
+	int				 key;
+	int				 ret;
+
+	bytes = sizeof(*cmd);
+
+#if 0
+        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+                print_err("no memory for buffer, errno %d", errno);
+                return errno;
+        }
+
+        memset(data, 0, PAGE_SIZE);
+
+	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
+	if (ret)
+		return ret;
+
+	key = ep->ops->remote_key(mr);
+#else
+	UNUSED(mr);
+	data = NULL;
+	key = 0;
+#endif
+
+	prep_admin_cmd(cmd, nvme_admin_get_features, 0, data, key);
+
+	cmd->features.fid = fid;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		goto out;
+
+	process_nvme_rsp(ep, 0, result);
+out:
+	if (data) free(data);
+	return ret;
+}
+
+int send_set_features(struct endpoint *ep, unsigned fid, unsigned dword11)
+{
+	struct nvme_command		*cmd = ep->cmd;
+	struct xp_mr			*mr;
+	u64				*data;
+	int				 bytes;
+	int				 key;
+	int				 ret;
+
+	bytes = sizeof(*cmd);
+
+#if 0
+        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
+                print_err("no memory for buffer, errno %d", errno);
+                return errno;
+        }
+
+        memset(data, 0, PAGE_SIZE);
+
+	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
+	if (ret)
+		return ret;
+
+	key = ep->ops->remote_key(mr);
+#else
+	UNUSED(mr);
+	data = NULL;
+	key = 0;
+#endif
+
+	prep_admin_cmd(cmd, nvme_admin_set_features, 0, data, key);
+
+	cmd->features.fid	= fid;
+	cmd->features.dword11 	= dword11;
+
+	ret = send_cmd(ep, cmd, bytes);
+	if (ret)
+		goto out;
+
+	process_nvme_rsp(ep, 0, NULL);
+out:
+	if (data) free(data);
 	return ret;
 }
 

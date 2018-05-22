@@ -41,96 +41,6 @@
 
 #include "common.h"
 
-// #define DEBUG_LOG_PAGES
-
-#ifdef DEBUG_LOG_PAGES
-static const char *arg_str(const char * const *strings, size_t array_size,
-			   size_t idx)
-{
-	if (idx < array_size && strings[idx])
-		return strings[idx];
-
-	return "unrecognized";
-}
-
-static const char * const trtypes[] = {
-	[NVMF_TRTYPE_RDMA]	= "rdma",
-	[NVMF_TRTYPE_FC]	= "fibre-channel",
-	[NVMF_TRTYPE_LOOP]	= "loop",
-};
-
-static const char *trtype_str(u8 trtype)
-{
-	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
-}
-
-static const char * const adrfams[] = {
-	[NVMF_ADDR_FAMILY_PCI]	= "pci",
-	[NVMF_ADDR_FAMILY_IP4]	= "ipv4",
-	[NVMF_ADDR_FAMILY_IP6]	= "ipv6",
-	[NVMF_ADDR_FAMILY_IB]	= "infiniband",
-	[NVMF_ADDR_FAMILY_FC]	= "fibre-channel",
-};
-
-static inline const char *adrfam_str(u8 adrfam)
-{
-	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
-}
-
-static const char * const subtypes[] = {
-	[NVME_NQN_DISC]		= "discovery subsystem",
-	[NVME_NQN_NVME]		= "nvme subsystem",
-};
-
-static inline const char *subtype_str(u8 subtype)
-{
-	return arg_str(subtypes, ARRAY_SIZE(subtypes),
-		       subtype);
-}
-
-static const char * const treqs[] = {
-	[NVMF_TREQ_NOT_SPECIFIED]	= "not specified",
-	[NVMF_TREQ_REQUIRED]		= "required",
-	[NVMF_TREQ_NOT_REQUIRED]	= "not required",
-};
-
-static inline const char *treq_str(u8 treq)
-{
-	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
-}
-
-static const char * const prtypes[] = {
-	[NVMF_RDMA_PRTYPE_NOT_SPECIFIED]	= "not specified",
-	[NVMF_RDMA_PRTYPE_IB]			= "infiniband",
-	[NVMF_RDMA_PRTYPE_ROCE]			= "roce",
-	[NVMF_RDMA_PRTYPE_ROCEV2]		= "roce-v2",
-	[NVMF_RDMA_PRTYPE_IWARP]		= "iwarp",
-};
-
-static inline const char *prtype_str(u8 prtype)
-{
-	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
-}
-
-static const char * const qptypes[] = {
-	[NVMF_RDMA_QPTYPE_CONNECTED]	= "connected",
-	[NVMF_RDMA_QPTYPE_DATAGRAM]	= "datagram",
-};
-
-static inline const char *qptype_str(u8 qptype)
-{
-	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);	}
-
-static const char * const cms[] = {
-	[NVMF_RDMA_CMS_RDMA_CM] = "rdma-cm",
-};
-
-static const char *cms_str(u8 cm)
-{
-	return arg_str(cms, ARRAY_SIZE(cms), cm);
-}
-#endif
-
 int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 		 u32 *numrec)
 {
@@ -160,7 +70,7 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 		return -ENODATA;
 	}
 
-#ifdef DEBUG_LOG_PAGES
+#ifdef DEBUG_LOG_PAGES_VERBOSE
 	print_debug("number of records to fetch is %d", *numrec);
 #endif
 
@@ -190,33 +100,37 @@ void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 	int				 i;
 	struct nvmf_disc_rsp_page_entry *e;
 
+#ifdef DEBUG_LOG_PAGES_VERBOSE
 	print_debug("%s %d, %s %" PRIu64,
 		    "Discovery Log Number of Records", numrec,
 		    "Generation counter", (uint64_t) le64toh(log->genctr));
+#endif
 
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];
 
-		print_debug("=====Discovery Log Entry %d======", i);
-		print_debug("trtype:  %s", trtype_str(e->trtype));
-		print_debug("adrfam:  %s", adrfam_str(e->adrfam));
-		print_debug("subtype: %s", subtype_str(e->subtype));
-		print_debug("treq:    %s", treq_str(e->treq));
-		print_debug("portid:  %d", e->portid);
-		print_debug("trsvcid: %s", e->trsvcid);
-		print_debug("subnqn:  %s", e->subnqn);
-		print_debug("traddr:  %s", e->traddr);
+#ifdef DEBUG_LOG_PAGES_VERBOSE
+		print_info("=====Discovery Log Entry %d======", i);
+#endif
+		print_info("trtype:  %s", trtype_str(e->trtype));
+		print_info("adrfam:  %s", adrfam_str(e->adrfam));
+		print_info("subtype: %s", subtype_str(e->subtype));
+		print_info("treq:    %s", treq_str(e->treq));
+		print_info("portid:  %d", e->portid);
+		print_info("trsvcid: %s", e->trsvcid);
+		print_info("subnqn:  %s", e->subnqn);
+		print_info("traddr:  %s", e->traddr);
 
 		switch (e->trtype) {
 		case NVMF_TRTYPE_RDMA:
-			print_debug("rdma_prtype: %s",
-				    prtype_str(e->tsas.rdma.prtype));
-			print_debug("rdma_qptype: %s",
-				    qptype_str(e->tsas.rdma.qptype));
-			print_debug("rdma_cms:    %s",
-				    cms_str(e->tsas.rdma.cms));
-			print_debug("rdma_pkey: 0x%04x",
-				    e->tsas.rdma.pkey);
+			print_info("rdma_prtype: %s",
+				   prtype_str(e->tsas.rdma.prtype));
+			print_info("rdma_qptype: %s",
+				   qptype_str(e->tsas.rdma.qptype));
+			print_info("rdma_cms:    %s",
+				   cms_str(e->tsas.rdma.cms));
+			print_info("rdma_pkey: 0x%04x",
+				   e->tsas.rdma.pkey);
 			break;
 		}
 	}

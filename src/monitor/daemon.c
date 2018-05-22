@@ -46,7 +46,7 @@
 static int			 run_as_daemon;
 int				 stopped;
 static int			 signalled;
-static int			 debug;
+int				 debug;
 static struct ctrl_queue	 discovery_queue;
 static const char		*dc_str = "Discovery controller";
 
@@ -336,28 +336,6 @@ out:
 	return 1;
 }
 
-static int validate_usage(void)
-{
-	FILE			*fd;
-
-	if (getuid() != 0) {
-		print_info("must be root to allow access to %s",
-			   NVME_FABRICS_DEV);
-		goto out;
-	}
-
-	fd = fopen(NVME_FABRICS_DEV, "r");
-	if (!fd) {
-		print_info("nvme-fabrics kernel module must be loaded");
-		goto out;
-	}
-	fclose(fd);
-
-	return 0;
-out:
-	return 1;
-}
-
 static inline void invalidate_log_pages(struct target *target)
 {
 	struct subsystem		*subsys;
@@ -460,114 +438,34 @@ static int fetch_log_pages(struct ctrl_queue *dq)
 
 	save_log_pages(log, num_records, target, dq);
 
-	print_discovery_log(log, num_records);
-
 	free(log);
 
 	return 0;
 }
 
-static void mark_connected_subsystems(struct ctrl_queue *dq)
+static void print_log_pages(struct ctrl_queue *dq)
 {
 	struct subsystem	*subsys;
 	struct logpage		*logpage;
-	struct dirent		*entry;
-	DIR			*dir;
-	FILE			*fd;
-	char			 path[FILENAME_MAX + 1];
-	char			 val[MAX_NQN_SIZE + 1];
-	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	char			*port;
-	char			*addr;
-	int			 pos;
+	struct nvmf_disc_rsp_page_hdr	*log;
+	int			bytes = sizeof(*log) + sizeof(logpage->e);
 
-	list_for_each_entry(subsys, &dq->target->subsys_list, node) {
-		list_for_each_entry(logpage, &subsys->logpage_list, node)
-			logpage->connected = 0;
+	log = malloc(bytes);
+	if (!log)
+		return; 
 
-		dir = opendir(SYS_CLASS_PATH);
-
-		for_each_dir(entry, dir) {
-			if (strncmp(entry->d_name, "nvme", 4))
-				continue;
-
-			pos = sprintf(path, "%s/%s/",
-				      SYS_CLASS_PATH, entry->d_name);
-
-			strcpy(path + pos, SYS_CLASS_SUBNQN_FILE);
-			fd = fopen(path, "r");
-			fgets(val, sizeof(val), fd);
-			fclose(fd);
-			*strchrnul(val, '\n') = 0;
-			if (strcmp(subsys->nqn, val))
-				continue;
-
-			strcpy(path + pos, SYS_CLASS_ADDR_FILE);
-			fd = fopen(path, "r");
-			fgets(address, sizeof(address), fd);
-			fclose(fd);
-			*strchrnul(address, '\n') = 0;
-
-			strcpy(path + pos, SYS_CLASS_TRTYPE_FILE);
-			fd = fopen(path, "r");
-			fgets(val, sizeof(val), fd);
-			fclose(fd);
-			*strchrnul(val, '\n') = 0;
-
-			addr = index(address, '=') + 1;
-			port = index(addr, ',');
-			*port++ = 0;
-			port = index(port, '=') + 1;
-
-			list_for_each_entry(logpage, &subsys->logpage_list,
-					    node) {
-				if (strcmp(trtype_str(logpage->e.trtype), val))
-					continue;
-				if (strcmp(logpage->e.traddr, addr))
-					continue;
-				if (strcmp(logpage->e.trsvcid, port))
-					continue;
-				if (logpage->valid) {
-					logpage->connected = 1;
-					print_debug("subsys %s already %s",
-						   subsys->nqn, entry->d_name);
-				} else {
-					list_del(&logpage->node);
-					print_debug("subsys %s removed",
-						   subsys->nqn);
-				}
-					
-				break;
-			}
-		}
-
-		closedir(dir);
-	}
-}
-
-static void connect_one_subsystem(struct ctrl_queue *dq)
-{
-	struct subsystem	*subsys;
-	struct logpage		*logpage;
-	FILE			*fd;
+	memset(log, 0, bytes);
 
 	list_for_each_entry(subsys, &dq->target->subsys_list, node) {
 		list_for_each_entry(logpage, &subsys->logpage_list, node) {
-			if (logpage->connected)
-				continue;
-			fd = fopen(PATH_NVME_FABRICS, "w");
-			fprintf(fd, NVME_FABRICS_FMT,
-				trtype_str(logpage->e.trtype),
-				logpage->e.traddr, logpage->e.trsvcid,
-				subsys->nqn, dq->hostnqn);
-			fclose(fd);
-
-			logpage->connected = 1;
-
-			print_info("subsys %s connected", subsys->nqn);
-			return;
+			log->entries[0] = logpage->e;
+			print_info("subsys %s", subsys->nqn);
+			print_info("---------------------------------");
+			print_discovery_log(log, 1);
 		}
 	}
+
+	free(log);
 }
 
 static void enable_aens(struct ctrl_queue *dq)
@@ -607,7 +505,12 @@ static inline void complete_connection(struct ctrl_queue *dq)
 		enable_aens(dq);
 
 	if (fetch_log_pages(dq) == 0)
-		mark_connected_subsystems(dq);
+		print_log_pages(dq);
+
+	if (dq->failed_kato) {
+		disconnect_ctrl(dq, 0);
+		dq->connected = DISCONNECTED;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -628,9 +531,6 @@ int main(int argc, char *argv[])
 		goto out;
 	}
 
-	if (validate_usage())
-		goto out;
-
 	signalled = stopped = 0;
 
 	signal(SIGINT, signal_handler);
@@ -649,8 +549,12 @@ int main(int argc, char *argv[])
 	while (!stopped) {
 		if (!dq->connected) {
 			usleep(DELAY);
+
+			if (dq->failed_kato)
+				if (++cnt < KEEP_ALIVE_COUNTER)
+					continue;
+			cnt = 0;
 			if (!connect_ctrl(dq)) {
-				cnt = 0;
 				complete_connection(dq);
 
 				if (stopped)
@@ -663,7 +567,7 @@ int main(int argc, char *argv[])
 				send_async_event_request(&dq->ep);
 				if (fetch_log_pages(dq))
 					continue;
-				mark_connected_subsystems(dq);
+				print_log_pages(dq);
 			}
 			if (++cnt > KEEP_ALIVE_COUNTER) {
 				cnt = 0;
@@ -679,8 +583,6 @@ int main(int argc, char *argv[])
 		}
 		if (stopped)
 			goto cleanup;
-
-		connect_one_subsystem(dq);
 	}
 
 cleanup:

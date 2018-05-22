@@ -197,12 +197,17 @@ void disconnect_endpoint(struct endpoint *ep, int shutdown);
 
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
+int send_get_features(struct endpoint *ep, unsigned fid, u64 *result);
+int send_set_features(struct endpoint *ep, unsigned fid, unsigned dword11);
+int send_async_event_request(struct endpoint *ep);
 int send_keep_alive(struct endpoint *ep);
 int send_reset_config(struct endpoint *ep);
 int send_set_config(struct endpoint *ep, int cid, int len, void *data);
 int send_get_config(struct endpoint *ep, int cid, int len, void **data);
 
 int send_del_target(struct target *target);
+
+int process_nvme_rsp(struct endpoint *ep, int ignore_status, u64 *result);
 
 void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec);
 int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
