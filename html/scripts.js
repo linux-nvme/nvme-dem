@@ -18,6 +18,8 @@ function showContacts() {
   $("#detailPage").hide();
   $("#objectType").html("");
   $("#objectValue").html("");
+  $("#iflist").html("");
+  $("#nslist").html("");
 }
 function showSettings() {
   var str = "";
@@ -61,6 +63,8 @@ function showSettings() {
   $("#settingsPage").html(str);
   $("#settingsPage").show();
   $("#olduser").focus();
+  $("#iflist").html("");
+  $("#nslist").html("");
 }
 function showContents(page) {
   clearLogin();
@@ -74,6 +78,8 @@ function showContents(page) {
   $("#detailPage").hide();
   $("#objectType").html(page);
   $("#objectValue").html("");
+  $("#iflist").html("");
+  $("#nslist").html("");
   loadDoc(page);
 }
 function showList(page) {
@@ -94,6 +100,8 @@ function showList(page) {
   $("#objectValue").html("");
   $("#args").html("");
   $("#parentargs").html("");
+  $("#iflist").html("");
+  $("#nslist").html("");
   if (page != undefined) {
     $("#objectType").html(page);
     loadDoc(page);
@@ -516,6 +524,21 @@ function formPort(svc, label, tag) {
   return "<p>" + label + ": <input id='" + tag + "' type='number' min='0'" +
          " value='" + svc + "'></input></p>";
 }
+function formIFList(typ, fam, adr, iflist) {
+  var array = iflist.split(";");
+  var str = "<select id='iflst' style='width:auto'>";
+  var fields;
+  $.each(array, function(index, value) {
+    fields = value.split(" ");
+    str += "<option value='" + value + "'";
+    if (typ == fields[1] && fam == fields[2] && adr == fields[3])
+      str += " selected";
+    str += ">" + fields[0] + ": " + fields[1] + " " + fields[2];
+    str += " " + fields[3] + "</option>";
+  });
+  str += "</select>";
+  return str;
+}
 function formPortID(sub) {
   var str = "<p class='header'>";
   var args = $("#args").html().trim().split(" ");
@@ -523,6 +546,7 @@ function formPortID(sub) {
   var fam = args[1];
   var adr = args[2];
   var svc = args[3];
+  var iflist = $("#iflist").html();
 
   if (sub == undefined) {
     sub = ""; typ = ""; fam = ""; adr = ""; svc = "";
@@ -532,13 +556,18 @@ function formPortID(sub) {
     str += "Add a Port to "
   else
     str += "Update Port ID " + sub + " on ";
-  str += " Target '" + $("#objectValue").html() + "'";
 
+  str += " Target '" + $("#objectValue").html() + "'";
   str += "<p>Port ID: <input id='portid' type='number' min='1'" +
          " value='" + sub + "'></input></p>";
-  str += formType(typ, "TRTYPE", "typ");
-  str += formFamily(fam, "ADRFAM", "fam");
-  str += formAddress(adr, "TRADDR", "adr");
+
+  if (iflist == "") {
+    str += formType(typ, "TRTYPE", "typ");
+    str += formFamily(fam, "ADRFAM", "fam");
+    str += formAddress(adr, "TRADDR", "adr");
+  } else
+    str += "<p>Interface: " + formIFList(typ, fam, adr, iflist) + "</p>";
+
   str += formPort(svc, "TRSVCID", "svc");
 
   return str;
@@ -565,11 +594,28 @@ function formTransport(sub) {
   str += formAddress(fam, "TRADDR", "adr");
   return str;
 }
+function formNSList(devid, devns, nslist) {
+  var array = nslist.split(";");
+  var str = "<select id='nslst' style='width:auto'>";
+  var fields;
+  $.each(array, function(index, value) {
+    fields = value.split(" ");
+    str += "<option value='" + value + "'";
+    if (devid == fields[1] && (devid == -1 || devns == fields[2]))
+      str += " selected";
+    str += ">" + fields[0] + ": Device: ID " + fields[1];
+    if (fields[1] != -1) str += " NSID " + fields[2];
+    str += "</option>";
+  });
+  str += "</select>";
+  return str;
+}
 function formNSID(sub,val) {
   var str = "<p class='header'>";
   var args = $("#args").html().trim().split(",");
   var devid = "";
   var devnsid = "";
+  var nslist = $("#nslist").html();
   if (val == undefined)
     val = "";
   else {
@@ -588,15 +634,20 @@ function formNSID(sub,val) {
 
   str += "<p>NS ID: <input id='nsid' type='number'" +
          " value='" + val + "' min='1'></input></p>";
-  str += "<p>Device ID: <input id='devid' type='number'" +
-         " value='" + devid + "' min='-1'></input>" +
-         "<span class='units'><font class='hilite1'>" +
-         "X</font> of /dev/nvme<font class='hilite1'>X</font>nY " +
-         " or -1 for /dev/nullb0</span></p>";
-  str += "<p>Device NS ID: <input id='devnsid' type='number'" +
-         " value='" + devnsid + "'min='1'></input>" +
-         "<span class='units'><font class='hilite2'>Y</font> of " +
-         "/dev/nvmeXn<font class='hilite2'>Y</font> - ignored for /dev/nullb0";
+  if (nslist == "") {
+    str += "<p>Device ID: <input id='devid' type='number'" +
+           " value='" + devid + "' min='-1'></input>" +
+           "<span class='units'><font class='hilite1'>" +
+           "X</font> of /dev/nvme<font class='hilite1'>X</font>nY " +
+           " or -1 for /dev/nullb0</span></p>";
+    str += "<p>Device NS ID: <input id='devnsid' type='number'" +
+           " value='" + devnsid + "'min='1'></input>" +
+           "<span class='units'><font class='hilite2'>Y</font> of " +
+           "/dev/nvmeXn<font class='hilite2'>Y</font> - ignored for " + 
+           "/dev/nullb0</span></p>";
+  } else
+    str += "<p>NS Device:" + formNSList(devid, devnsid, nslist) + "</p>";
+
   return str;
 }
 
@@ -908,7 +959,7 @@ function parseInterface(obj, itemA) {
     if (fam != "") str += " " + fam;
     if (adr != "") str += " " + adr;
     if (port != "") str += ":" + port;
-    str += "</p>" ;
+    str += "</p>";
   }
 
   args += "," + typ + "," + fam + "," + adr + "," + port;
@@ -924,6 +975,7 @@ function parseInterfaces(obj, itemA, itemB) {
   var adr = "";
   var svc = "";
   var str = "";
+  var lst = "";
   listC.forEach(function(itemC) {
     var listD = obj[itemA][itemB][itemC];
     if (itemC == "TRTYPE")
@@ -936,7 +988,12 @@ function parseInterfaces(obj, itemA, itemB) {
       svc = ":" + listD;
     });
   str += '<p class="data">';
-  str += itemB + ":&nbsp; " + typ + fam + adr + svc + "</p>" ;
+  str += itemB + ":&nbsp;" + typ + fam + adr + svc + "</p>";
+
+  lst = $("#iflist").html();
+  if (lst != "") lst += ";";
+  lst += itemB + typ + fam + adr;
+  $("#iflist").html(lst);
 
   return str;
 }
@@ -963,17 +1020,17 @@ function parseSubsystems(obj, itemA, itemB) {
 
   ref = "'" + nqn + "'";
 
-  str += '<h5>Subsystem NQN: ' + nqn + " &nbsp; " ;
+  str += '<h5>Subsystem NQN: ' + nqn + " &nbsp; ";
   str += '<span class="subtext">';
   if (allowany)
-      str += "(Allow Any Host) &nbsp; " ;
+      str += "(Allow Any Host) &nbsp; ";
   else
-      str += "(Restricted to 'Allowed Hosts') &nbsp; " ;
+      str += "(Restricted to 'Allowed Hosts') &nbsp; ";
   str += '<img src="pencil.png" alt="edit" title="edit" class="icon" onclick="saveVal(';
   str += "'" + allowany + "'" + '); loadEdit(' + ref + ')">&nbsp; ';
   str += '<img src="trash.png" alt="del" title="delete" class="icon" onclick="loadDel(';
   str += ref + ')">';
-  str += '</span></h5>' ;
+  str += '</span></h5>';
 
   str += '<div class="details"><br>';
   if ($("#parentargs").html().indexOf("Local") < 0) {
@@ -1100,15 +1157,16 @@ function parseNSDevs(obj, itemA, itemB) {
   var devid = "";
   var devns = "";
   var nsdev = undefined;
+  var lst = "";
   listC.forEach(function(itemC){
     if (itemC == "NSID")
-      id = obj[itemA][itemB][itemC] + ":&nbsp; ";
+      id = obj[itemA][itemB][itemC];
     else if (itemC == "DeviceID")
       devid = obj[itemA][itemB][itemC]
     else if (itemC == "DeviceNSID")
-      devns = " &nbsp; NSID " + obj[itemA][itemB][itemC]
+      devns = obj[itemA][itemB][itemC]
     else if (itemC == "NSDEV")
-      nsdev = " " + obj[itemA][itemB][itemC]
+      nsdev = obj[itemA][itemB][itemC]
   });
 
   str += '<p class="data">';
@@ -1116,16 +1174,21 @@ function parseNSDevs(obj, itemA, itemB) {
   if (devid == "-1")
     devns = "";
 
-  devid = "Device:&nbsp; ID " + devid;
-
   if (nsdev != undefined)
     str += nsdev;
-  if (id != undefined)
-    str += id + devid + devns;
-  else
-    str += itemB + ":&nbsp;" + devid + devns;
+  if (id == undefined)
+    id = itemB;
+
+  str += id + ":&nbsp; Device:&nbsp; ID " + devid;
+  if (devns != "")
+    str += "&nbsp; NSID "  + devns;
 
   str += "</p>";
+
+  lst = $("#nslist").html();
+  if (lst != "") lst += ";";
+  lst += id + " " + devid + " " + devns;
+  $("#nslist").html(lst);
 
   return str;
 }
@@ -1315,6 +1378,9 @@ function parseJSON(json, object) {
   var str = "";
   var obj = jQuery.parseJSON(json);
   var listA = Object.keys(obj).sort(customSort);
+
+  $("#iflist").html("");
+  $("#nslist").html("");
 
   listA.forEach(function(itemA) {
     if (itemA == "Alias" || itemA == "Name")
@@ -1659,12 +1725,12 @@ function validateForm() {
       str += " Family when Fabric is not Fiber Channel.";
       if (badfield == undefined) badfield = field;
     }
-    if ($("#svc").is(":visible") && $("#svc").val() == "") {
-      field = $("#svc");
-      str += "<p>Invalid Transport Service ID."
-      str += " Please specify the transport service ID to use.";
-      if (badfield == undefined) badfield = field;
-    }
+  }
+  if ($("#svc").is(":visible") && $("#svc").val() == "") {
+    field = $("#svc");
+    str += "<p>Invalid Transport Service ID."
+    str += " Please specify the transport service ID to use.";
+    if (badfield == undefined) badfield = field;
   }
   if ($("#subnqn").is(":visible")) {
     field = $("#subnqn");
@@ -1791,7 +1857,20 @@ function buildJSON(url) {
     str += '"NSID":' + $("#nsid").val() + ',' +
            '"DeviceID":' + $("#devid").val() + ',' +
            '"DeviceNSID":' + $("#devnsid").val();
-  else if ($("#portid").length)
+  else if ($("#nslst").length) {
+    var value = $("#nslst").val();
+    var fields = value.split(" ");
+    str += '"NSID":' + $("#nsid").val() + ',' + '"DeviceID":' + fields[1];
+    if (fields[1] != -1) str += ',' + '"DeviceNSID":' + fields[2];
+  } else if ($("#iflst").length) {
+    var value = $("#iflst").val();
+    var fields = value.split(" ");
+    str += '"PORTID":' + $("#portid").val() + ',' +
+           '"TRTYPE":"' + fields[1] + '",' +
+           '"ADRFAM":"' + fields[2] + '",' +
+           '"TRADDR":"' + fields[3] + '",' +
+           '"TRSVCID":' + $("#svc").val();
+  } else if ($("#portid").length)
     str += '"PORTID":' + $("#portid").val() + ',' +
            '"TRTYPE":"' + $("#typ").val() + '",' +
            '"ADRFAM":"' + $("#fam").val() + '",' +
