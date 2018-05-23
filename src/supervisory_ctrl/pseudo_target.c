@@ -98,8 +98,8 @@ static int handle_property_get(struct nvme_command *cmd,
 
 static int handle_set_features(struct nvme_command *cmd, u32 *kato)
 {
-	u32			cdw10 = ntohl(cmd->common.cdw10[0]);
-	int			ret;
+	u32			 cdw10 = ntohl(cmd->common.cdw10[0]);
+	int			 ret;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_type_set_features");
@@ -117,7 +117,7 @@ static int handle_set_features(struct nvme_command *cmd, u32 *kato)
 static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 {
 	struct nvmf_connect_data *data = ep->data;
-	int			  ret;
+	int			 ret;
 
 #ifdef DEBUG_COMMANDS
 	print_debug("nvme_fabrics_connect");

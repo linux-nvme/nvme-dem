@@ -95,20 +95,79 @@ static int handle_property_get(struct nvme_command *cmd,
 	return 0;
 }
 
-static int handle_set_features(struct nvme_command *cmd, u32 *kato)
+static int handle_get_features(struct nvme_command *cmd,
+			       struct nvme_completion *resp,
+			       struct host_conn *host)
 {
-	u32			cdw10 = ntohl(cmd->common.cdw10[0]);
-	int			ret;
+	u32			cdw10 = le32toh(cmd->common.cdw10[0]);
+	u32			cdw11;
+	int			ret = 0;
 
 #ifdef DEBUG_COMMANDS
-	print_debug("nvme_fabrics_type_set_features");
+	print_debug("nvme_admin_get_features");
 #endif
 
-	if ((cdw10 & 0xff) == *kato) {
-		*kato = ntohl(cmd->common.cdw10[1]);
-		ret = 0;
-	} else
+	switch (cdw10 & 0xff) {
+	case NVME_FEAT_ASYNC_EVENT:
+		cdw11 = NVME_AER_NOTICE_LOG_PAGE_CHANGE;
+		break;
+	case NVME_FEAT_KATO:
+		cdw11 = host->kato;
+		break;
+	default:
 		ret = NVME_SC_INVALID_FIELD;
+	}
+
+	if (!ret)
+		resp->result.U64 = htole64(cdw11);
+
+	return ret;
+}
+
+static int handle_set_features(struct nvme_command *cmd, struct host_conn *host)
+{
+	u32			cdw10 = le32toh(cmd->common.cdw10[0]);
+	u32			kato;
+	int			ret = 0;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_admin_set_features");
+#endif
+
+	switch (cdw10 & 0xff) {
+	case NVME_FEAT_ASYNC_EVENT:
+		break;
+	case NVME_FEAT_KATO:
+		kato = le32toh(cmd->common.cdw10[1]);
+		host->kato = kato * (KATO_INTERVAL / DELAY_TIMEOUT);
+		break;
+	default:
+		ret = NVME_SC_INVALID_FIELD;
+	}
+
+	return ret;
+}
+
+static int handle_async_event(struct host_conn *host)
+{
+	int			ret = 0;
+
+#ifdef DEBUG_COMMANDS
+	print_debug("nvme_admin_async_event (request)");
+#endif
+
+	struct event_notification *entry;
+
+	entry = malloc(sizeof(*entry));
+	if (!entry)
+		return -ENOMEM;
+
+	memset(entry, 0, sizeof(*entry));
+
+	strcpy(entry->nqn, host->ep->nqn);
+	entry->ep = host->ep;
+
+	list_add_tail(&entry->node, aen_req_list);
 
 	return ret;
 }
@@ -303,7 +362,6 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	u64				 addr;
 	u32				 len;
 	u32				 key;
-	u32				 kato;
 	int				 ret;
 
 	addr	= c->dptr.ksgl.addr;
@@ -320,7 +378,8 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	UNUSED(length);
 #endif
 
-	if (cmd->common.opcode == nvme_fabrics_command) {
+	switch (cmd->common.opcode) {
+	case nvme_fabrics_command:
 		switch (cmd->fabrics.fctype) {
 		case nvme_fabrics_type_property_set:
 			ret = handle_property_set(cmd, &ep->csts);
@@ -335,22 +394,29 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = NVME_SC_INVALID_OPCODE;
 		}
-	} else if (cmd->common.opcode == nvme_admin_identify)
+		break;
+	case nvme_admin_identify:
 		ret = handle_identify(ep, cmd, addr, key, len);
-	else if (cmd->common.opcode == nvme_admin_keep_alive)
+		break;
+	case nvme_admin_keep_alive:
 		ret = 0;
-	else if (cmd->common.opcode == nvme_admin_get_log_page) {
+		break;
+	case nvme_admin_get_log_page:
 		if (len == 16)
 			ret = handle_get_log_page_count(ep, addr, key, len);
 		else
 			ret = handle_get_log_pages(ep, addr, key, len);
-	} else if (cmd->common.opcode == nvme_admin_set_features) {
-		ret = handle_set_features(cmd, &kato);
-		if (ret)
-			ret = NVME_SC_INVALID_FIELD;
-		else
-			host->kato = kato * (KATO_INTERVAL / DELAY_TIMEOUT);
-	} else {
+		break;
+	case nvme_admin_get_features:
+		ret = handle_get_features(cmd, resp, host);
+		break;
+	case nvme_admin_set_features:
+		ret = handle_set_features(cmd, host);
+		break;
+	case nvme_admin_async_event:
+		ret = handle_async_event(host);
+		break;
+	default:
 		print_err("unknown nvme opcode %d", cmd->common.opcode);
 		ret = NVME_SC_INVALID_OPCODE;
 	}

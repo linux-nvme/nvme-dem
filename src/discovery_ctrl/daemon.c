@@ -52,6 +52,7 @@
 static LIST_HEAD(target_list_head);
 static LIST_HEAD(group_list_head);
 static LIST_HEAD(host_list_head);
+static LIST_HEAD(aen_list_head);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_HTTP_PORT;
@@ -63,6 +64,7 @@ int					 num_interfaces;
 struct list_head			*target_list = &target_list_head;
 struct list_head			*group_list = &group_list_head;
 struct list_head			*host_list = &host_list_head;
+struct list_head			*aen_req_list = &aen_list_head;
 static pthread_t			*listen_threads;
 static int				 signalled;
 

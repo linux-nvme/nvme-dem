@@ -114,9 +114,8 @@ static inline struct group *find_group(char *name)
 	return NULL;
 }
 
-static inline
-struct group_target_link *find_group_target(struct group *group,
-					    struct target *target)
+static inline struct group_target_link *find_group_target(struct group *group,
+							  struct target *target)
 {
 	struct group_target_link *link;
 
@@ -126,8 +125,8 @@ struct group_target_link *find_group_target(struct group *group,
 	return NULL;
 }
 
-static inline
-struct group_host_link *find_group_host(struct group *group, char *nqn)
+static inline struct group_host_link *find_group_host(struct group *group,
+						      char *nqn)
 {
 	struct group_host_link *link;
 
@@ -135,6 +134,213 @@ struct group_host_link *find_group_host(struct group *group, char *nqn)
 		if (link->group == group && !strcmp(link->nqn, nqn))
 			return link;
 	return NULL;
+}
+
+/* notification functions */
+
+static inline int send_notifications(struct list_head *list)
+{
+	struct event_notification *entry, *next;
+	struct endpoint		*ep;
+	struct nvme_completion	*resp;
+
+	list_for_each_entry_safe(entry, next, list, node) {
+		ep = entry->ep;
+		resp = (void *) ep->cmd;
+
+		memset(resp, 0, sizeof(*resp));
+
+		resp->result.U32 = NVME_AER_NOTICE_LOG_PAGE_CHANGE;
+
+		ep->ops->send_msg(ep->ep, resp, sizeof(*resp), ep->mr);
+
+		list_del(&entry->req->node);
+		free(entry->req);
+		list_del(&entry->node);
+		free(entry);
+	}
+
+	return 0;
+}
+
+static inline int in_notification_list(struct list_head *list, char *nqn)
+{
+	struct event_notification *entry;
+
+	list_for_each_entry(entry, list, node)
+		if (!strcmp(nqn, entry->nqn))
+			return 1;
+
+	return 0;
+}
+
+static inline void create_notification_entry(struct list_head *list,
+					     struct event_notification *req)
+{
+	struct event_notification *entry;
+
+	entry = malloc(sizeof(*entry));
+	if (!entry)
+		return;
+
+	memset(entry, 0, sizeof(*entry));
+
+	strcpy(entry->nqn, req->nqn);
+	entry->ep = req->ep;
+	entry->req = req;
+
+	list_add_tail(&entry->node, list);
+}
+
+static inline void create_notification_list(struct list_head *list)
+{
+	struct event_notification *req;
+
+	INIT_LIST_HEAD(list);
+
+	list_for_each_entry(req, aen_req_list, node)
+		if (!in_notification_list(list, req->nqn))
+			create_notification_entry(list, req);
+}
+
+static inline int any_subsys_unrestricted(struct target *target)
+{
+	struct subsystem	*subsys;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		if (subsys->access)
+			return 1;
+	return 0;
+}
+
+static inline void flag_by_group_hosts(struct group *group,
+				       struct list_head *list)
+{
+	struct event_notification *entry;
+	struct group_host_link	*host;
+
+	list_for_each_entry(entry, list, node)
+		list_for_each_entry(host, host_list, node) {
+			if ((host->group == group) &&
+			    (strcmp(host->nqn, entry->nqn))) {
+				entry->valid = 1;
+				break;
+			}
+		}
+}
+
+static inline void flag_by_access_list(struct subsystem *subsys,
+				       struct list_head *list)
+{
+	struct event_notification *entry;
+	struct host		*host;
+
+	list_for_each_entry(entry, list, node)
+		list_for_each_entry(host, &subsys->host_list, node) {
+			if (strcmp(host->nqn, entry->nqn)) {
+				entry->valid = 1;
+				break;
+			}
+		}
+}
+
+static inline void prune_notification_list(struct list_head *list)
+{
+	struct event_notification *entry, *next;
+
+	list_for_each_entry_safe(entry, next, list, node)
+		if (!entry->valid)
+			list_del(&entry->node);
+}
+
+static inline void enable_entire_list(struct list_head *list)
+{
+	struct event_notification *entry;
+
+	list_for_each_entry(entry, list, node)
+		entry->valid = 1;
+}
+
+static inline void create_event_host_list_for_subsys(struct list_head *list,
+						     struct subsystem *subsys)
+{
+	create_notification_list(list);
+
+	if (list_empty(list))
+		return;
+
+	if (subsys->access) {
+		enable_entire_list(list);
+		return;
+	}
+
+	flag_by_access_list(subsys, list);
+
+	prune_notification_list(list);
+}
+
+static inline void create_event_host_list_for_group(struct list_head *list,
+						    struct group *group,
+						    struct target *target)
+{
+	struct subsystem	*subsys;
+
+	create_notification_list(list);
+
+	if (list_empty(list))
+		return;
+
+	flag_by_group_hosts(group, list);
+
+	prune_notification_list(list);
+
+	if (list_empty(list))
+		return;
+
+	if (any_subsys_unrestricted(target)) {
+		enable_entire_list(list);
+		return;
+	}
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		flag_by_access_list(subsys, list);
+
+	prune_notification_list(list);
+}
+
+static inline void create_event_host_list_for_target(struct list_head *list,
+						     struct target *target)
+{
+	struct subsystem	*subsys;
+
+	create_notification_list(list);
+
+	if (list_empty(list))
+		return;
+
+	if (any_subsys_unrestricted(target)) {
+		enable_entire_list(list);
+		return;
+	}
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		flag_by_access_list(subsys, list);
+
+	prune_notification_list(list);
+}
+
+static inline void create_event_host_list_for_host(struct list_head *list,
+						   char *nqn)
+{
+	struct event_notification *req;
+
+	INIT_LIST_HEAD(list);
+
+	list_for_each_entry(req, aen_req_list, node)
+		if (!strcmp(nqn, req->nqn)) {
+			create_notification_entry(list, req);
+			break;
+		}
 }
 
 /* config functions that are not send to the target */
@@ -220,6 +426,7 @@ void add_target_to_group(struct group *group, char *alias)
 {
 	struct target		*target;
 	struct group_target_link *link;
+	struct list_head	 list;
 
 	target = find_target(alias);
 
@@ -231,6 +438,9 @@ void add_target_to_group(struct group *group, char *alias)
 	target->group_member = true;
 
 	list_add_tail(&link->node, &group->target_list);
+
+	create_event_host_list_for_group(&list, group, target);
+	send_notifications(&list);
 }
 
 int set_group_member(char *name, char *data, char *alias, char *tag,
@@ -271,6 +481,7 @@ static inline void del_target_from_group(struct group *group, char *alias)
 {
 	struct target		*target;
 	struct group_target_link *link;
+	struct list_head	 list;
 
 	target = find_target(alias);
 	if (!target)
@@ -289,6 +500,9 @@ static inline void del_target_from_group(struct group *group, char *alias)
 				return;
 
 	target->group_member = false;
+
+	create_event_host_list_for_group(&list, group, target);
+	send_notifications(&list);
 }
 
 int del_group_member(char *name, char *alias, char *tag, char *parent_tag,
@@ -1174,6 +1388,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
+	struct list_head	 list;
 	char			 newalias[MAX_ALIAS_SIZE + 1];
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
@@ -1221,6 +1436,9 @@ skip_unlink:
 		sprintf(resp, CONFIG_ERR);
 
 	list_add_tail(&host->node, &subsys->host_list);
+
+	create_event_host_list_for_host(&list, hostnqn);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -1230,6 +1448,7 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
+	struct list_head	 list;
 	int			 ret;
 
 	ret = del_json_acl(tgt, subnqn, alias, resp);
@@ -1258,6 +1477,9 @@ found:
 				goto out;
 
 	_del_host(target, alias);
+
+	create_event_host_list_for_host(&list, host->nqn);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -1426,6 +1648,7 @@ int del_subsys(char *alias, char *nqn, char *resp)
 {
 	struct subsystem	*subsys;
 	struct target		*target;
+	struct list_head	 list;
 	int			 ret;
 
 	ret = del_json_subsys(alias, nqn, resp);
@@ -1443,6 +1666,9 @@ int del_subsys(char *alias, char *nqn, char *resp)
 	ret = _del_subsys(subsys);
 
 	list_del(&subsys->node);
+
+	create_event_host_list_for_subsys(&list, subsys);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -1512,6 +1738,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	struct subsystem	*subsys;
 	struct subsystem	 new_ss;
 	struct portid		*portid;
+	struct list_head	 list;
 	int			 len;
 	int			 ret;
 
@@ -1566,6 +1793,9 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 	list_for_each_entry(portid, &target->portid_list, node)
 		create_discovery_queue(subsys, portid);
+
+	create_event_host_list_for_subsys(&list, subsys);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -1668,8 +1898,8 @@ out:
 
 static int config_portid_oob(struct target *target, struct portid *portid)
 {
-	int			ret;
-	char			buf[MAX_BODY_SIZE];
+	int			 ret;
+	char			 buf[MAX_BODY_SIZE];
 
 	build_set_port_oob(portid, buf, sizeof(buf));
 
@@ -1682,7 +1912,7 @@ static int config_portid_oob(struct target *target, struct portid *portid)
 
 static inline int _config_portid(struct target *target, struct portid *portid)
 {
-	int			ret = 0;
+	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = config_portid_inb(target, portid);
@@ -1938,11 +2168,6 @@ out:
 
 /* TARGET */
 
-static void notify_hosts(void)
-{
-	/* TODO AEN: Walk list of interested hosts and update them */
-}
-
 static int get_oob_nsdevs(struct target *target)
 {
 	char			*data;
@@ -2161,6 +2386,7 @@ int del_target(char *alias, char *resp)
 	struct subsystem	*subsys;
 	struct portid		*portid;
 	struct host		*host;
+	struct list_head	 list;
 
 	int			 ret;
 
@@ -2183,6 +2409,9 @@ int del_target(char *alias, char *resp)
 		_del_portid(target, portid);
 
 	list_del(&target->node);
+
+	create_event_host_list_for_target(&list, target);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -2280,6 +2509,7 @@ int update_target(char *alias, char *data, char *resp)
 	struct target		 result;
 	struct target		*target;
 	struct portid		 portid;
+	struct list_head	 list;
 	int			 ret;
 
 	memset(&result, 0, sizeof(result));
@@ -2311,6 +2541,9 @@ int update_target(char *alias, char *data, char *resp)
 		set_inb_interface(&target->sc_iface, &result.sc_iface);
 		get_inb_config(target);
 	}
+
+	create_event_host_list_for_target(&list, target);
+	send_notifications(&list);
 
 	return ret;
 }

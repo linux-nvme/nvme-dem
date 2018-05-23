@@ -182,6 +182,8 @@ struct ctrl_queue {
 	int			 failed_kato;
 };
 
+enum { VALID_LOGPAGE = 0, DELETED_LOGPAGE, NEW_LOGPAGE };
+
 enum { LOCAL_MGMT = 0, IN_BAND_MGMT, OUT_OF_BAND_MGMT, DISCOVERY_CTRL };
 
 int parse_line(FILE *fd, char *tag, int tag_max, char *value, int value_max);
@@ -197,8 +199,8 @@ void disconnect_endpoint(struct endpoint *ep, int shutdown);
 
 int send_get_log_page(struct endpoint *ep, int log_size,
 		      struct nvmf_disc_rsp_page_hdr **log);
-int send_get_features(struct endpoint *ep, unsigned fid, u64 *result);
-int send_set_features(struct endpoint *ep, unsigned fid, unsigned dword11);
+int send_get_features(struct endpoint *ep, u8 fid, u64 *result);
+int send_set_features(struct endpoint *ep, u8 fid, u32 dword11);
 int send_async_event_request(struct endpoint *ep);
 int send_keep_alive(struct endpoint *ep);
 int send_reset_config(struct endpoint *ep);

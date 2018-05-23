@@ -342,7 +342,7 @@ err:
 static int rdma_create_endpoint(struct xp_ep **_ep, void *id, int depth)
 {
 	struct rdma_ep		*ep;
-	int			ret;
+	int			 ret;
 
 	ep = malloc(sizeof(*ep));
 	if (!ep)
@@ -364,12 +364,12 @@ static int rdma_create_endpoint(struct xp_ep **_ep, void *id, int depth)
 
 static int rdma_init_listener(struct xp_pep **_pep, char *port)
 {
-	struct rdma_pep			*pep;
-	struct sockaddr_in		 addr = { 0 };
-	struct rdma_cm_id		*listener;
-	struct rdma_event_channel	*ec;
-	int				 flags;
-	int				 ret;
+	struct rdma_pep		*pep;
+	struct sockaddr_in	 addr = { 0 };
+	struct rdma_cm_id	*listener;
+	struct rdma_event_channel *ec;
+	int			 flags;
+	int			 ret;
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sin_family = AF_INET;

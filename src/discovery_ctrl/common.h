@@ -71,6 +71,7 @@ extern int			 debug;
 extern int			 curl_show_results;
 extern int			 num_interfaces;
 extern struct host_iface	*interfaces;
+extern struct list_head		*aen_req_list;
 extern struct list_head		*target_list;
 extern struct list_head		*group_list;
 extern struct list_head		*host_list;
@@ -89,6 +90,7 @@ extern struct list_head		*host_list;
 #define DISCOVERY_CTRL_NQN	"DEM_Discovery_Controller"
 
 enum {RESTRICTED = 0, ALLOW_ANY = 1, UNDEFINED_ACCESS = -1};
+enum {GROUP_EVENT = 0, PORT_EVENT, SUBSYS_EVENT, ACL_EVENT};
 
 struct target;
 
@@ -211,6 +213,14 @@ struct group_host_link {
 	struct group		*group;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 nqn[MAX_NQN_SIZE + 1];
+};
+
+struct event_notification {
+	struct list_head	 node;
+	struct endpoint		*ep;
+	struct event_notification *req;
+	char			 nqn[MAX_NQN_SIZE + 1];
+	int			 valid;
 };
 
 struct mg_connection;

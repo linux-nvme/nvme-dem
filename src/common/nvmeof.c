@@ -335,32 +335,12 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 static inline int send_admin_cmd(struct endpoint *ep, u8 opcode)
 {
 	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	u64				*data;
 	int				 bytes;
-	int				 key;
 	int				 ret;
 
 	bytes = sizeof(*cmd);
-#if 0 // HACK
-        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
-                print_err("no memory for buffer, errno %d", errno);
-                return errno;
-        }
 
-        memset(data, 0, PAGE_SIZE);
-
-	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-#else
-	UNUSED(mr);
-	data = NULL;
-	key = 0;
-#endif
-	prep_admin_cmd(cmd, opcode, 0, data, key);
+	prep_admin_cmd(cmd, opcode, 0, NULL, 0);
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
@@ -368,7 +348,6 @@ static inline int send_admin_cmd(struct endpoint *ep, u8 opcode)
 
 	process_nvme_rsp(ep, 0, NULL);
 out:
-	if (data) free(data);
 	return ret;
 }
 
@@ -507,22 +486,12 @@ out:
 static int send_get_property(struct endpoint *ep, u32 reg)
 {
 	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
 	int				 bytes;
-	int				 key;
 	int				 ret;
-
-#if 0
-	data = ep->data;
-	key = ep->ops->remote_key(ep->data_mr);
-#else
-	data = NULL;
-	key = 0;
-#endif
 
 	bytes = sizeof(*cmd);
 
-	prep_admin_cmd(cmd, nvme_fabrics_command, 0, data, key);
+	prep_admin_cmd(cmd, nvme_fabrics_command, 0, NULL, 0);
 
 	cmd->prop_get.fctype	= nvme_fabrics_type_property_get;
 	cmd->prop_get.attrib	= 1;
@@ -538,18 +507,8 @@ static int send_get_property(struct endpoint *ep, u32 reg)
 static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
 {
 	struct nvme_command		*cmd = ep->cmd;
-	u64				*data;
-	int				 key;
 
-#if 0
-	data = ep->data;
-	key = ep->ops->remote_key(ep->data_mr);
-#else
-	data = NULL;
-	key = 0;
-#endif
-
-	prep_admin_cmd(cmd, nvme_fabrics_command, 0, data, key);
+	prep_admin_cmd(cmd, nvme_fabrics_command, 0, NULL, 0);
 
 	cmd->prop_set.fctype	= nvme_fabrics_type_property_set;
 	cmd->prop_set.offset	= htole32(reg);
@@ -630,39 +589,17 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	return ret;
 }
 
-int send_get_features(struct endpoint *ep, unsigned fid, u64 *result)
+int send_get_features(struct endpoint *ep, u8 fid, u64 *result)
 {
 	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	u64				*data;
 	int				 bytes;
-	int				 key;
 	int				 ret;
 
 	bytes = sizeof(*cmd);
 
-#if 0
-        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
-                print_err("no memory for buffer, errno %d", errno);
-                return errno;
-        }
+	prep_admin_cmd(cmd, nvme_admin_get_features, 0, NULL, 0);
 
-        memset(data, 0, PAGE_SIZE);
-
-	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-#else
-	UNUSED(mr);
-	data = NULL;
-	key = 0;
-#endif
-
-	prep_admin_cmd(cmd, nvme_admin_get_features, 0, data, key);
-
-	cmd->features.fid = fid;
+	cmd->features.fid = htole32(fid);
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
@@ -670,44 +607,21 @@ int send_get_features(struct endpoint *ep, unsigned fid, u64 *result)
 
 	process_nvme_rsp(ep, 0, result);
 out:
-	if (data) free(data);
 	return ret;
 }
 
-int send_set_features(struct endpoint *ep, unsigned fid, unsigned dword11)
+int send_set_features(struct endpoint *ep, u8 fid, u32 dword11)
 {
 	struct nvme_command		*cmd = ep->cmd;
-	struct xp_mr			*mr;
-	u64				*data;
 	int				 bytes;
-	int				 key;
 	int				 ret;
 
 	bytes = sizeof(*cmd);
 
-#if 0
-        if (posix_memalign((void **) &data, PAGE_SIZE, PAGE_SIZE)) {
-                print_err("no memory for buffer, errno %d", errno);
-                return errno;
-        }
+	prep_admin_cmd(cmd, nvme_admin_set_features, 0, NULL, 0);
 
-        memset(data, 0, PAGE_SIZE);
-
-	ret = ep->ops->alloc_key(ep->ep, data, PAGE_SIZE, &mr);
-	if (ret)
-		return ret;
-
-	key = ep->ops->remote_key(mr);
-#else
-	UNUSED(mr);
-	data = NULL;
-	key = 0;
-#endif
-
-	prep_admin_cmd(cmd, nvme_admin_set_features, 0, data, key);
-
-	cmd->features.fid	= fid;
-	cmd->features.dword11 	= dword11;
+	cmd->features.fid	= htole32(fid);
+	cmd->features.dword11	= htole32(dword11);
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
@@ -715,7 +629,6 @@ int send_set_features(struct endpoint *ep, unsigned fid, unsigned dword11)
 
 	process_nvme_rsp(ep, 0, NULL);
 out:
-	if (data) free(data);
 	return ret;
 }
 

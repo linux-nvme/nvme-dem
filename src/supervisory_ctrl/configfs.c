@@ -267,9 +267,9 @@ int delete_subsys(char *subsys)
  */
 int create_subsys(char *subsys, int allowany)
 {
-	char			dir[MAXPATHLEN];
+	char			 dir[MAXPATHLEN];
 	FILE			*fd;
-	int			ret;
+	int			 ret;
 
 	getcwd(dir, sizeof(dir));
 

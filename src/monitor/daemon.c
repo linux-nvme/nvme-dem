@@ -338,12 +338,12 @@ out:
 
 static inline void invalidate_log_pages(struct target *target)
 {
-	struct subsystem		*subsys;
-	struct logpage			*logpage;
+	struct subsystem	*subsys;
+	struct logpage		*logpage;
 
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		list_for_each_entry(logpage, &subsys->logpage_list, node)
-			logpage->valid = 0;
+			logpage->valid = DELETED_LOGPAGE;
 }
 
 static inline int match_logpage(struct logpage *logpage,
@@ -362,17 +362,17 @@ static inline void store_logpage(struct logpage *logpage,
 				 struct ctrl_queue *dq)
 {
 	logpage->e = *e;
-	logpage->valid = 1;
+	logpage->valid = NEW_LOGPAGE;
 	logpage->portid = dq->portid;
 }
 
 static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 			   struct target *target, struct ctrl_queue *dq)
 {
-	int				 i;
-	int				 found;
-	struct subsystem		*subsys;
-	struct logpage			*logpage;
+	int			 i;
+	int			 found;
+	struct subsystem	*subsys;
+	struct logpage		*logpage;
 	struct nvmf_disc_rsp_page_entry *e;
 
 	for (i = 0; i < numrec; i++) {
@@ -385,7 +385,7 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 						    &subsys->logpage_list,
 						    node) {
 					if (match_logpage(logpage, e)) {
-						store_logpage(logpage, e, dq);
+						logpage->valid = VALID_LOGPAGE;
 						goto next;
 					}
 				}
@@ -424,9 +424,9 @@ next:
 
 static int fetch_log_pages(struct ctrl_queue *dq)
 {
-	struct nvmf_disc_rsp_page_hdr	*log = NULL;
-	struct target			*target = dq->target;
-	u32				 num_records = 0;
+	struct nvmf_disc_rsp_page_hdr *log = NULL;
+	struct target		*target = dq->target;
+	u32			 num_records = 0;
 
 	if (get_logpages(dq, &log, &num_records)) {
 		print_err("get logpages for hostnqn %s failed", dq->hostnqn);
@@ -447,70 +447,105 @@ static void print_log_pages(struct ctrl_queue *dq)
 {
 	struct subsystem	*subsys;
 	struct logpage		*logpage;
-	struct nvmf_disc_rsp_page_hdr	*log;
-	int			bytes = sizeof(*log) + sizeof(logpage->e);
+	struct nvmf_disc_rsp_page_hdr *log;
+	int			 bytes = sizeof(*log) + sizeof(logpage->e);
 
 	log = malloc(bytes);
 	if (!log)
-		return; 
+		return;
 
 	memset(log, 0, bytes);
 
-	list_for_each_entry(subsys, &dq->target->subsys_list, node) {
-		list_for_each_entry(logpage, &subsys->logpage_list, node) {
-			log->entries[0] = logpage->e;
-			print_info("subsys %s", subsys->nqn);
-			print_info("---------------------------------");
-			print_discovery_log(log, 1);
-		}
-	}
-
+	list_for_each_entry(subsys, &dq->target->subsys_list, node)
+		list_for_each_entry(logpage, &subsys->logpage_list, node)
+			if (logpage->valid == NEW_LOGPAGE) {
+				log->entries[0] = logpage->e;
+				print_info("subsys %s", subsys->nqn);
+				print_info("---------------------------------");
+				print_discovery_log(log, 1);
+			} else if (logpage->valid == DELETED_LOGPAGE)
+				print_info("subsys %s on %s %s %s deleted",
+					   subsys->nqn,
+					   trtype_str(logpage->e.trtype),
+					   logpage->e.traddr,
+					   logpage->e.trsvcid);
 	free(log);
 }
 
-static void enable_aens(struct ctrl_queue *dq)
+static void cleanup_log_pages(struct ctrl_queue *dq)
 {
-	int			ret;
-	u64			result;
+	struct subsystem	*subsys;
+	struct logpage		*logpage, *next;
+
+	list_for_each_entry(subsys, &dq->target->subsys_list, node)
+		list_for_each_entry_safe(logpage, next,
+					 &subsys->logpage_list, node)
+			if (logpage->valid == DELETED_LOGPAGE) {
+				list_del(&logpage->node);
+				free(logpage);
+			}
+}
+
+static inline void report_updates(struct ctrl_queue *dq)
+{
+	if (fetch_log_pages(dq))
+		return;
+
+	print_log_pages(dq);
+	cleanup_log_pages(dq);
+}
+
+static int enable_aens(struct ctrl_queue *dq)
+{
+	int			 ret;
+	u64			 result;
 
 	ret = send_get_features(&dq->ep, NVME_FEAT_ASYNC_EVENT, &result);
 	if (ret) {
 		print_err("get AEN feature failed");
-		return;
-	}	
+		return ret;
+	}
 
 	if (!result) {
 		print_err("AENs not supported.");
-		return;
+		return -EINVAL;
 	}
 
 	ret = send_set_features(&dq->ep, NVME_FEAT_ASYNC_EVENT, 1);
 	if (ret) {
 		print_err("set AEN feature failed");
-		return;
+		return ret;
 	}
 
 	send_async_event_request(&dq->ep);
+
+	return 0;
 }
 
-static inline void complete_connection(struct ctrl_queue *dq)
+static inline int complete_connection(struct ctrl_queue *dq)
 {
+	int			 ret;
+
 	dq->connected = CONNECTED;
-	print_info("Connected to %s", dc_str);
 	usleep(100);
 	if (stopped)
-		return;
+		return -ESHUTDOWN;
 
-	if (!dq->failed_kato)
-		enable_aens(dq);
+	if (!dq->failed_kato) {
+		ret = enable_aens(dq);
+		if (ret)
+			return ret;
+		usleep(250);
+	}
 
-	if (fetch_log_pages(dq) == 0)
-		print_log_pages(dq);
+	report_updates(dq);
 
 	if (dq->failed_kato) {
 		disconnect_ctrl(dq, 0);
 		dq->connected = DISCONNECTED;
 	}
+
+	return 0;
 }
 
 int main(int argc, char *argv[])
@@ -538,13 +573,11 @@ int main(int argc, char *argv[])
 
 	if (connect_ctrl(dq))
 		print_info("Unable to connect to %s", dc_str);
-	else
-		complete_connection(dq);
-
-	if(stopped)
+	else if (complete_connection(dq))
 		goto cleanup;
 
-	print_info("Starting server");
+	if (stopped)
+		goto cleanup;
 
 	while (!stopped) {
 		if (!dq->connected) {
@@ -555,7 +588,8 @@ int main(int argc, char *argv[])
 					continue;
 			cnt = 0;
 			if (!connect_ctrl(dq)) {
-				complete_connection(dq);
+				if (complete_connection(dq))
+					goto cleanup;
 
 				if (stopped)
 					goto cleanup;
@@ -565,11 +599,9 @@ int main(int argc, char *argv[])
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
 				print_info("Received AEN");
 				send_async_event_request(&dq->ep);
-				if (fetch_log_pages(dq))
-					continue;
-				print_log_pages(dq);
-			}
-			if (++cnt > KEEP_ALIVE_COUNTER) {
+				report_updates(dq);
+				cnt = 0;
+			} else if (++cnt > KEEP_ALIVE_COUNTER) {
 				cnt = 0;
 				ret = send_keep_alive(&dq->ep);
 				if (stopped)
