@@ -256,7 +256,7 @@ static const char * const trtypes[] = {
 
 const char *trtype_str(u8 trtype)
 {
-	return arg_str(trtypes, ARRAY_SIZE(trtypes), trtype);
+	return arg_str(trtypes, NUM_ENTRIES(trtypes), trtype);
 }
 
 static const char * const adrfams[] = {
@@ -269,7 +269,7 @@ static const char * const adrfams[] = {
 
 const char *adrfam_str(u8 adrfam)
 {
-	return arg_str(adrfams, ARRAY_SIZE(adrfams), adrfam);
+	return arg_str(adrfams, NUM_ENTRIES(adrfams), adrfam);
 }
 
 static const char * const subtypes[] = {
@@ -279,7 +279,7 @@ static const char * const subtypes[] = {
 
 const char *subtype_str(u8 subtype)
 {
-	return arg_str(subtypes, ARRAY_SIZE(subtypes), subtype);
+	return arg_str(subtypes, NUM_ENTRIES(subtypes), subtype);
 }
 
 static const char * const treqs[] = {
@@ -290,7 +290,7 @@ static const char * const treqs[] = {
 
 const char *treq_str(u8 treq)
 {
-	return arg_str(treqs, ARRAY_SIZE(treqs), treq);
+	return arg_str(treqs, NUM_ENTRIES(treqs), treq);
 }
 
 static const char * const prtypes[] = {
@@ -303,7 +303,7 @@ static const char * const prtypes[] = {
 
 const char *prtype_str(u8 prtype)
 {
-	return arg_str(prtypes, ARRAY_SIZE(prtypes), prtype);
+	return arg_str(prtypes, NUM_ENTRIES(prtypes), prtype);
 }
 
 static const char * const qptypes[] = {
@@ -313,7 +313,7 @@ static const char * const qptypes[] = {
 
 const char *qptype_str(u8 qptype)
 {
-	return arg_str(qptypes, ARRAY_SIZE(qptypes), qptype);
+	return arg_str(qptypes, NUM_ENTRIES(qptypes), qptype);
 }
 
 static const char * const cms[] = {
@@ -322,7 +322,7 @@ static const char * const cms[] = {
 
 const char *cms_str(u8 cm)
 {
-	return arg_str(cms, ARRAY_SIZE(cms), cm);
+	return arg_str(cms, NUM_ENTRIES(cms), cm);
 }
 
 u8 to_trtype(char *str)

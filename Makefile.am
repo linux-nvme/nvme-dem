@@ -36,8 +36,7 @@ CLI_LIBS = -lcurl jansson/libjansson.a
 
 GDB_OPTS = -g -O0
 
-LINUX_INCL = ${INCL_DIR}/linux/nvme.h ${INCL_DIR}/linux/kernel.h \
-	     ${INCL_DIR}/linux/list.h ${INCL_DIR}/linux/nvme-rdma.h
+LINUX_INCL = ${INCL_DIR}/nvme.h ${INCL_DIR}/utils.h
 
 CLI_SRC = ${CLI_DIR}/cli.c ${COMMON_DIR}/curl.c ${CLI_DIR}/show.c
 CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \

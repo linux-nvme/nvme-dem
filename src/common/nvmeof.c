@@ -42,7 +42,6 @@
 
 #include "common.h"
 #include "ops.h"
-#include "linux/nvme-rdma.h"
 
 #define NVME_CTRL_ENABLE	0x460001
 #define NVME_CTRL_DISABLE	0x464001
@@ -185,7 +184,7 @@ static inline char *nvme_str_status(u16 _status)
 	u16			 status = _status & 0x3fff;
 	static char		 str[80] = { 0 };
 
-	for (i = 0; i < (int) ARRAY_SIZE(nvme_status_array); i++)
+	for (i = 0; i < NUM_ENTRIES(nvme_status_array); i++)
 		if (nvme_status_array[i].status == status) {
 			strcpy(str, nvme_status_array[i].str);
 			break;
