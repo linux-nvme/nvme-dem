@@ -132,11 +132,9 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	print_info("host '%s' connected", data->hostnqn);
 	strncpy(ep->nqn, data->hostnqn, MAX_NQN_SIZE);
 
-	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME) &&
-	    strcmp(data->subsysnqn, NVME_DOMAIN_SUBSYS_NAME)) {
-		print_err("bad subsystem '%s', expecting '%s' or '%s'",
-			  data->subsysnqn, NVME_DISC_SUBSYS_NAME,
-			  NVME_DOMAIN_SUBSYS_NAME);
+	if (strcmp(data->subsysnqn, NVME_DISC_SUBSYS_NAME)) {
+		print_err("bad subsystem '%s', expecting '%s'",
+			  data->subsysnqn, NVME_DISC_SUBSYS_NAME);
 		ret = NVME_SC_CONNECT_INVALID_HOST;
 	}
 

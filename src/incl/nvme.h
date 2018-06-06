@@ -45,7 +45,6 @@
 #define NVMF_TSAS_SIZE			256
 #define NVMF_DEV_PATH_SIZE		256
 #define NVME_DISC_SUBSYS_NAME		"nqn.2014-08.org.nvmexpress.discovery"
-#define NVME_DOMAIN_SUBSYS_NAME		"nqn.2014-08.org.nvmexpress.domain"
 #define NVME_RDMA_IP_PORT		4420
 #define NVME_CNTLID_DYNAMIC		0xFFFF
 
