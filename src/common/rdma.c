@@ -77,6 +77,49 @@ struct rdma_pep {
 	__u8			 state;
 };
 
+static struct {
+	int			 status;
+	char			*str;
+} wc_status_array[] = {
+	{ IBV_WC_SUCCESS,		"IBV_WC_SUCCESS" },
+	{ IBV_WC_LOC_LEN_ERR,		"IBV_WC_LOC_LEN_ERR" },
+	{ IBV_WC_LOC_QP_OP_ERR,		"IBV_WC_LOC_QP_OP_ERR" },
+	{ IBV_WC_LOC_EEC_OP_ERR,	"IBV_WC_LOC_EEC_OP_ERR" },
+	{ IBV_WC_LOC_PROT_ERR,		"IBV_WC_LOC_PROT_ERR" },
+	{ IBV_WC_WR_FLUSH_ERR,		"IBV_WC_WR_FLUSH_ERR" },
+	{ IBV_WC_MW_BIND_ERR,		"IBV_WC_MW_BIND_ERR" },
+	{ IBV_WC_BAD_RESP_ERR,		"IBV_WC_BAD_RESP_ERR" },
+	{ IBV_WC_LOC_ACCESS_ERR,	"IBV_WC_LOC_ACCESS_ERR" },
+	{ IBV_WC_REM_INV_REQ_ERR,	"IBV_WC_REM_INV_REQ_ERR" },
+	{ IBV_WC_REM_ACCESS_ERR,	"IBV_WC_REM_ACCESS_ERR" },
+	{ IBV_WC_REM_OP_ERR,		"IBV_WC_REM_OP_ERR" },
+	{ IBV_WC_RETRY_EXC_ERR,		"IBV_WC_RETRY_EXC_ERR" },
+	{ IBV_WC_RNR_RETRY_EXC_ERR,	"IBV_WC_RNR_RETRY_EXC_ERR" },
+	{ IBV_WC_LOC_RDD_VIOL_ERR,	"IBV_WC_LOC_RDD_VIOL_ERR" },
+	{ IBV_WC_REM_INV_RD_REQ_ERR,	"IBV_WC_REM_INV_RD_REQ_ERR" },
+	{ IBV_WC_REM_ABORT_ERR,		"IBV_WC_REM_ABORT_ERR" },
+	{ IBV_WC_INV_EECN_ERR,		"IBV_WC_INV_EECN_ERR" },
+	{ IBV_WC_INV_EEC_STATE_ERR,	"IBV_WC_INV_EEC_STATE_ERR" },
+	{ IBV_WC_FATAL_ERR,		"IBV_WC_FATAL_ERR" },
+	{ IBV_WC_RESP_TIMEOUT_ERR,	"IBV_WC_RESP_TIMEOUT_ERR" },
+	{ IBV_WC_GENERAL_ERR,		"IBV_WC_GENERAL_ERR" },
+};
+
+static inline char *wc_str_status(u16 _status)
+{
+	int			 i;
+	u16			 status = _status & 0x3fff;
+	static char		 str[80] = { 0 };
+
+	for (i = 0; i < NUM_ENTRIES(wc_status_array); i++)
+		if (wc_status_array[i].status == status) {
+			strcpy(str, wc_status_array[i].str);
+			break;
+		}
+
+	return str;
+}
+
 static void *alloc_buffer(struct rdma_ep *ep, int size, struct ibv_mr **_mr)
 {
 	void			*buf;
@@ -618,7 +661,8 @@ static int rdma_rma_read(struct xp_ep *_ep, void *buf, u64 addr, u64 len,
 			return -ESHUTDOWN;
 
 	if (wc.status != IBV_WC_SUCCESS) {
-		print_err("rma_read wc.status %d", wc.status);
+		print_err("rma_read wc.status %s (%d)",
+			  wc_str_status(wc.status), wc.status);
 		return -ECONNRESET;
 	}
 
@@ -658,7 +702,8 @@ static int rdma_rma_write(struct xp_ep *_ep, void *buf, u64 addr, u64 len,
 			return -ESHUTDOWN;
 
 	if (wc.status != IBV_WC_SUCCESS) {
-		print_err("rma_write wc.status %d", wc.status);
+		print_err("rma_write wc.status %s (%d)",
+			  wc_str_status(wc.status), wc.status);
 		return -ECONNRESET;
 	}
 
@@ -726,7 +771,8 @@ static int rdma_send_msg(struct xp_ep *_ep, void *msg, int len,
 
 	if (wc.status != IBV_WC_SUCCESS) {
 		if (wc.status != IBV_WC_RETRY_EXC_ERR)
-			print_err("send wc.status %d", wc.status);
+			print_err("send wc.status %s (%d)",
+				  wc_str_status(wc.status), wc.status);
 		return -ECONNRESET;
 	}
 
@@ -749,7 +795,8 @@ static int rdma_poll_for_msg(struct xp_ep *_ep, struct xp_qe **_qe, void **msg,
 
 	if (wc.status != IBV_WC_SUCCESS) {
 		if (wc.status != IBV_WC_WR_FLUSH_ERR)
-			print_err("recv wc.status %d", wc.status);
+			print_err("recv wc.status %s (%d)",
+				  wc_str_status(wc.status), wc.status);
 		return -ECONNRESET;
 	}
 

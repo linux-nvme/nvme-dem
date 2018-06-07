@@ -57,6 +57,7 @@
 
 #define DELAY			480 /* ms */
 #define KEEP_ALIVE_COUNTER	4 /* x DELAY */
+#define CONNECT_DELAY		10 /* seconds */
 
 // TODO customize discovery controller info
 #define DEFAULT_TYPE		"rdma"

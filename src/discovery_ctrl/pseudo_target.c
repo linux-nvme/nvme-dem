@@ -56,6 +56,7 @@ struct host_conn {
 	struct timeval		 timeval;
 	int			 countdown;
 	int			 kato;
+	int			 inst;
 };
 
 static int handle_property_set(struct nvme_command *cmd, int *csts)
@@ -495,6 +496,7 @@ static void *host_thread(void *arg)
 	int			 len;
 	int			 delta;
 	int			 ret;
+	static unsigned int	 host_counter = 1;
 
 	INIT_LIST_HEAD(&host_list);
 
@@ -510,9 +512,13 @@ static void *host_thread(void *arg)
 					goto out;
 
 				host->ep	= ep;
+				host->inst	= host_counter++;
 				host->kato	= RETRY_COUNT;
 				host->countdown	= RETRY_COUNT;
 				host->timeval	= timeval;
+				if (ep->nqn[0] == 0)
+					sprintf(ep->nqn, "new host inst %u",
+						host->inst);
 
 				list_add_tail(&host->node, &host_list);
 			}
@@ -538,7 +544,11 @@ loop:
 
 			disconnect_endpoint(ep, !stopped);
 
-			print_info("host '%s' disconnected", ep->nqn);
+			if (ep->nqn[0])
+				print_info("host '%s' disconnected", ep->nqn);
+			else
+				print_info("host instance %u disconnected",
+					   host->inst);
 
 			free(ep);
 			list_del(&host->node);

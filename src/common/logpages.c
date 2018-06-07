@@ -66,8 +66,11 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 	free(log);
 
 	if (*numrec == 0) {
+#ifdef DEBUG_LOG_PAGES_VERBOSE
 		print_err("No discovery log on target %s", dq->target->alias);
-		return -ENODATA;
+#endif
+		*logp = NULL;
+		return 0;
 	}
 
 #ifdef DEBUG_LOG_PAGES_VERBOSE

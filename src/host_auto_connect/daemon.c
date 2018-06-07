@@ -444,7 +444,7 @@ next:
 	}
 }
 
-static int fetch_log_pages(struct ctrl_queue *dq)
+static void fetch_log_pages(struct ctrl_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr *log = NULL;
 	struct target		*target = dq->target;
@@ -452,8 +452,7 @@ static int fetch_log_pages(struct ctrl_queue *dq)
 
 	if (get_logpages(dq, &log, &num_records)) {
 		print_err("get logpages for hostnqn %s failed", dq->hostnqn);
-		cleanup_dq(dq);
-		return -ENOTCONN;
+		return;
 	}
 
 	invalidate_log_pages(target);
@@ -463,10 +462,10 @@ static int fetch_log_pages(struct ctrl_queue *dq)
 #ifdef DEBUG_LOG_PAGES
 	print_discovery_log(log, num_records);
 #endif
+	if (num_records)
+		free(log);
 
-	free(log);
-
-	return 0;
+	return;
 }
 
 static void mark_connected_subsystems(struct ctrl_queue *dq)
@@ -588,9 +587,7 @@ static void cleanup_log_pages(struct ctrl_queue *dq)
 
 static void process_updates(struct ctrl_queue *dq)
 {
-	if (fetch_log_pages(dq))
-		return;
-
+	fetch_log_pages(dq);
 	mark_connected_subsystems(dq);
 	cleanup_log_pages(dq);
 }
@@ -686,15 +683,18 @@ int main(int argc, char *argv[])
 	print_info("Starting server");
 
 	while (!stopped) {
-		if (!dq->connected && ++cnt > CONNECT_RETRY_COUNTER) {
+		if (!dq->connected) {
 			usleep(DELAY);
+			if (++cnt < CONNECT_RETRY_COUNTER)
+				continue;
+
 			if (!connect_ctrl(dq)) {
 				cnt = 0;
 				if (complete_connection(dq))
-					goto cleanup;
+					break;
 
 				if (stopped)
-					goto cleanup;
+					break;
 			}
 		}
 		if (dq->connected) {
@@ -707,7 +707,7 @@ int main(int argc, char *argv[])
 				cnt = 0;
 				ret = send_keep_alive(&dq->ep);
 				if (stopped)
-					goto cleanup;
+					break;
 				if (ret) {
 					print_err("Lost connection to %s",
 						  dc_str);
@@ -716,7 +716,7 @@ int main(int argc, char *argv[])
 			}
 		}
 		if (stopped)
-			goto cleanup;
+			break;
 
 		connect_one_subsystem(dq);
 	}
@@ -730,8 +730,6 @@ cleanup:
 	free(dq->portid);
 
 	print_info("Shutting down");
-
-	sleep(5);
 
 	ret = 0;
 out:

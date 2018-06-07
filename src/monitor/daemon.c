@@ -422,7 +422,7 @@ next:
 	}
 }
 
-static int fetch_log_pages(struct ctrl_queue *dq)
+static void fetch_log_pages(struct ctrl_queue *dq)
 {
 	struct nvmf_disc_rsp_page_hdr *log = NULL;
 	struct target		*target = dq->target;
@@ -430,17 +430,17 @@ static int fetch_log_pages(struct ctrl_queue *dq)
 
 	if (get_logpages(dq, &log, &num_records)) {
 		print_err("get logpages for hostnqn %s failed", dq->hostnqn);
-		cleanup_dq(dq);
-		return -ENOTCONN;
+		return;
 	}
 
 	invalidate_log_pages(target);
 
 	save_log_pages(log, num_records, target, dq);
 
-	free(log);
+	if (num_records)
+		free(log);
 
-	return 0;
+	return;
 }
 
 static void print_log_pages(struct ctrl_queue *dq)
@@ -488,9 +488,7 @@ static void cleanup_log_pages(struct ctrl_queue *dq)
 
 static inline void report_updates(struct ctrl_queue *dq)
 {
-	if (fetch_log_pages(dq))
-		return;
-
+	fetch_log_pages(dq);
 	print_log_pages(dq);
 	cleanup_log_pages(dq);
 }
@@ -571,12 +569,10 @@ int main(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	if (connect_ctrl(dq))
+	if (connect_ctrl(dq)) {
 		print_info("Unable to connect to %s", dc_str);
-	else if (complete_connection(dq))
-		goto cleanup;
-
-	if (stopped)
+		sleep(CONNECT_DELAY);
+	} else if (complete_connection(dq))
 		goto cleanup;
 
 	while (!stopped) {
@@ -587,13 +583,16 @@ int main(int argc, char *argv[])
 				if (++cnt < KEEP_ALIVE_COUNTER)
 					continue;
 			cnt = 0;
-			if (!connect_ctrl(dq)) {
-				if (complete_connection(dq))
-					goto cleanup;
-
-				if (stopped)
-					goto cleanup;
+			if (connect_ctrl(dq)) {
+				sleep(CONNECT_DELAY);
+				continue;
 			}
+
+			if (complete_connection(dq))
+				break;
+
+			if (stopped)
+				break;
 		}
 		if (dq->connected) {
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
@@ -605,16 +604,15 @@ int main(int argc, char *argv[])
 				cnt = 0;
 				ret = send_keep_alive(&dq->ep);
 				if (stopped)
-					goto cleanup;
+					break;
 				if (ret) {
 					print_err("Lost connection to %s",
 						  dc_str);
+					sleep(CONNECT_DELAY);
 					cleanup_dq(dq);
 				}
 			}
 		}
-		if (stopped)
-			goto cleanup;
 	}
 
 cleanup:
@@ -626,8 +624,6 @@ cleanup:
 	free(dq->portid);
 
 	print_info("Shutting down");
-
-	sleep(5);
 
 	ret = 0;
 out:
