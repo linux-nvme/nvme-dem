@@ -464,8 +464,6 @@ static void fetch_log_pages(struct ctrl_queue *dq)
 #endif
 	if (num_records)
 		free(log);
-
-	return;
 }
 
 static void mark_connected_subsystems(struct ctrl_queue *dq)

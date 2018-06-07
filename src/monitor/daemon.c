@@ -439,8 +439,6 @@ static void fetch_log_pages(struct ctrl_queue *dq)
 
 	if (num_records)
 		free(log);
-
-	return;
 }
 
 static void print_log_pages(struct ctrl_queue *dq)
