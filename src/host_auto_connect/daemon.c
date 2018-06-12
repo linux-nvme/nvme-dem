@@ -320,11 +320,9 @@ static int validate_dq(struct ctrl_queue *dq)
 	}
 
 	if (strlen(dq->hostnqn) == 0) {
-		uuid_t		id;
-		char		uuid[40];
+		char		uuid[UUID_LEN + 1];
 
-		uuid_generate(id);
-		uuid_unparse_lower(id, uuid);
+		gen_uuid(uuid);
 		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
 	}
 

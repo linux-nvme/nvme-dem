@@ -431,8 +431,7 @@ void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
 	struct ctrl_queue	*dq;
 	struct target		*target = subsys->target;
 	struct host		*host;
-	uuid_t			 id;
-	char			 uuid[40];
+	char			 uuid[UUID_LEN + 1];
 
 	dq = malloc(sizeof(*dq));
 	if (!dq) {
@@ -455,8 +454,7 @@ void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
 	list_add_tail(&dq->node, &target->discovery_queue_list);
 
 	if (subsys->access == ALLOW_ANY) {
-		uuid_generate(id);
-		uuid_unparse_lower(id, uuid);
+		gen_uuid(uuid);
 		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
 	} else {
 		host = list_first_entry(&subsys->host_list, struct host, node);

@@ -48,7 +48,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uuid/uuid.h>
 
 #include "nvme.h"
 #include "utils.h"

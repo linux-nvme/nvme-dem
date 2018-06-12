@@ -27,10 +27,10 @@ SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
-DC_LIBS = -lpthread -lrdmacm -libverbs -luuid -lcurl jansson/libjansson.a
-SC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
-HAC_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
-MON_LIBS = -lpthread -lrdmacm -libverbs -luuid jansson/libjansson.a
+DC_LIBS = -lpthread -lrdmacm -libverbs -lcurl jansson/libjansson.a
+SC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
+HAC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
+MON_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
 
 CLI_LIBS = -lcurl jansson/libjansson.a
 
@@ -139,7 +139,8 @@ mongoose/mongoose.h: mongoose/.git
 	cd mongoose ; git reset --hard HEAD ; git clean -fx
 	touch $@
 mongoose/mongoose.h.orig: mongoose/mongoose.h
-	cd mongoose ; patch -p 1 < ../files/mongoose.patch
+	cd mongoose ; git reset --hard HEAD ; \
+		patch -p 1 < ../files/mongoose.patch
 	touch $@
 
 jansson/.git:

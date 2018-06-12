@@ -36,7 +36,6 @@
 #include <stdlib.h>
 #include <string.h>
 #include <endian.h>
-#include <uuid/uuid.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
 

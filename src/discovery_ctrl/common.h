@@ -38,6 +38,7 @@
 #define unlikely __glibc_unlikely
 
 #include <sys/types.h>
+#include <sys/time.h>
 #include <unistd.h>
 #include <errno.h>
 #include <signal.h>
@@ -48,7 +49,6 @@
 #include <stddef.h>
 #include <stdlib.h>
 #include <string.h>
-#include <uuid/uuid.h>
 
 #include "nvme.h"
 #include "utils.h"

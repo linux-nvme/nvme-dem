@@ -35,6 +35,8 @@
 #ifndef __DEM_H__
 #define __DEM_H__
 
+#include <sys/time.h>
+
 #define unlikely __glibc_unlikely
 
 #define NVMF_UUID_FMT		"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
@@ -113,6 +115,30 @@ static inline int msec_delta(struct timeval t0)
 
 	return (t1.tv_sec - t0.tv_sec) * 1000 +
 		(t1.tv_usec - t0.tv_usec) / 1000;
+}
+
+#define UUID_LEN                36
+#define UUID_PARTS              6
+#define UUID_FORMAT             "%08X-%04X-%04X-%04X-%08X%04X"
+
+static inline void gen_uuid(char *uuid) {
+	struct timespec		 t;
+	unsigned int		 p[UUID_PARTS];
+	unsigned int		 mask[UUID_PARTS] = {
+		0xFFFFFFFF, 0xFFFF, 0x0FFF, 0x3FFF, 0xFFFFFFFF, 0xFFFF };
+	int			 i;
+
+	clock_gettime(CLOCK_REALTIME, &t);
+
+	srand(t.tv_nsec);
+
+	for (i = 0; i < UUID_PARTS; i++)
+		p[i] = rand() & mask[i];
+
+	p[2] |= 0x4000;
+	p[3] |= 0x8000;
+
+	sprintf(uuid, UUID_FORMAT, p[0], p[1], p[2], p[3], p[4], p[5]);
 }
 
 /*HACK*/
