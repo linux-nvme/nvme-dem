@@ -121,7 +121,8 @@ static inline int msec_delta(struct timeval t0)
 #define UUID_PARTS              6
 #define UUID_FORMAT             "%08X-%04X-%04X-%04X-%08X%04X"
 
-static inline void gen_uuid(char *uuid) {
+static inline void gen_uuid(char *uuid)
+{
 	struct timespec		 t;
 	unsigned int		 p[UUID_PARTS];
 	unsigned int		 mask[UUID_PARTS] = {
