@@ -261,9 +261,6 @@ int target_usage(char *alias, char **results);
 int target_logpage(char *alias, char **results);
 int host_logpage(char *alias, char **results);
 
-int set_json_nsdevs(struct target *target, char *data);
-int set_json_fabric_ifaces(struct target *target, char *data);
-
 int get_config(struct target *target);
 int config_target(struct target *target);
 

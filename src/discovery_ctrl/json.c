@@ -1300,7 +1300,7 @@ int del_json_subsys(char *alias, char *subnqn, char *resp)
 
 /* set target lists */
 
-int set_json_nsdevs(struct target *target, char *data)
+int set_json_oob_nsdevs(struct target *target, char *data)
 {
 	struct nsdev		*nsdev, *next;
 	json_t			*array;
@@ -1416,7 +1416,7 @@ out:
 	return ret;
 }
 
-int set_json_fabric_ifaces(struct target *target, char *data)
+int set_json_oob_interfaces(struct target *target, char *data)
 {
 	json_t			*new;
 	json_t			*trtype, *tradr, *trfam;
@@ -1528,6 +1528,68 @@ found:
 out:
 	json_decref(new);
 	return ret;
+}
+
+int set_json_inb_nsdev(struct target *target, struct nsdev *nsdev)
+{
+	json_t			*iter;
+	json_t			*targets;
+	json_t			*nsdevs;
+	json_t			*tgt;
+	json_t			*tmp;
+
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	find_array(targets, TAG_ALIAS, target->alias, &tgt);
+	if (!tgt)
+		return -ENOENT;
+
+	json_get_array(tgt, TAG_NSDEVS, nsdevs);
+	if (!nsdevs) {
+		nsdevs = json_array();
+		json_object_set_new(tgt, TAG_NSDEVS, nsdevs);
+	} else
+		json_array_clear(nsdevs);
+
+	iter = json_object();
+
+	json_set_int(iter, TAG_DEVID, nsdev->nsdev);
+
+	if (nsdev->nsdev != NULL_BLK_DEVID)
+		json_set_int(iter, TAG_DEVNSID, nsdev->nsid);
+
+	json_array_append_new(nsdevs, iter);
+
+	return 0;
+}
+
+int set_json_inb_fabric_iface(struct target *target, struct fabric_iface *iface)
+{
+	json_t			*iter;
+	json_t			*targets;
+	json_t			*ifaces;
+	json_t			*tgt;
+	json_t			*tmp;
+
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	find_array(targets, TAG_ALIAS, target->alias, &tgt);
+	if (!tgt)
+		return -ENOENT;
+
+	json_get_array(tgt, TAG_INTERFACES, ifaces);
+	if (!ifaces) {
+		ifaces = json_array();
+		json_object_set_new(tgt, TAG_INTERFACES, ifaces);
+	} else
+		json_array_clear(ifaces);
+
+	iter = json_object();
+	json_set_string(iter, TAG_TYPE, iface->type);
+	json_set_string(iter, TAG_FAMILY, iface->fam);
+	json_set_string(iter, TAG_ADDRESS, iface->addr);
+
+	json_array_append_new(ifaces, iter);
+
+	return 0;
 }
 
 /* PORTID */
@@ -1846,7 +1908,7 @@ int set_json_inb_interface(char *alias, char *data, char *resp,
 	if (!new)
 		return invalid_json_syntax(resp);
 
-	newobj = json_object_get(new, TAG_INTERFACES);
+	newobj = json_object_get(new, TAG_INTERFACE);
 	if (!newobj) {
 		json_decref(new);
 		return invalid_json_syntax(resp);
@@ -1865,7 +1927,7 @@ int set_json_inb_interface(char *alias, char *data, char *resp,
 	print_debug("Added %s:%d", iface->inb.portid->address,
 		    iface->inb.portid->port_num);
 
-	json_object_set(obj, TAG_INTERFACES, iter);
+	json_object_set(obj, TAG_INTERFACE, iter);
 
 	json_decref(new);
 
@@ -1901,7 +1963,7 @@ int set_json_oob_interface(char *alias, char *data, char *resp,
 	if (!new)
 		return invalid_json_syntax(resp);
 
-	newobj = json_object_get(new, TAG_INTERFACES);
+	newobj = json_object_get(new, TAG_INTERFACE);
 	if (!newobj) {
 		json_decref(new);
 		return invalid_json_syntax(resp);

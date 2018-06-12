@@ -40,6 +40,8 @@ struct ns;
 struct portid;
 struct host;
 union sc_iface;
+struct nsdev;
+struct fabric_iface;
 
 struct json_context *get_json_context(void);
 void store_json_config_file(void);
@@ -127,6 +129,13 @@ int del_ns(char *alias,  char *subnqn, int ns, char *resp);
 
 int link_host(char *alias, char *subnqn, char *host, char *data, char *resp);
 int unlink_host(char *alias,  char *subnqn, char *host, char *resp);
+
+int set_json_oob_nsdevs(struct target *target, char *data);
+int set_json_oob_interfaces(struct target *target, char *data);
+
+int set_json_inb_nsdev(struct target *target, struct nsdev *nsdev);
+int set_json_inb_fabric_iface(struct target *target,
+			      struct fabric_iface *iface);
 
 int update_signature(char *data, char *resp);
 

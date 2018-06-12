@@ -922,6 +922,8 @@ static inline int get_inb_nsdevs(struct target *target)
 		nsdev->nsdev = devid;
 		nsdev->nsid = entry->nsid;
 
+		set_json_inb_nsdev(target, nsdev);
+
 		list_add_tail(&nsdev->node, &target->device_list);
 
 		print_debug("Added %s %d:%d to %s '%s'",
@@ -1011,6 +1013,8 @@ static inline int get_inb_xports(struct target *target)
 		strcpy(iface->type, type);
 		strcpy(iface->fam, fam);
 		strcpy(iface->addr, addr);
+
+		set_json_inb_fabric_iface(target, iface);
 
 		list_add_tail(&iface->node, &target->fabric_iface_list);
 
@@ -2180,7 +2184,7 @@ static int get_oob_nsdevs(struct target *target)
 		goto out1;
 	}
 
-	ret = set_json_nsdevs(target, data);
+	ret = set_json_oob_nsdevs(target, data);
 	if (ret)
 		print_err("send get nsdevs OOB failed for %s", alias);
 
@@ -2198,7 +2202,7 @@ static int get_oob_xports(struct target *target)
 	if (ret)
 		return ret;
 
-	ret = set_json_fabric_ifaces(target, data);
+	ret = set_json_oob_interfaces(target, data);
 
 	free(data);
 
