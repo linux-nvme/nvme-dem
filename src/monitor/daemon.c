@@ -402,7 +402,7 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 
 			strcpy(subsys->nqn, e->subnqn);
 
-			print_debug("added subsystem '%s'", e->subnqn);
+			print_info("added subsystem '%s'", e->subnqn);
 		}
 
 		logpage = malloc(sizeof(*logpage));
@@ -440,31 +440,42 @@ static void fetch_log_pages(struct ctrl_queue *dq)
 
 static void print_log_pages(struct ctrl_queue *dq)
 {
-	struct subsystem	*subsys;
-	struct logpage		*logpage;
-	struct nvmf_disc_rsp_page_hdr *log;
-	int			 bytes = sizeof(*log) + sizeof(logpage->e);
+	struct subsystem	*subsys, *s;
+	struct logpage		*log, *l;
+	struct nvmf_disc_rsp_page_hdr *hdr;
+	int			 bytes = sizeof(*hdr) + sizeof(log->e);
 
-	log = malloc(bytes);
-	if (!log)
+	hdr = malloc(bytes);
+	if (!hdr)
 		return;
 
-	memset(log, 0, bytes);
+	memset(hdr, 0, bytes);
 
-	list_for_each_entry(subsys, &dq->target->subsys_list, node)
-		list_for_each_entry(logpage, &subsys->logpage_list, node)
-			if (logpage->valid == NEW_LOGPAGE) {
-				log->entries[0] = logpage->e;
-				print_info("subsys %s", subsys->nqn);
-				print_info("---------------------------------");
-				print_discovery_log(log, 1);
-			} else if (logpage->valid == DELETED_LOGPAGE)
-				print_info("subsys %s on %s %s %s deleted",
+	list_for_each_entry_safe(subsys, s, &dq->target->subsys_list, node) {
+		list_for_each_entry_safe(log, l, &subsys->logpage_list, node) {
+			if (log->valid == NEW_LOGPAGE) {
+				hdr->entries[0] = log->e;
+				print_info("--------------------------------");
+				print_discovery_log(hdr, 1);
+			} else if (log->valid == DELETED_LOGPAGE) {
+				print_info("subsys '%s' on %s %s %s deleted",
 					   subsys->nqn,
-					   trtype_str(logpage->e.trtype),
-					   logpage->e.traddr,
-					   logpage->e.trsvcid);
-	free(log);
+					   trtype_str(log->e.trtype),
+					   log->e.traddr, log->e.trsvcid);
+				list_del(&log->node);
+				free(log);
+			}
+		}
+
+		if (list_empty(&subsys->logpage_list)) {
+			print_info("deleted subsystem '%s', no log pages",
+				   subsys->nqn);
+			list_del(&subsys->node);
+			free(subsys);
+		}
+	}
+
+	free(hdr);
 }
 
 static void cleanup_log_pages(struct ctrl_queue *dq)

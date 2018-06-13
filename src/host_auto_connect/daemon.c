@@ -246,18 +246,16 @@ out:
 
 static void cleanup_dq(struct ctrl_queue *dq)
 {
-	struct subsystem	*subsys, *next_subsys;
-	struct logpage		*logpage, *next_logpage;
+	struct subsystem	*subsys, *s;
+	struct logpage		*log, *l;
 
 	if (dq->connected)
 		disconnect_ctrl(dq, 0);
 
-	list_for_each_entry_safe(subsys, next_subsys,
-				 &dq->target->subsys_list, node) {
-		list_for_each_entry_safe(logpage, next_logpage,
-					 &subsys->logpage_list, node) {
-			list_del(&logpage->node);
-			free(logpage);
+	list_for_each_entry_safe(subsys, s, &dq->target->subsys_list, node) {
+		list_for_each_entry_safe(log, l, &subsys->logpage_list, node) {
+			list_del(&log->node);
+			free(log);
 		}
 
 		list_del(&subsys->node);
@@ -568,17 +566,22 @@ static void connect_one_subsystem(struct ctrl_queue *dq)
 
 static void cleanup_log_pages(struct ctrl_queue *dq)
 {
-	struct subsystem	*subsys;
-	struct logpage		*logpage, *next;
+	struct subsystem	*subsys, *s;
+	struct logpage		*log, *l;
 
-	list_for_each_entry(subsys, &dq->target->subsys_list, node)
-		list_for_each_entry_safe(logpage, next,
-					 &subsys->logpage_list, node) {
-			if (logpage->valid != DELETED_LOGPAGE)
+	list_for_each_entry_safe(subsys, s, &dq->target->subsys_list, node) {
+		list_for_each_entry_safe(log, l, &subsys->logpage_list, node) {
+			if (log->valid != DELETED_LOGPAGE)
 				continue;
-			list_del(&logpage->node);
-			free(logpage);
+			list_del(&log->node);
+			free(log);
 		}
+
+		if (list_empty(&subsys->logpage_list)) {
+			list_del(&subsys->node);
+			free(subsys);
+		}
+	}
 }
 
 static void process_updates(struct ctrl_queue *dq)
