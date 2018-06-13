@@ -48,6 +48,7 @@ static int			 signalled;
 int				 debug;
 static struct ctrl_queue	 discovery_queue;
 static const char		*dc_str = "Discovery controller";
+static const char		*divider = "--------------------------------";
 
 static void shutdown_dem(void)
 {
@@ -455,7 +456,7 @@ static void print_log_pages(struct ctrl_queue *dq)
 		list_for_each_entry_safe(log, l, &subsys->logpage_list, node) {
 			if (log->valid == NEW_LOGPAGE) {
 				hdr->entries[0] = log->e;
-				print_info("--------------------------------");
+				print_info("%s", divider);
 				print_discovery_log(hdr, 1);
 			} else if (log->valid == DELETED_LOGPAGE) {
 				print_info("subsys '%s' on %s %s %s deleted",
@@ -602,6 +603,7 @@ int main(int argc, char *argv[])
 		}
 		if (dq->connected) {
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
+				print_info("%s", divider);
 				print_info("Received AEN");
 				send_async_event_request(&dq->ep);
 				report_updates(dq);
