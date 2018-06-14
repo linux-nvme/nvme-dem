@@ -117,15 +117,15 @@ static inline int msec_delta(struct timeval t0)
 		(t1.tv_usec - t0.tv_usec) / 1000;
 }
 
-#define UUID_LEN                36
-#define UUID_PARTS              6
-#define UUID_FORMAT             "%08X-%04X-%04X-%04X-%08X%04X"
+#define UUID_LEN		36
+#define UUID_PARTS		6
+#define UUID_FORMAT		"%08X-%04X-%04X-%04X-%08X%04X"
 
 static inline void gen_uuid(char *uuid)
 {
 	struct timespec		 t;
-	unsigned int		 p[UUID_PARTS];
-	unsigned int		 mask[UUID_PARTS] = {
+	u32			 p[UUID_PARTS];
+	u32			 mask[UUID_PARTS] = {
 		0xFFFFFFFF, 0xFFFF, 0x0FFF, 0x3FFF, 0xFFFFFFFF, 0xFFFF };
 	int			 i;
 
@@ -139,10 +139,10 @@ static inline void gen_uuid(char *uuid)
 	p[2] |= 0x4000;
 	p[3] |= 0x8000;
 
-	sprintf(uuid, UUID_FORMAT, p[0], p[1], p[2], p[3], p[4], p[5]);
+	snprintf(uuid, UUID_LEN + 1, UUID_FORMAT,
+		 p[0], p[1], p[2], p[3], p[4], p[5]);
 }
 
-/*HACK*/
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
 #define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
 #define NUM_CONFIG_ITEMS	3
@@ -169,13 +169,6 @@ static inline void gen_uuid(char *uuid)
 #define AF_FC			3
 #endif
 
-/* HACK - Figure out which of these we need */
-#define DISC_BUF_SIZE		4096
-#define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
-#define PATH_NVMF_DISC		"/etc/nvme/discovery.conf"
-#define PATH_NVMF_HOSTNQN	"/etc/nvme/hostnqn"
-#define SYS_NVME		"/sys/class/nvme"
-
 struct target;
 struct host_iface;
 struct portid;
@@ -200,7 +193,7 @@ struct endpoint {
 };
 
 struct ctrl_queue {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct portid		*portid;
 	struct target		*target;
 	struct endpoint		 ep;

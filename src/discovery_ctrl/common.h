@@ -68,10 +68,10 @@ extern int			 debug;
 extern int			 curl_show_results;
 extern int			 num_interfaces;
 extern struct host_iface	*interfaces;
-extern struct list_head		*aen_req_list;
-extern struct list_head		*target_list;
-extern struct list_head		*group_list;
-extern struct list_head		*host_list;
+extern struct linked_list	*aen_req_list;
+extern struct linked_list	*target_list;
+extern struct linked_list	*group_list;
+extern struct linked_list	*host_list;
 
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"
 #define PATH_NVMF_DEM_DISC	"/etc/nvme/nvmeof-dem/"
@@ -92,7 +92,7 @@ enum {GROUP_EVENT = 0, PORT_EVENT, SUBSYS_EVENT, ACL_EVENT};
 struct target;
 
 struct portid {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
@@ -123,14 +123,14 @@ struct oob_iface {
 };
 
 struct host {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct subsystem	*subsystem;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 nqn[MAX_NQN_SIZE + 1];
 };
 
 struct ns {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 nsid;
 	int			 devid;
 	int			 devns;
@@ -138,24 +138,24 @@ struct ns {
 };
 
 struct logpage {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct portid		*portid;
 	struct nvmf_disc_rsp_page_entry e;
 	int			 valid;
 };
 
 struct subsystem {
-	struct list_head	 node;
-	struct list_head	 host_list;
-	struct list_head	 ns_list;
-	struct list_head	 logpage_list;
+	struct linked_list	 node;
+	struct linked_list	 host_list;
+	struct linked_list	 ns_list;
+	struct linked_list	 logpage_list;
 	struct target		*target;
 	char			 nqn[MAX_NQN_SIZE + 1];
 	int			 access;
 };
 
 struct nsdev {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 nsdev;
 	int			 nsid;
 	int			 valid;
@@ -163,7 +163,7 @@ struct nsdev {
 };
 
 struct fabric_iface {
-	struct list_head	 node;
+	struct linked_list	 node;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 fam[CONFIG_FAMILY_SIZE + 1];
 	char			 addr[CONFIG_ADDRESS_SIZE + 1];
@@ -176,12 +176,12 @@ union sc_iface {
 };
 
 struct target {
-	struct list_head	 node;
-	struct list_head	 subsys_list;
-	struct list_head	 portid_list;
-	struct list_head	 device_list;
-	struct list_head	 discovery_queue_list;
-	struct list_head	 fabric_iface_list;
+	struct linked_list	 node;
+	struct linked_list	 subsys_list;
+	struct linked_list	 portid_list;
+	struct linked_list	 device_list;
+	struct linked_list	 discovery_queue_list;
+	struct linked_list	 fabric_iface_list;
 	struct host_iface	*iface;
 	json_t			*json;
 	union sc_iface		 sc_iface;
@@ -195,25 +195,25 @@ struct target {
 };
 
 struct group {
-	struct list_head	 node;
-	struct list_head	 target_list;
+	struct linked_list	 node;
+	struct linked_list	 target_list;
 	char			 name[MAX_ALIAS_SIZE + 1];
 };
 
 struct group_target_link {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct target		*target;
 };
 
 struct group_host_link {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct group		*group;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	char			 nqn[MAX_NQN_SIZE + 1];
 };
 
 struct event_notification {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct endpoint		*ep;
 	struct event_notification *req;
 	char			 nqn[MAX_NQN_SIZE + 1];

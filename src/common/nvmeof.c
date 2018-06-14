@@ -179,18 +179,23 @@ static struct {
 
 static inline char *nvme_str_status(u16 _status)
 {
-	int			 i;
+	int			 i, len;
 	u16			 status = _status & 0x3fff;
 	static char		 str[80] = { 0 };
 
 	for (i = 0; i < NUM_ENTRIES(nvme_status_array); i++)
 		if (nvme_status_array[i].status == status) {
 			strcpy(str, nvme_status_array[i].str);
-			break;
+			goto found;
 		}
 
-	if (_status & NVME_SC_DNR)
-		strcpy(str + strlen(str), " | NVME_SC_DNR");
+	sprintf(str, "Unknown status 0x%X", _status);
+
+found:
+	if (_status & NVME_SC_DNR) {
+		len = strlen(str);
+		strncpy(str + len, " | NVME_SC_DNR", sizeof(str) - len);
+	}
 
 	return str;
 }
@@ -762,6 +767,8 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 	if (ret)
 		goto out;
 
+	usleep(100); /* in case dem-dc running of an in-band dem-sc */
+
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
 out:
 	disconnect_endpoint(ep, 0);
@@ -778,6 +785,9 @@ int start_pseudo_target(struct host_iface *iface)
 		ret = inet_pton(AF_INET, iface->address, &dest);
 	else if (strcmp(iface->family, "ipv6") == 0)
 		ret = inet_pton(AF_INET6, iface->address, &dest);
+	else
+		return -EINVAL;
+
 	if (!ret)
 		return -EINVAL;
 	if (ret < 0)

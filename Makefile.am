@@ -13,6 +13,7 @@ BIN_DIR=.bin
 
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
+GCC = ${KWWRAP}gcc
 CFLAGS = -W -Wall -Werror -Wno-unused-function
 CFLAGS += -Imongoose -Ijansson/src -I${INCL_DIR}
 
@@ -42,6 +43,8 @@ CLI_SRC = ${CLI_DIR}/cli.c ${COMMON_DIR}/curl.c ${CLI_DIR}/show.c
 CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \
 	  ${INCL_DIR}/tags.h
 
+MG_DIR ?= mongoose
+
 HAC_SRC = ${HAC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
 	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
 HAC_INC = ${INCL_DIR}/dem.h ${HAC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
@@ -53,18 +56,18 @@ MON_INC = ${INCL_DIR}/dem.h ${MON_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
 	 ${DC_DIR}/interfaces.c ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
-	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
 DC_INC = ${INCL_DIR}/dem.h ${DC_DIR}/json.h ${DC_DIR}/common.h \
 	 ${INCL_DIR}/ops.h ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h \
 	 mongoose/mongoose.h ${LINUX_INCL}
 
 SC_SRC = ${SC_DIR}/daemon.c ${SC_DIR}/restful.c ${SC_DIR}/configfs.c \
 	 ${SC_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c \
-	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c mongoose/mongoose.c
+	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
 SC_INC = ${INCL_DIR}/dem.h ${SC_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
-all: ${BIN_DIR} mongoose/mongoose.h.orig jansson/libjansson.a \
+all: ${BIN_DIR} mongoose/mongoose.h jansson/libjansson.a \
      ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc \
      ${BIN_DIR}/dem-mon
 	echo Done.
@@ -80,28 +83,28 @@ dem-sc: ${BIN_DIR}/dem-sc
 
 ${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC dem
-	gcc ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR} \
+	${GCC} ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR} \
 		-DDEM_CLI
 
 ${BIN_DIR}/dem-hac: ${HAC_SRC} ${HAC_INC} Makefile
 	echo CC dem-hac
-	gcc ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${HAC_LIBS} -I${HAC_DIR}
+	${GCC} ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${HAC_LIBS} -I${HAC_DIR}
 
 ${BIN_DIR}/dem-mon: ${MON_SRC} ${MON_INC} Makefile
 	echo CC dem-mon
-	gcc ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${MON_LIBS} \
+	${GCC} ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${MON_LIBS} \
 		-I${MON_DIR} -DDEBUG_LOG_PAGES
 
 ${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
 	echo CC dem-dc
-	gcc ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DC_LIBS} -I${DC_DIR}
+	${GCC} ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DC_LIBS} -I${DC_DIR}
 
 ${BIN_DIR}/dem-sc: ${SC_SRC} ${SC_INC} Makefile jansson/libjansson.a
 	echo CC dem-sc
-	gcc ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${SC_LIBS} -I${SC_DIR}
+	${GCC} ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${SC_LIBS} -I${SC_DIR}
 
 clean:
-	rm -rf ${BIN_DIR}/ config.json *.vglog
+	rm -rf ${BIN_DIR}/ config.json *.vglog .k* kw.cfg
 	echo Done.
 
 must_be_root:
@@ -136,11 +139,7 @@ mongoose/.git:
 	git clone https://github.com/cesanta/mongoose.git >/dev/null
 	touch $@
 mongoose/mongoose.h: mongoose/.git
-	cd mongoose ; git reset --hard HEAD ; git clean -fx
-	touch $@
-mongoose/mongoose.h.orig: mongoose/mongoose.h
-	cd mongoose ; git reset --hard HEAD ; \
-		patch -p 1 < ../files/mongoose.patch
+	cd mongoose ; git reset -q --hard HEAD
 	touch $@
 
 jansson/.git:
@@ -149,7 +148,7 @@ jansson/.git:
 	git clone https://github.com/akheron/jansson.git >/dev/null
 	touch $@
 jansson/Makefile.am: jansson/.git
-	cd jansson ; git reset --hard HEAD
+	cd jansson ; git reset -q --hard HEAD
 	touch $@
 jansson/configure: jansson/Makefile.am
 	echo configuring jansson
@@ -268,3 +267,18 @@ sparse:
 	echo "${SPARSE_OPTS}"
 	for i in src/*/*.c ; do sparse $$i ${SPARSE_OPTS} ; done
 	echo Done.
+
+kw.cfg:
+	rm -rf .kw*
+	echo creating klocwork project
+	~/klocwork/kw-client/bin/kwcheck create
+	echo rebuilding for klocwork
+	MG_DIR=files \
+	  KWWRAP="~/klocwork/kw-client/bin/kwwrap -o /tmp/klocwork.out " make
+	~/klocwork/kw-client/bin/kwinject -t /tmp/klocwork.out -o kw.cfg
+	rm /tmp//klocwork.out
+
+klocwork: kw.cfg
+	echo generating klocwork report
+	~/klocwork/kw-client/bin/kwcheck run -b kw.cfg > klocwork.out
+	echo klocwork output in klocwork.out

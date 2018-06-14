@@ -215,6 +215,8 @@ static void unlink_all_ports(char *subsys)
 			sprintf(path, CFS_PORTS "%s/" CFS_SUBSYS,
 				entry->d_name);
 			portdir = opendir(path);
+			if (unlikely(!portdir))
+				continue;
 			for_each_dir(portentry, portdir)
 				if (!strcmp(portentry->d_name, subsys)) {
 					sprintf(path,
@@ -647,8 +649,8 @@ int unlink_port_from_subsys(char *subsys, int portid)
 
 void free_devices(void)
 {
-	struct list_head	*p;
-	struct list_head	*n;
+	struct linked_list	*p;
+	struct linked_list	*n;
 	struct nsdev		*dev;
 
 	list_for_each_safe(p, n, devices) {
@@ -679,6 +681,9 @@ int enumerate_devices(void)
 		return -errno;
 
 	nvmedir = opendir(".");
+	if (unlikely(!nvmedir))
+		return -errno;
+
 	for_each_dir(entry, nvmedir) {
 		sprintf(path, "%s/" SYSFS_TRANSPORT, entry->d_name);
 		fd = fopen(path, "r");
@@ -688,6 +693,11 @@ int enumerate_devices(void)
 		fgets(buf, sizeof(buf), fd);
 		if (strncmp(SYSFS_PCIE, buf, sizeof(buf)) == 0) {
 			subdir = opendir(entry->d_name);
+			if (unlikely(!subdir)) {
+				fclose(fd);
+				continue;
+			}
+
 			for_each_dir(subentry, subdir)
 				if (strncmp(subentry->d_name, SYSFS_PREFIX,
 					    SYSFS_PREFIX_LEN) == 0) {
@@ -695,6 +705,7 @@ int enumerate_devices(void)
 					if (!device) {
 						ret = -ENOMEM;
 						free_devices();
+						fclose(fd);
 						goto out;
 					}
 					sscanf(subentry->d_name, SYSFS_DEVICE,
@@ -717,6 +728,7 @@ int enumerate_devices(void)
 		if (!device) {
 			ret = -ENOMEM;
 			free_devices();
+			fclose(fd);
 			goto out;
 		}
 		device->devid = NULL_BLK_DEVID;
@@ -734,8 +746,8 @@ out:
 
 void free_interfaces(void)
 {
-	struct list_head	*p;
-	struct list_head	*n;
+	struct linked_list	*p;
+	struct linked_list	*n;
 	struct portid		*iface;
 
 	list_for_each_safe(p, n, interfaces) {
@@ -806,6 +818,9 @@ int enumerate_interfaces(void)
 	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
+	if (unlikely(!dir))
+		return -errno;
+
 	for_each_dir(entry, dir) {
 		if ((strcmp(entry->d_name, CONFIG_FILENAME) == 0) ||
 		    (strcmp(entry->d_name, SIGNATURE_FILE_FILENAME) == 0))
@@ -839,6 +854,7 @@ int enumerate_interfaces(void)
 			print_err("Ignored invalid trtype %s: expect %s/%s/%s",
 				   iface->type, TRTYPE_STR_RDMA,
 				   TRTYPE_STR_TCP, TRTYPE_STR_FC);
+			free(iface);
 			continue;
 		}
 
@@ -853,6 +869,7 @@ int enumerate_interfaces(void)
 			print_err("Ignored invalid adrfam %s: expect %s/%s/%s",
 				   iface->family, ADRFAM_STR_IPV4,
 				   ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+			free(iface);
 			continue;
 		}
 
@@ -870,6 +887,7 @@ int enumerate_interfaces(void)
 
 		if (ret < 0) {
 			print_err("Ignored invalid traddr %s", iface->address);
+			free(iface);
 			continue;
 		}
 

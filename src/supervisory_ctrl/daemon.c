@@ -45,16 +45,16 @@
 
 #define DEFAULT_HTTP_ROOT	"/"
 
-static LIST_HEAD(device_list_head);
-static LIST_HEAD(interface_list_head);
+static LINKED_LIST(device_linked_list);
+static LINKED_LIST(interface_linked_list);
 
 int					 stopped;
 int					 debug;
 static int				 signalled;
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port;
-struct list_head			*devices = &device_list_head;
-struct list_head			*interfaces = &interface_list_head;
+struct linked_list			*devices = &device_linked_list;
+struct linked_list			*interfaces = &interface_linked_list;
 static struct host_iface		 host_iface;
 
 void shutdown_dem(void)
@@ -318,25 +318,14 @@ help:
 	return 0;
 }
 
-static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
+static int init_mg_mgr(struct mg_mgr *mgr, char *ssl_cert)
 {
 	struct mg_bind_opts	 bind_opts;
 	struct mg_connection	*c;
-	char			*cp;
 	const char		*err_str;
 
 	mg_mgr_init(mgr, NULL);
 
-	/* Use current binary directory as document root */
-	if (!s_http_server_opts.document_root) {
-		cp = strrchr(prog, DIRSEP);
-		if (cp != NULL) {
-			*cp = '\0';
-			s_http_server_opts.document_root = prog;
-		}
-	}
-
-	/* Set HTTP server options */
 	memset(&bind_opts, 0, sizeof(bind_opts));
 	bind_opts.error_string = &err_str;
 
@@ -392,6 +381,8 @@ static int init_inb_thread(pthread_t *listen_thread)
 	if (ret)
 		print_err("failed to start thread for supervisory controller");
 
+	pthread_attr_destroy(&pthread_attr);
+
 	return ret;
 }
 
@@ -417,7 +408,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (s_http_port)
-		if (init_mg_mgr(&mgr, argv[0], ssl_cert))
+		if (init_mg_mgr(&mgr, ssl_cert))
 			goto out1;
 
 	signalled = stopped = 0;

@@ -157,10 +157,8 @@ static int rdma_create_queue_recv_pool(struct rdma_ep *ep)
 	int			 ret;
 
 	qe = calloc(sizeof(struct rdma_qe), ep->depth);
-	if (!qe) {
-		errno = ENOMEM;
-		goto err;
-	}
+	if (!qe)
+		return -ENOMEM;
 
 	for (i = 0; i < ep->depth; i++) {
 		qe[i].buf = alloc_buffer(ep, PAGE_SIZE, &qe[i].recv_mr);
@@ -397,8 +395,10 @@ static int rdma_create_endpoint(struct xp_ep **_ep, void *id, int depth)
 	ep->depth = depth;
 
 	ret = _rdma_create_ep(ep);
-	if (ret)
+	if (ret) {
+		free(ep);
 		return ret;
+	}
 
 	*_ep = (struct xp_ep *) ep;
 

@@ -137,13 +137,14 @@ static int init_dq(struct ctrl_queue *dq)
 	target = malloc(sizeof(*target));
 	if (!target) {
 		print_info("No memory to init");
+		free(portid);
 		return 1;
 	}
 
 	strcpy(target->alias, "dem-hac");
 
 	target->mgmt_mode = DISCOVERY_CTRL;
-	INIT_LIST_HEAD(&target->subsys_list);
+	INIT_LINKED_LIST(&target->subsys_list);
 
 	dq->portid = portid;
 	dq->target = target;
@@ -304,6 +305,8 @@ static int validate_dq(struct ctrl_queue *dq)
 	case NVMF_ADDR_FAMILY_FC:
 		ret = fc_to_addr(portid->address, portid->addr);
 		break;
+	default:
+		ret = -EINVAL;
 	}
 
 	if (ret) {
@@ -399,7 +402,7 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 
 			list_add_tail(&subsys->node, &target->subsys_list);
 
-			INIT_LIST_HEAD(&subsys->logpage_list);
+			INIT_LINKED_LIST(&subsys->logpage_list);
 
 			strcpy(subsys->nqn, e->subnqn);
 

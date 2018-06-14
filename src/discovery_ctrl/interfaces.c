@@ -257,10 +257,9 @@ found:
 			if ((len + strlen(buf)) > bytes) {
 				bytes += MAX_BODY_SIZE;
 				p = realloc(*resp, bytes);
-				if (!p) {
-					strcpy(*resp, "no memory");
+				if (!p)
 					return -ENOMEM;
-				}
+				*resp = p;
 				p += len;
 			}
 			strcpy(p, buf);
@@ -310,10 +309,9 @@ found:
 				if ((len + strlen(buf)) > bytes) {
 					bytes += MAX_BODY_SIZE;
 					p = realloc(*resp, bytes);
-					if (!p) {
-						strcpy(*resp, "no memory");
+					if (!p)
 						return -ENOMEM;
-					}
+					*resp = p;
 					p += len;
 				}
 				strcpy(p, buf);
@@ -437,9 +435,9 @@ struct subsystem *new_subsys(struct target *target, char *nqn)
 	subsys->target = target;
 	strcpy(subsys->nqn, nqn);
 
-	INIT_LIST_HEAD(&subsys->host_list);
-	INIT_LIST_HEAD(&subsys->ns_list);
-	INIT_LIST_HEAD(&subsys->logpage_list);
+	INIT_LINKED_LIST(&subsys->host_list);
+	INIT_LINKED_LIST(&subsys->ns_list);
+	INIT_LINKED_LIST(&subsys->logpage_list);
 
 	list_add_tail(&subsys->node, &target->subsys_list);
 
@@ -463,6 +461,8 @@ static void check_subsystems(struct target *target, json_t *array,
 			continue;
 
 		subsys = new_subsys(target, (char *) json_string_value(nqn));
+		if (!subsys)
+			return;
 
 		obj = json_object_get(iter, TAG_NSIDS);
 		if (obj)
@@ -542,7 +542,7 @@ static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 	else
 		portid->port_num = NVME_RDMA_IP_PORT;
 
-	sprintf(portid->port, "%d", portid->port_num);
+	snprintf(portid->port, CONFIG_PORT_SIZE, "%d", portid->port_num);
 
 	return 1;
 out:
@@ -559,11 +559,11 @@ struct target *alloc_target(char *alias)
 
 	memset(target, 0, sizeof(*target));
 
-	INIT_LIST_HEAD(&target->subsys_list);
-	INIT_LIST_HEAD(&target->portid_list);
-	INIT_LIST_HEAD(&target->fabric_iface_list);
-	INIT_LIST_HEAD(&target->device_list);
-	INIT_LIST_HEAD(&target->discovery_queue_list);
+	INIT_LINKED_LIST(&target->subsys_list);
+	INIT_LINKED_LIST(&target->portid_list);
+	INIT_LINKED_LIST(&target->fabric_iface_list);
+	INIT_LINKED_LIST(&target->device_list);
+	INIT_LINKED_LIST(&target->discovery_queue_list);
 
 	list_add_tail(&target->node, target_list);
 
@@ -890,6 +890,9 @@ static int read_dem_config_files(struct host_iface *iface)
 	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
+	if (!dir)
+		return -errno;
+
 	for_each_dir(entry, dir) {
 		if ((strcmp(entry->d_name, CONFIG_FILENAME) == 0) ||
 		    (strcmp(entry->d_name, SIGNATURE_FILE_FILENAME) == 0))

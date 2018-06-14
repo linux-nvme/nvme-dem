@@ -127,6 +127,9 @@ int init_curl(int debug)
 
 	/* will be grown as needed by the realloc in write_cb */
 	ctx->write_data = malloc(1);
+	if (!ctx->write_data)
+		return -ENOMEM;
+
 	ctx->write_sz = 0;    /* no data at this point */
 	ctx->write_data[0] = 0;
 
@@ -178,6 +181,9 @@ static int exec_curl(char *url, char **p)
 	if (ctx->write_sz) {
 		free(ctx->write_data);
 		ctx->write_data = malloc(1);
+		if (!ctx->write_data)
+			return -ENOMEM;
+
 		ctx->write_sz = 0;
 		ctx->write_data[0] = 0;
 	}

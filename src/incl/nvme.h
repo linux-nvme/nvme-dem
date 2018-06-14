@@ -54,6 +54,7 @@ enum {
 	nvme_admin_get_features		= 0x0A,
 	nvme_admin_async_event		= 0x0C,
 	nvme_admin_keep_alive		= 0x18,
+	nvme_fabrics_command		= 0x7f,
 };
 
 enum {
@@ -447,10 +448,6 @@ struct nvme_get_log_page_command {
 	__le32			lpol;
 	__le32			lpou;
 	__u32			rsvd14[2];
-};
-
-enum nvmf_fabrics_opcode {
-	nvme_fabrics_command	= 0x7f,
 };
 
 enum nvmf_capsule_command {

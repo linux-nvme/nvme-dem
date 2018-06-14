@@ -111,7 +111,7 @@ static int parse_uri(char *p, int depth, char *part[])
 				part[i] = &p[1];
 		}
 
-	return part[i] ? i + 1 : i;
+	return (i >= 0) && part[i] ? i + 1 : i;
 }
 
 static int get_dem_request(char *verb, char *resp)
@@ -314,7 +314,7 @@ static int post_target_request(char *target, char **p, int n,
 
 	if (body->len) {
 		memset(data, 0, sizeof(data));
-		strncpy(data, body->p, min(LARGE_RSP, body->len));
+		strncpy(data, body->p, min(SMALL_RSP, body->len));
 
 		if (n) {
 			if (strcmp(*p, URI_SUBSYSTEM) == 0)
@@ -434,7 +434,7 @@ static int handle_target_requests(char *p[], int n, struct http_message *hm,
 
 static int get_host_request(char *host, char **p, int n, char **resp)
 {
-	int			 ret;
+	int			 ret = -EINVAL;
 
 	if (!host)
 		ret = list_json_host(resp);
@@ -501,7 +501,7 @@ static int post_host_request(char *host, int n, struct mg_str *body, char *resp)
 		ret = add_host(host, resp);
 	else {
 		memset(data, 0, sizeof(data));
-		strncpy(data, body->p, min(LARGE_RSP, body->len));
+		strncpy(data, body->p, min(SMALL_RSP, body->len));
 
 		ret = update_host(host, data, resp);
 	}
@@ -529,7 +529,7 @@ static int patch_host_request(char *host, char **p, int n, struct mg_str *body,
 	}
 
 	memset(data, 0, sizeof(data));
-	strncpy(data, body->p, min(LARGE_RSP, body->len));
+	strncpy(data, body->p, min(SMALL_RSP, body->len));
 
 	if (host && !n)
 		ret = update_host(host, data, resp);
@@ -708,7 +708,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	struct http_message	*hm = (struct http_message *) ev_data;
 	char			*resp = NULL;
 	char			*uri = NULL;
-	char			 error[16];
 	char			*parts[MAX_DEPTH] = { NULL };
 	int			 ret;
 	int			 i, n;
@@ -716,19 +715,17 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	json_spinlock();
 
 	if (!hm->uri.len) {
-		strcpy(resp, "Bad page no uri");
-		strcpy(error, "Page Not Found");
 		ret = HTTP_ERR_PAGE_NOT_FOUND;
 		goto out;
 	}
 
 	resp = malloc(BODY_SIZE);
 	if (!resp) {
-		strcpy(resp, "No memory!");
-		strcpy(error, "No Memory");
 		ret = HTTP_ERR_INTERNAL;
 		goto out;
 	}
+
+	resp[0] = 0;
 
 	if (is_equal(&hm->method, &s_options_method)) {
 		ret = -1;
@@ -756,7 +753,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	uri = malloc(hm->uri.len + 1);
 	if (!uri) {
 		strcpy(resp, "No memory!");
-		strcpy(error, "No Memory");
 		ret = HTTP_ERR_INTERNAL;
 		goto out;
 	}
@@ -782,7 +778,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 
 bad_page:
 	sprintf(resp, "Bad page %.*s", (int) hm->uri.len, hm->uri.p);
-	strcpy(error, "Page Not Found");
 	ret = HTTP_ERR_PAGE_NOT_FOUND;
 out:
 	if (!ret)
@@ -790,18 +785,25 @@ out:
 	else if (ret == -1)
 		mg_printf(c, "%s %d OK\r\n%s\r\n%s", HTTP_HDR, HTTP_OK,
 			  HTTP_ALLOW, HTTP_ALLOW_CONTROL);
-	else
+	else if (resp)
 		mg_printf(c, "%s %d\r\n%s\r\n%s", HTTP_HDR, ret, resp,
+			  HTTP_ALLOW);
+	else
+		mg_printf(c, "%s %d\r\nInternal Error\r\n%s", HTTP_HDR, ret,
 			  HTTP_ALLOW);
 
 	mg_printf(c, "\r\nContent-Type: plain/text");
-	mg_printf(c, "\r\nContent-Length: %ld\r\n", strlen(resp));
-	mg_printf(c, "\r\n%s\r\n\r\n", resp);
+	if (resp) {
+		mg_printf(c, "\r\nContent-Length: %ld\r\n", strlen(resp));
+		mg_printf(c, "\r\n%s\r\n\r\n", resp);
+		free(resp);
+	} else {
+		mg_printf(c, "\r\nContent-Length: 14\r\n");
+		mg_printf(c, "\r\nInternal Error\r\n\r\n");
+	}
 
 	if (uri)
 		free(uri);
-	if (resp)
-		free(resp);
 
 	c->flags = MG_F_SEND_AND_CLOSE;
 

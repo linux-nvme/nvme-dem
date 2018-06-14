@@ -54,8 +54,8 @@
 #include "dem.h"
 
 extern int			 debug;
-extern struct list_head		*devices;
-extern struct list_head		*interfaces;
+extern struct linked_list	*devices;
+extern struct linked_list	*interfaces;
 
 #define IPV4_LEN		4
 #define IPV4_OFFSET		4
@@ -70,13 +70,13 @@ extern struct list_head		*interfaces;
 #define FC_DELIM		":"
 
 struct host {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct subsystem	*subsystem;
 	char			 nqn[MAX_NQN_SIZE + 1];
 };
 
 struct nsdev {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 devid;
 	int			 nsid;
 };
@@ -113,7 +113,7 @@ struct host_iface {
 };
 
 struct interface {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 is_oob;
 	union {
 		struct oob_iface oob;
@@ -122,7 +122,7 @@ struct interface {
 };
 
 struct portid {
-	struct list_head	 node;
+	struct linked_list	 node;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
@@ -133,10 +133,10 @@ struct portid {
 };
 
 struct subsystem {
-	struct list_head	 node;
-	struct list_head	 host_list;
-	struct list_head	 portid_list;
-	struct list_head	 ns_list;
+	struct linked_list	 node;
+	struct linked_list	 host_list;
+	struct linked_list	 portid_list;
+	struct linked_list	 ns_list;
 	char			 nqn[MAX_NQN_SIZE + 1];
 	int			 allowany;
 };

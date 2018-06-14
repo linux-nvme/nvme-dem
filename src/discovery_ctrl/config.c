@@ -138,7 +138,7 @@ static inline struct group_host_link *find_group_host(struct group *group,
 
 /* notification functions */
 
-static inline int send_notifications(struct list_head *list)
+static inline int send_notifications(struct linked_list *list)
 {
 	struct event_notification *entry, *next;
 	struct endpoint		*ep;
@@ -163,7 +163,7 @@ static inline int send_notifications(struct list_head *list)
 	return 0;
 }
 
-static inline int in_notification_list(struct list_head *list, char *nqn)
+static inline int in_notification_list(struct linked_list *list, char *nqn)
 {
 	struct event_notification *entry;
 
@@ -174,7 +174,7 @@ static inline int in_notification_list(struct list_head *list, char *nqn)
 	return 0;
 }
 
-static inline void create_notification_entry(struct list_head *list,
+static inline void create_notification_entry(struct linked_list *list,
 					     struct event_notification *req)
 {
 	struct event_notification *entry;
@@ -185,18 +185,18 @@ static inline void create_notification_entry(struct list_head *list,
 
 	memset(entry, 0, sizeof(*entry));
 
-	strcpy(entry->nqn, req->nqn);
+	strncpy(entry->nqn, req->nqn, MAX_NQN_SIZE);
 	entry->ep = req->ep;
 	entry->req = req;
 
 	list_add_tail(&entry->node, list);
 }
 
-static inline void create_notification_list(struct list_head *list)
+static inline void create_notification_list(struct linked_list *list)
 {
 	struct event_notification *req;
 
-	INIT_LIST_HEAD(list);
+	INIT_LINKED_LIST(list);
 
 	list_for_each_entry(req, aen_req_list, node)
 		if (!in_notification_list(list, req->nqn))
@@ -214,7 +214,7 @@ static inline int any_subsys_unrestricted(struct target *target)
 }
 
 static inline void flag_by_group_hosts(struct group *group,
-				       struct list_head *list)
+				       struct linked_list *list)
 {
 	struct event_notification *entry;
 	struct group_host_link	*host;
@@ -230,7 +230,7 @@ static inline void flag_by_group_hosts(struct group *group,
 }
 
 static inline void flag_by_access_list(struct subsystem *subsys,
-				       struct list_head *list)
+				       struct linked_list *list)
 {
 	struct event_notification *entry;
 	struct host		*host;
@@ -244,7 +244,7 @@ static inline void flag_by_access_list(struct subsystem *subsys,
 		}
 }
 
-static inline void prune_notification_list(struct list_head *list)
+static inline void prune_notification_list(struct linked_list *list)
 {
 	struct event_notification *entry, *next;
 
@@ -253,7 +253,7 @@ static inline void prune_notification_list(struct list_head *list)
 			list_del(&entry->node);
 }
 
-static inline void enable_entire_list(struct list_head *list)
+static inline void enable_entire_list(struct linked_list *list)
 {
 	struct event_notification *entry;
 
@@ -261,7 +261,7 @@ static inline void enable_entire_list(struct list_head *list)
 		entry->valid = 1;
 }
 
-static inline void create_event_host_list_for_subsys(struct list_head *list,
+static inline void create_event_host_list_for_subsys(struct linked_list *list,
 						     struct subsystem *subsys)
 {
 	create_notification_list(list);
@@ -279,7 +279,7 @@ static inline void create_event_host_list_for_subsys(struct list_head *list,
 	prune_notification_list(list);
 }
 
-static inline void create_event_host_list_for_group(struct list_head *list,
+static inline void create_event_host_list_for_group(struct linked_list *list,
 						    struct group *group,
 						    struct target *target)
 {
@@ -308,7 +308,7 @@ static inline void create_event_host_list_for_group(struct list_head *list,
 	prune_notification_list(list);
 }
 
-static inline void create_event_host_list_for_target(struct list_head *list,
+static inline void create_event_host_list_for_target(struct linked_list *list,
 						     struct target *target)
 {
 	struct subsystem	*subsys;
@@ -329,12 +329,12 @@ static inline void create_event_host_list_for_target(struct list_head *list,
 	prune_notification_list(list);
 }
 
-static inline void create_event_host_list_for_host(struct list_head *list,
+static inline void create_event_host_list_for_host(struct linked_list *list,
 						   char *nqn)
 {
 	struct event_notification *req;
 
-	INIT_LIST_HEAD(list);
+	INIT_LINKED_LIST(list);
 
 	list_for_each_entry(req, aen_req_list, node)
 		if (!strcmp(nqn, req->nqn)) {
@@ -355,7 +355,7 @@ struct group *init_group(char *name)
 
 	strncpy(group->name, name, MAX_ALIAS_SIZE);
 
-	INIT_LIST_HEAD(&group->target_list);
+	INIT_LINKED_LIST(&group->target_list);
 
 	list_add_tail(&group->node, group_list);
 
@@ -426,9 +426,11 @@ void add_target_to_group(struct group *group, char *alias)
 {
 	struct target		*target;
 	struct group_target_link *link;
-	struct list_head	 list;
+	struct linked_list	 list;
 
 	target = find_target(alias);
+	if (!target)
+		return;
 
 	link = malloc(sizeof(*link));
 	if (!link)
@@ -481,7 +483,7 @@ static inline void del_target_from_group(struct group *group, char *alias)
 {
 	struct target		*target;
 	struct group_target_link *link;
-	struct list_head	 list;
+	struct linked_list	 list;
 
 	target = find_target(alias);
 	if (!target)
@@ -616,7 +618,7 @@ static int build_subsys_config_inb(struct subsystem *subsys,
 	}
 
 	entry->allowanyhost = subsys->access;
-	strcpy(entry->subnqn, subsys->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
 
 	*_entry = entry;
 
@@ -633,8 +635,8 @@ static int build_link_host_inb(struct subsystem *subsys, struct host *host,
 		return 0;
 	}
 
-	strcpy(entry->subnqn, subsys->nqn);
-	strcpy(entry->hostnqn, host->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
+	strncpy(entry->hostnqn, host->nqn, MAX_NQN_SIZE);
 
 	*_entry = entry;
 
@@ -651,7 +653,7 @@ static int build_host_config_inb(char *hostnqn,
 		return 0;
 	}
 
-	strcpy(entry->hostnqn, hostnqn);
+	strncpy(entry->hostnqn, hostnqn, MAX_NQN_SIZE);
 
 	*_entry = entry;
 
@@ -668,7 +670,7 @@ static int build_host_delete_inb(char *hostnqn,
 		return 0;
 	}
 
-	strcpy(entry->hostnqn, hostnqn);
+	strncpy(entry->hostnqn, hostnqn, MAX_NQN_SIZE);
 
 	*_entry = entry;
 
@@ -685,7 +687,7 @@ static int build_link_port_inb(struct subsystem *subsys, struct portid *portid,
 		return 0;
 	}
 
-	strcpy(entry->subnqn, subsys->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
 	entry->portid = portid->portid;
 
 	*_entry = entry;
@@ -720,7 +722,7 @@ static int build_subsys_delete_inb(struct subsystem *subsys,
 		return 0;
 	}
 
-	strcpy(entry->subnqn, subsys->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
 
 	*_entry = entry;
 
@@ -737,7 +739,7 @@ static int build_ns_config_inb(struct subsystem *subsys, struct ns *ns,
 		return 0;
 	}
 
-	strcpy(entry->subnqn, subsys->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
 	entry->nsid = ns->nsid;
 
 	if (ns->devid == NULLB_DEVID)
@@ -762,7 +764,7 @@ static int build_ns_delete_inb(struct subsystem *subsys, struct ns *ns,
 		return 0;
 	}
 
-	strcpy(entry->subnqn, subsys->nqn);
+	strncpy(entry->subnqn, subsys->nqn, MAX_NQN_SIZE);
 	entry->nsid = ns->nsid;
 
 	*_entry = entry;
@@ -976,9 +978,10 @@ static inline int get_inb_xports(struct target *target)
 
 	for (i = hdr->num_entries; i > 0; i--, entry++) {
 		rdma_found = 0;
+		memset(addr, 0, sizeof(addr));
 		strcpy(type, trtype_str(entry->trtype));
 		strcpy(fam, adrfam_str(entry->adrfam));
-		strcpy(addr, entry->traddr);
+		strncpy(addr, entry->traddr, CONFIG_ADDRESS_SIZE);
 
 		list_for_each_entry(iface, &target->fabric_iface_list, node) {
 			if (strcmp(addr, iface->addr) ||
@@ -1012,7 +1015,7 @@ static inline int get_inb_xports(struct target *target)
 		iface->valid = 1;
 		strcpy(iface->type, type);
 		strcpy(iface->fam, fam);
-		strcpy(iface->addr, addr);
+		strncpy(iface->addr, addr, CONFIG_ADDRESS_SIZE);
 
 		set_json_inb_fabric_iface(target, iface);
 
@@ -1392,7 +1395,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
-	struct list_head	 list;
+	struct linked_list	 list;
 	char			 newalias[MAX_ALIAS_SIZE + 1];
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
@@ -1452,7 +1455,7 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 	struct target		*target;
 	struct subsystem	*subsys;
 	struct host		*host;
-	struct list_head	 list;
+	struct linked_list	 list;
 	int			 ret;
 
 	ret = del_json_acl(tgt, subnqn, alias, resp);
@@ -1652,7 +1655,7 @@ int del_subsys(char *alias, char *nqn, char *resp)
 {
 	struct subsystem	*subsys;
 	struct target		*target;
-	struct list_head	 list;
+	struct linked_list	 list;
 	int			 ret;
 
 	ret = del_json_subsys(alias, nqn, resp);
@@ -1742,7 +1745,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	struct subsystem	*subsys;
 	struct subsystem	 new_ss;
 	struct portid		*portid;
-	struct list_head	 list;
+	struct linked_list	 list;
 	int			 len;
 	int			 ret;
 
@@ -1941,17 +1944,22 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	memset(portid, 0, sizeof(*portid));
 
 	ret = set_json_portid(alias, id, data, resp, portid);
-	if (ret)
+	if (ret) {
+		free(portid);
 		goto out;
+	}
 
 	resp += strlen(resp);
 
 	target = find_target(alias);
 	if (!target) {
+		free(portid);
 		ret = -ENOENT;
 		sprintf(resp, TARGET_ERR);
 		goto out;
 	}
+
+	list_add_tail(&portid->node, &target->portid_list);
 
 	if (target->mgmt_mode == LOCAL_MGMT)
 		return 0;
@@ -1968,8 +1976,6 @@ int set_portid(char *alias, int id, char *data, char *resp)
 		sprintf(resp, CONFIG_ERR);
 		goto out;
 	}
-
-	list_add_tail(&portid->node, &target->portid_list);
 
 	list_for_each_entry(subsys, &target->subsys_list, node) {
 		_link_portid(subsys, portid);
@@ -2284,7 +2290,7 @@ static int config_target_oob(struct target *target)
 {
 	struct portid		*portid;
 	struct subsystem	*subsys;
-	int			 ret;
+	int			 ret = 0;
 
 	list_for_each_entry(portid, &target->portid_list, node) {
 		ret = config_portid_oob(target, portid);
@@ -2390,7 +2396,7 @@ int del_target(char *alias, char *resp)
 	struct subsystem	*subsys;
 	struct portid		*portid;
 	struct host		*host;
-	struct list_head	 list;
+	struct linked_list	 list;
 
 	int			 ret;
 
@@ -2513,7 +2519,7 @@ int update_target(char *alias, char *data, char *resp)
 	struct target		 result;
 	struct target		*target;
 	struct portid		 portid;
-	struct list_head	 list;
+	struct linked_list	 list;
 	int			 ret;
 
 	memset(&result, 0, sizeof(result));
@@ -2528,9 +2534,12 @@ int update_target(char *alias, char *data, char *resp)
 	if (!alias) {
 		target = alloc_target(result.alias);
 		if (!target)
-			ret = -ENOMEM;
+			return -ENOMEM;
 	} else {
 		target = find_target(alias);
+		if (unlikely(!target))
+			return -EFAULT;
+
 		if (strcmp(result.alias, alias))
 			strcpy(target->alias, result.alias);
 	}

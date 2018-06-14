@@ -137,13 +137,14 @@ static int init_dq(struct ctrl_queue *dq)
 	target = malloc(sizeof(*target));
 	if (!target) {
 		print_info("No memory to init");
+		free(portid);
 		return 1;
 	}
 
 	strcpy(target->alias, "dem-hac");
 
 	target->mgmt_mode = DISCOVERY_CTRL;
-	INIT_LIST_HEAD(&target->subsys_list);
+	INIT_LINKED_LIST(&target->subsys_list);
 
 	dq->portid = portid;
 	dq->target = target;
@@ -302,6 +303,8 @@ static int validate_dq(struct ctrl_queue *dq)
 	case NVMF_ADDR_FAMILY_FC:
 		ret = fc_to_addr(portid->address, portid->addr);
 		break;
+	default:
+		ret = -EINVAL;
 	}
 
 	if (ret) {
@@ -419,7 +422,7 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 
 			list_add_tail(&subsys->node, &target->subsys_list);
 
-			INIT_LIST_HEAD(&subsys->logpage_list);
+			INIT_LINKED_LIST(&subsys->logpage_list);
 
 			strcpy(subsys->nqn, e->subnqn);
 
@@ -481,38 +484,59 @@ static void mark_connected_subsystems(struct ctrl_queue *dq)
 			logpage->connected = 0;
 
 		dir = opendir(SYS_CLASS_PATH);
+		if (unlikely(!dir))
+			return;
 
 		for_each_dir(entry, dir) {
 			if (strncmp(entry->d_name, "nvme", 4))
 				continue;
 
-			pos = sprintf(path, "%s/%s/",
+			pos = snprintf(path, FILENAME_MAX,  "%s/%s/",
 				      SYS_CLASS_PATH, entry->d_name);
 
 			strcpy(path + pos, SYS_CLASS_SUBNQN_FILE);
 			fd = fopen(path, "r");
+			if (unlikely(!fd))
+				continue;
+
 			fgets(val, sizeof(val), fd);
 			fclose(fd);
 			*strchrnul(val, '\n') = 0;
-			if (strcmp(subsys->nqn, val))
+			if (strcmp(subsys->nqn, val)) {
+				fclose(fd);
 				continue;
+			}
 
 			strcpy(path + pos, SYS_CLASS_ADDR_FILE);
 			fd = fopen(path, "r");
+			if (unlikely(!fd))
+				continue;
+
 			fgets(address, sizeof(address), fd);
 			fclose(fd);
 			*strchrnul(address, '\n') = 0;
 
 			strcpy(path + pos, SYS_CLASS_TRTYPE_FILE);
 			fd = fopen(path, "r");
+			if (unlikely(!fd))
+				continue;
+
 			fgets(val, sizeof(val), fd);
 			fclose(fd);
 			*strchrnul(val, '\n') = 0;
 
 			addr = index(address, '=') + 1;
+			if (!addr)
+				continue;
+
 			port = index(addr, ',');
+			if (!port)
+				continue;
+
 			*port++ = 0;
 			port = index(port, '=') + 1;
+			if (!port)
+				continue;
 
 			list_for_each_entry(logpage, &subsys->logpage_list,
 					    node) {
@@ -549,7 +573,11 @@ static void connect_one_subsystem(struct ctrl_queue *dq)
 		list_for_each_entry(logpage, &subsys->logpage_list, node) {
 			if (logpage->connected)
 				continue;
+
 			fd = fopen(PATH_NVME_FABRICS, "w");
+			if (unlikely(!fd))
+				continue;
+
 			fprintf(fd, NVME_FABRICS_FMT,
 				trtype_str(logpage->e.trtype),
 				logpage->e.traddr, logpage->e.trsvcid,

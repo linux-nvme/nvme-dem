@@ -51,7 +51,7 @@
 #define DEBUG_COMMANDS // TODO comment this out
 
 struct host_conn {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct endpoint		*ep;
 	struct timeval		 timeval;
 	int			 countdown;
@@ -666,7 +666,7 @@ static void *host_thread(void *arg)
 	struct endpoint		*ep = NULL;
 	struct qe		 qe;
 	struct timeval		 timeval;
-	struct list_head	 host_list;
+	struct linked_list	 host_list;
 	struct host_conn	*next;
 	struct host_conn	*host;
 	void			*buf;
@@ -674,7 +674,7 @@ static void *host_thread(void *arg)
 	int			 delta;
 	int			 ret;
 
-	INIT_LIST_HEAD(&host_list);
+	INIT_LINKED_LIST(&host_list);
 
 	while (!stopped) {
 		gettimeofday(&timeval, NULL);
@@ -808,6 +808,8 @@ void *interface_thread(void *arg)
 		print_err("failed to start host thread");
 		goto out2;
 	}
+
+	pthread_attr_destroy(&pthread_attr);
 
 	while (!stopped) {
 		ret = iface->ops->wait_for_connection(listener, &id);

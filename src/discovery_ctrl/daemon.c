@@ -49,10 +49,10 @@
 /* needs to be < NVMF_DISC_KATO in connect AND < 2 MIN for upstream target */
 #define KEEP_ALIVE_TIMER	120000 /* ms */
 
-static LIST_HEAD(target_list_head);
-static LIST_HEAD(group_list_head);
-static LIST_HEAD(host_list_head);
-static LIST_HEAD(aen_list_head);
+static LINKED_LIST(target_linked_list);
+static LINKED_LIST(group_linked_list);
+static LINKED_LIST(host_linked_list);
+static LINKED_LIST(aen_linked_list);
 
 static struct mg_serve_http_opts	 s_http_server_opts;
 static char				*s_http_port = DEFAULT_HTTP_PORT;
@@ -61,10 +61,10 @@ int					 debug;
 int					 curl_show_results;
 struct host_iface			*interfaces;
 int					 num_interfaces;
-struct list_head			*target_list = &target_list_head;
-struct list_head			*group_list = &group_list_head;
-struct list_head			*host_list = &host_list_head;
-struct list_head			*aen_req_list = &aen_list_head;
+struct linked_list			*target_list = &target_linked_list;
+struct linked_list			*group_list = &group_linked_list;
+struct linked_list			*host_list = &host_linked_list;
+struct linked_list			*aen_req_list = &aen_linked_list;
 static pthread_t			*listen_threads;
 static int				 signalled;
 
@@ -321,25 +321,14 @@ help:
 	return 0;
 }
 
-static int init_mg_mgr(struct mg_mgr *mgr, char *prog, char *ssl_cert)
+static int init_mg_mgr(struct mg_mgr *mgr, char *ssl_cert)
 {
 	struct mg_bind_opts	 bind_opts;
 	struct mg_connection	*c;
-	char			*cp;
 	const char		*err_str;
 
 	mg_mgr_init(mgr, NULL);
 
-	/* Use current binary directory as document root */
-	if (!s_http_server_opts.document_root) {
-		cp = strrchr(prog, DIRSEP);
-		if (cp != NULL) {
-			*cp = '\0';
-			s_http_server_opts.document_root = prog;
-		}
-	}
-
-	/* Set HTTP server options */
 	memset(&bind_opts, 0, sizeof(bind_opts));
 	bind_opts.error_string = &err_str;
 
@@ -405,12 +394,15 @@ static int init_interface_threads(pthread_t **listen_threads)
 				   interface_thread, &(interfaces[i]))) {
 			print_err("failed to start transport thread");
 			free(pthreads);
+			pthread_attr_destroy(&pthread_attr);
 			return 1;
 		}
 		usleep(25); // allow new thread to start
 	}
 
 	*listen_threads = pthreads;
+
+	pthread_attr_destroy(&pthread_attr);
 
 	return 0;
 }
@@ -576,19 +568,23 @@ static void set_signature(void)
 		return;
 
 	strcpy(buf, "Basic ");
-	fgets(buf + 6, sizeof(buf) - 1, fd);
+	fgets(buf + 6, sizeof(buf) - 7, fd);
 	len = strlen(buf);
+
 	if (buf[len - 1] == '\n')
 		buf[len--] = 0;
 
 	sig = malloc(len + 1);
 	if (!sig)
-		return;
+		goto out;
+
 	strcpy(sig, buf);
 
 	s_signature_user = mg_mk_str_n(sig, len);
 	s_signature = &s_signature_user;
 
+	free(sig);
+out:
 	fclose(fd);
 }
 
@@ -607,7 +603,7 @@ int main(int argc, char *argv[])
 	if (init_dem(argc, argv, &ssl_cert))
 		goto out;
 
-	if (init_mg_mgr(&mgr, argv[0], ssl_cert))
+	if (init_mg_mgr(&mgr, ssl_cert))
 		goto out;
 
 	if (init_curl(CURL_DEBUG))

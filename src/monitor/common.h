@@ -77,7 +77,7 @@ extern int			 debug;
 struct target;
 
 struct portid {
-	struct list_head	 node;
+	struct linked_list	 node;
 	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
@@ -118,7 +118,7 @@ union sc_iface {
 };
 
 struct fabric_iface {
-	struct list_head	 node;
+	struct linked_list	 node;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 fam[CONFIG_FAMILY_SIZE + 1];
 	char			 addr[CONFIG_ADDRESS_SIZE + 1];
@@ -126,7 +126,7 @@ struct fabric_iface {
 };
 
 struct logpage {
-	struct list_head	 node;
+	struct linked_list	 node;
 	struct portid		*portid;
 	struct nvmf_disc_rsp_page_entry e;
 	int			 valid;
@@ -134,15 +134,15 @@ struct logpage {
 };
 
 struct subsystem {
-	struct list_head	 node;
-	struct list_head	 logpage_list;
+	struct linked_list	 node;
+	struct linked_list	 logpage_list;
 	struct target		*target;
 	char			 nqn[MAX_NQN_SIZE + 1];
 };
 
 struct target {
-	struct list_head	 node;
-	struct list_head	 subsys_list;
+	struct linked_list	 node;
+	struct linked_list	 subsys_list;
 	char			 alias[MAX_ALIAS_SIZE + 1];
 	int			 mgmt_mode;
 	union sc_iface		 sc_iface;

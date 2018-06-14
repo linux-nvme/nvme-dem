@@ -472,6 +472,8 @@ static int _list_target(char *query, char **resp, int offset)
 		if (n > max) {
 			max += n - BODY_SIZE;
 			new = realloc(*resp, max);
+			if (!new)
+				goto out;
 			*resp = new;
 			p = new + cnt + offset;
 		}
@@ -485,7 +487,7 @@ static int _list_target(char *query, char **resp, int offset)
 
 		p += n;
 	}
-
+out:
 	end_json_array(p, n);
 
 	return p - *resp;
@@ -567,7 +569,7 @@ int update_json_group(char *group, char *data, char *resp, char *_name)
 	}
 
 	strcpy(newname, json_string_value(value));
-	if ((!group && *newname) || (strcmp(group, newname) != 0)) {
+	if ((!group && *newname) || (group && strcmp(group, newname) != 0)) {
 		i = find_array(groups, TAG_NAME, newname, &tmp);
 		if (i >= 0) {
 			sprintf(resp, "%s '%s' exists",
@@ -827,6 +829,8 @@ int list_json_group(char **resp)
 		if (len > max) {
 			max += len - BODY_SIZE;
 			new = realloc(*resp, max);
+			if (!new)
+				goto out;
 			*resp = new;
 			p = new + n + m;
 		}
@@ -834,7 +838,7 @@ int list_json_group(char **resp)
 		n = list_array(groups, TAG_NAME, p);
 		p += n;
 	}
-
+out:
 	end_json_array(p, n);
 
 	sprintf(p, "}");
@@ -925,7 +929,7 @@ int get_json_host_nqn(char *host, char *nqn)
 int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 {
 	json_t			*hosts;
-	json_t			*iter;
+	json_t			*iter = NULL;
 	json_t			*tmp;
 	json_t			*new;
 	json_t			*value;
@@ -958,7 +962,7 @@ int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 	if (value) {
 		strcpy(alias, (char *) json_string_value(value));
 
-		if ((!host && *alias) || (strcmp(host, alias))) {
+		if ((!host && *alias) || (host && strcmp(host, alias))) {
 			i = find_array(hosts, TAG_ALIAS, alias, &tmp);
 			if (i >= 0) {
 				sprintf(resp, "%s '%s' exists",
@@ -976,8 +980,17 @@ int update_json_host(char *host, char *data, char *resp, char *alias, char *nqn)
 				json_array_append_new(hosts, iter);
 			}
 		}
+	} else if (!host) {
+		ret = invalid_json_syntax(resp);
+		goto out;
 	} else
 		strcpy(alias, host);
+
+	if (unlikely(!iter)) {
+		ret = -EFAULT;
+		sprintf(resp, "Internal logic error");
+		goto out;
+	}
 
 	json_update_string_ex(iter, new, TAG_HOSTNQN, value, nqn);
 
@@ -1045,6 +1058,8 @@ int list_json_host(char **resp)
 		if (len > max) {
 			max += len - BODY_SIZE;
 			new = realloc(*resp, max);
+			if (!new)
+				goto out;
 			*resp = new;
 			p = new + n + m;
 		}
@@ -1052,7 +1067,7 @@ int list_json_host(char **resp)
 		n = list_array(hosts, TAG_ALIAS, p);
 		p += n;
 	}
-
+out:
 	end_json_array(p, n);
 
 	sprintf(p, "}");
@@ -1225,7 +1240,8 @@ int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 	} else {
 		if (strlen(data) == 0) {
 			sprintf(resp, "no data for update %s '%s' in %s '%s'",
-				TAG_SUBSYSTEM, subnqn, TAG_TARGET, alias);
+				TAG_SUBSYSTEM, (subnqn) ?: "<NULL>",
+				TAG_TARGET, alias);
 			return -EINVAL;
 		}
 	}
@@ -1315,7 +1331,7 @@ int set_json_oob_nsdevs(struct target *target, char *data)
 	char			*alias = target->alias;
 	int			 i, cnt;
 	int			 devid, nsid;
-	int			 ret;
+	int			 ret = -EINVAL;
 
 	new = json_loads(data, JSON_DECODE_ANY, &error);
 	if (!new) {
@@ -2122,7 +2138,7 @@ int update_json_target(char *alias, char *data, char *resp,
 		       struct target *target)
 {
 	json_t			*targets;
-	json_t			*iter;
+	json_t			*iter = NULL;
 	json_t			*new;
 	json_t			*value;
 	json_t			*obj;
@@ -2160,7 +2176,7 @@ int update_json_target(char *alias, char *data, char *resp,
 	if (value) {
 		strcpy(buf, (char *) json_string_value(value));
 
-		if ((!alias && *buf) || (strcmp(alias, buf) != 0)) {
+		if ((!alias && *buf) || (alias && strcmp(alias, buf) != 0)) {
 			i = find_array(targets, TAG_ALIAS, buf, &tmp);
 			if (i >= 0) {
 				sprintf(resp, "%s '%s' exists",
@@ -2187,13 +2203,22 @@ int update_json_target(char *alias, char *data, char *resp,
 				json_array_append_new(targets, iter);
 			}
 		}
-	} else if (!alias) {
+	} else if (alias)
+		strcpy(buf, alias);
+	else {
 		ret = invalid_json_syntax(resp);
 		goto out;
-	} else
-		strcpy(buf, alias);
+	}
 
-	strcpy(target->alias, buf);
+	strncpy(target->alias, buf, MAX_ALIAS_SIZE);
+	target->alias[MAX_ALIAS_SIZE] = 0;
+	memset(mode, 0, sizeof(mode));
+
+        if (unlikely(!iter)) {
+		ret = -EFAULT;
+		sprintf(resp, "Internal logic error");
+                goto out;
+	}
 
 	json_update_int_ex(iter, new, TAG_REFRESH, value, target->refresh);
 	json_update_string_ex(iter, new, TAG_MGMT_MODE, value, mode);
@@ -2496,6 +2521,8 @@ int update_signature(char *data, char *resp)
 
 	s_signature_user = mg_mk_str_n(buf, len);
 	s_signature = &s_signature_user;
+
+	free(buf);
 
 	sprintf(resp, "update successful");
 	return 0;

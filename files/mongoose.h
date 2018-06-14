@@ -68,14 +68,15 @@ union socket_address {
 #endif
 };
 
+struct mg_connection;
+struct mbuf { };
+
 /*
  * Sends `printf`-style formatted data to the connection.
  *
  * See `mg_send` for more details on send semantics.
  */
 int mg_printf(struct mg_connection *, const char *fmt, ...);
-
-struct mg_connection;
 
 struct mg_str mg_mk_str_n(const char *s, size_t len);
 int mg_vcmp(const struct mg_str *str2, const char *str1);

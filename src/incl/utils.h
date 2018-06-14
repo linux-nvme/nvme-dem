@@ -69,21 +69,21 @@ typedef unsigned long long __u64;
 
 /* simple linked list functions */
 
-struct list_head {
-	struct list_head *next, *prev;
+struct linked_list {
+	struct linked_list *next, *prev;
 };
 
-#define LIST_HEAD_INIT(name) { &(name), &(name) }
+#define LINKED_LIST_INIT(name) { &(name), &(name) }
 
-#define LIST_HEAD(name) \
-	struct list_head name = LIST_HEAD_INIT(name)
+#define LINKED_LIST(name) \
+	struct linked_list name = LINKED_LIST_INIT(name)
 
-#define INIT_LIST_HEAD(ptr) do { \
+#define INIT_LINKED_LIST(ptr) do { \
 	(ptr)->next = (ptr); (ptr)->prev = (ptr); \
 } while (0)
 
-static inline void __list_add(struct list_head *entry, struct list_head *prev,
-			      struct list_head *next)
+static inline void __list_add(struct linked_list *entry, struct linked_list *prev,
+			      struct linked_list *next)
 {
 	next->prev = entry;
 	entry->next = next;
@@ -91,24 +91,24 @@ static inline void __list_add(struct list_head *entry, struct list_head *prev,
 	prev->next = entry;
 }
 
-static inline void list_add(struct list_head *entry, struct list_head *list)
+static inline void list_add(struct linked_list *entry, struct linked_list *list)
 {
 	__list_add(entry, list, list->next);
 }
 
-static inline void list_add_tail(struct list_head *entry,
-				 struct list_head *list)
+static inline void list_add_tail(struct linked_list *entry,
+				 struct linked_list *list)
 {
 	__list_add(entry, list->prev, list);
 }
 
-static inline void list_del(struct list_head *entry)
+static inline void list_del(struct linked_list *entry)
 {
 	entry->next->prev = entry->prev;
 	entry->prev->next = entry->next;
 }
 
-static inline int list_empty(const struct list_head *list)
+static inline int list_empty(const struct linked_list *list)
 {
 	return list->next == list;
 }

@@ -354,6 +354,8 @@ static int post_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 		goto err;
 	if (obj)
 		devnsid = json_integer_value(obj);
+	else
+		devnsid = 0;
 
 	if (create_ns(subsys, nsid, devid, devnsid))
 		goto err;
@@ -704,22 +706,17 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	struct http_message	*hm = (struct http_message *) ev_data;
 	char			*resp = NULL;
 	char			*uri = NULL;
-	char			 error[16];
 	char			*parts[MAX_DEPTH] = { NULL };
 	int			 ret;
 	int			 n;
 
 	if (!hm->uri.len) {
-		strcpy(resp, "Bad page no uri");
-		strcpy(error, "Page Not Found");
 		ret = HTTP_ERR_PAGE_NOT_FOUND;
 		goto out;
 	}
 
 	resp = malloc(BODY_SZ);
 	if (!resp) {
-		strcpy(resp, "No memory!");
-		strcpy(error, "No Memory");
 		ret = HTTP_ERR_INTERNAL;
 		goto out;
 	}
@@ -735,7 +732,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	uri = malloc(hm->uri.len + 1);
 	if (!uri) {
 		strcpy(resp, "No memory!");
-		strcpy(error, "No Memory");
 		ret = HTTP_ERR_INTERNAL;
 		goto out;
 	}
@@ -745,7 +741,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 	n = parse_uri(uri, MAX_DEPTH, parts);
 	if (n < 0) {
 		sprintf(resp, "Bad page %.*s", (int) hm->uri.len, hm->uri.p);
-		strcpy(error, "Page Not Found");
 		ret = HTTP_ERR_PAGE_NOT_FOUND;
 		goto out;
 	}
@@ -758,8 +753,13 @@ out:
 		mg_printf(c, "%s %d %s", HTTP_HDR, ret, http_error_str(ret));
 
 	mg_printf(c, "\r\nContent-Type: plain/text");
-	mg_printf(c, "\r\nContent-Length: %ld\r\n", strlen(resp));
-	mg_printf(c, "\r\n%s\r\n\r\n", resp);
+	if (resp) {
+		mg_printf(c, "\r\nContent-Length: %ld\r\n", strlen(resp));
+		mg_printf(c, "\r\n%s\r\n\r\n", resp);
+	} else {
+		mg_printf(c, "\r\nContent-Length: 14\r\n");
+		mg_printf(c, "\r\nInternal Error\r\n\r\n");
+	}
 
 	if (uri)
 		free(uri);
