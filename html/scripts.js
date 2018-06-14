@@ -8,19 +8,7 @@ function clearLogin() {
   $("#user").val("");
   $("#pswd").val("");
 }
-function showContacts() {
-  clearLogin();
-  $("#settingsPage").html("");
-  $("#contactPage").show();
-  $("#contentPage").hide();
-  $("#settingsPage").hide();
-  $("#listPage").hide();
-  $("#detailPage").hide();
-  $("#objectType").html("");
-  $("#objectValue").html("");
-  $("#iflist").html("");
-  $("#nslist").html("");
-}
+
 function showSettings() {
   var str = "";
 
@@ -1500,33 +1488,6 @@ function checkAddress() {
         }
     } else
         $("#notSupported").show();
-}
-
-function email(name) {
-    var email = "";
-    var cc = "";
-    var subject = "";
-    var body = "";
-    var nl = String.fromCharCode(13) + String.fromCharCode(10);
-    var cayton = "Phil Cayton <phil.cayton@intel.com>";
-    var jay = "Jay Sternberg <jay.e.sternberg@intel.com>";
-
-    if (name == "cayton") {
-        email = cayton;
-        cc = jay;
-    } else {
-        email = jay;
-        cc = cayton;
-    }
-    subject = "NVMe-oF Discovery Endpoint Management (DEM) Query";
-    body = "Can you please provide more information regarding this " +
-           "implementation of Discovery Endpoint Management (DEM)" +
-           nl + nl + "Thanks.";
-
-    window.location.href = "mailto:" + encodeURI(email) +
-                           "?cc=" + encodeURI(cc) +
-                           "&subject=" + encodeURI(subject) +
-                           "&body=" + encodeURI(body);
 }
 
 function openDialog(str, verb, uri) {
