@@ -1254,7 +1254,8 @@ static struct verbs verb_list[] = {
 static void show_help(char *prog, char *msg, char *opt)
 {
 	struct verbs		*p;
-	int			target = END;
+	int			 target = END;
+	int			 update_enabled = getuid() == 0;
 
 	if (msg) {
 		if (opt)
@@ -1275,20 +1276,40 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("  -s -- specify server (default %s)\n", DEFAULT_HTTP_ADDR);
 	printf("  -p -- specify port (default %s)\n", DEFAULT_HTTP_PORT);
 	printf("\n");
-	printf("  verb : list | get | add | set | rename");
-	printf(" | delete | link | unlink\n");
-	printf("	 | refresh | config | shutdown\n");
+
+	if (update_enabled) {
+		printf("  verb : list | get | add | set | rename");
+		printf(" | delete | link | unlink\n");
+		printf("	 | refresh | config | shutdown\n");
+	} else
+		printf("  verb : list | get\n");
+
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
-	printf("object : group | target | subsystem | portid | acl\n");
-	printf("	 | ns | host\n");
+
+	if (update_enabled) {
+		printf("object : group | target | subsystem | portid | acl\n");
+		printf("	 | ns | host\n");
+	} else
+		printf("object : group | target | host\n");
+
 	printf("       : shorthand objects may be used (first character)\n");
-	printf("allow_any -- 0 : use host list\n");
-	printf("	  -- 1 : allow any host to access a subsystem\n");
-	printf("devid -- interger value of device id\n");
-	printf("      -- 'nullb0': use nullb0 inplace of physical device\n");
+
+	if (update_enabled) {
+		printf("allow_any -- 0 : use host list\n");
+		printf("	  -- 1 : allow any host to access a");
+		printf(" subsystem\n");
+		printf("devid -- interger value of device id\n");
+		printf("      -- 'nullb0': use nullb0 inplace of physical");
+		printf(" device\n");
+	}
+
 	printf("\n");
 
 	for (p = verb_list; p->verb; p++) {
+		if (!update_enabled && strcmp(p->verb, _GET) &&
+		    strcmp(p->verb, _LIST))
+			continue;
+
 		if (target != p->target) {
 			target = p->target;
 			printf("%s commands:\n", groups[target]);
@@ -1309,6 +1330,7 @@ static struct verbs *find_verb(char *verb, char *object)
 	struct verbs		*p;
 	int			 verb_len = strlen(verb);
 	int			 object_len = (object) ? strlen(object) : 0;
+	int			 update_enabled = getuid() == 0;
 
 	for (p = verb_list; p->verb; p++) {
 		if (strcmp(verb, p->verb)) {
@@ -1317,6 +1339,9 @@ static struct verbs *find_verb(char *verb, char *object)
 			else
 				continue;
 		}
+		if (!update_enabled && strcmp(p->verb, _GET) &&
+		    strcmp(p->verb, _LIST))
+			break;
 		if (!p->object)
 			return p;
 		if (!object)
