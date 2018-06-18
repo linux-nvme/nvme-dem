@@ -541,7 +541,7 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 	u64				 addr;
 	u32				 len;
 	u32				 key;
-	u32				 kato;
+	u32				 kato = 0;
 	int				 ret;
 
 	addr	= c->dptr.ksgl.addr;

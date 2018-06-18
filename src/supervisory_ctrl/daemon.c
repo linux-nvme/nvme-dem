@@ -69,6 +69,15 @@ static void signal_handler(int sig_num)
 	shutdown_dem();
 }
 
+void wait_for_signalled_shutdown()
+{
+	while (!stopped)
+		usleep(100);
+
+	if (signalled)
+		printf("\n");
+}
+
 static void ev_handler(struct mg_connection *c, int ev, void *ev_data)
 {
 	switch (ev) {
@@ -430,11 +439,7 @@ int main(int argc, char *argv[])
 	if (s_http_port)
 		poll_loop(&mgr);
 	else
-		while (!stopped)
-			usleep(100);
-
-	if (signalled)
-		printf("\n");
+		wait_for_signalled_shutdown();
 
 	ret = 0;
 

@@ -571,6 +571,9 @@ static void set_signature(void)
 	fgets(buf + 6, sizeof(buf) - 7, fd);
 	len = strlen(buf);
 
+	if (unlikely(!len))
+		goto out;
+
 	if (buf[len - 1] == '\n')
 		buf[len--] = 0;
 
