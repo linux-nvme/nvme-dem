@@ -181,6 +181,7 @@ struct target {
 	struct linked_list	 portid_list;
 	struct linked_list	 device_list;
 	struct linked_list	 discovery_queue_list;
+	struct linked_list	 unattached_logpage_list;
 	struct linked_list	 fabric_iface_list;
 	struct host_iface	*iface;
 	json_t			*json;

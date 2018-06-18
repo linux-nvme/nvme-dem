@@ -82,7 +82,8 @@ struct linked_list {
 	(ptr)->next = (ptr); (ptr)->prev = (ptr); \
 } while (0)
 
-static inline void __list_add(struct linked_list *entry, struct linked_list *prev,
+static inline void __list_add(struct linked_list *entry,
+			      struct linked_list *prev,
 			      struct linked_list *next)
 {
 	next->prev = entry;

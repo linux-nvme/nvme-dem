@@ -514,6 +514,10 @@ static void cleanup_target_list(void)
 
 		list_del(&target->node);
 
+		list_for_each_entry_safe(logpage, next_logpage,
+					 &target->unattached_logpage_list, node)
+			free(logpage);
+
 		list_for_each_entry_safe(dq, next_dq,
 					 &target->discovery_queue_list, node) {
 			if (dq->connected)

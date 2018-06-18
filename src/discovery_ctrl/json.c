@@ -2214,10 +2214,10 @@ int update_json_target(char *alias, char *data, char *resp,
 	target->alias[MAX_ALIAS_SIZE] = 0;
 	memset(mode, 0, sizeof(mode));
 
-        if (unlikely(!iter)) {
+	if (unlikely(!iter)) {
 		ret = -EFAULT;
 		sprintf(resp, "Internal logic error");
-                goto out;
+		goto out;
 	}
 
 	json_update_int_ex(iter, new, TAG_REFRESH, value, target->refresh);

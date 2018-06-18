@@ -95,42 +95,56 @@ static void save_log_pages(struct nvmf_disc_rsp_page_hdr *log, int numrec,
 {
 	int				 i;
 	int				 found;
+	int				 create;
 	struct subsystem		*subsys;
-	struct logpage			*logpage;
+	struct logpage			*logpage, *lp;
 	struct nvmf_disc_rsp_page_entry *e;
 
 	for (i = 0; i < numrec; i++) {
 		e = &log->entries[i];
 		found = 0;
+		create = 1;
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			if ((strcmp(subsys->nqn, e->subnqn) == 0)) {
 				found = 1;
 				list_for_each_entry(logpage,
 						    &subsys->logpage_list,
-						    node) {
+						    node)
 					if (match_logpage(logpage, e)) {
 						store_logpage(logpage, e, dq);
+						create = 0;
 						goto next;
 					}
-				}
-
-				logpage = malloc(sizeof(*logpage));
-				if (!logpage) {
-					print_err("alloc new logpage failed");
-					return;
-				}
-
-				store_logpage(logpage, e, dq);
-
-				list_add_tail(&logpage->node,
-					      &subsys->logpage_list);
 next:
 				break;
 			}
 
-			if (!found)
-				print_err("unknown subsystem %s on target %s",
-					  e->subnqn, target->alias);
+		if (!create)
+			continue;
+
+		logpage = malloc(sizeof(*logpage));
+		if (!logpage) {
+			print_err("alloc new logpage failed");
+			return;
+		}
+
+		store_logpage(logpage, e, dq);
+
+		if (found) {
+			list_add_tail(&logpage->node, &subsys->logpage_list);
+			continue;
+		}
+
+		list_for_each_entry(lp, &target->unattached_logpage_list, node)
+			if (match_logpage(lp, e)) {
+				found = 1;
+				free(logpage);
+				break;
+			}
+
+		if (!found)
+			list_add_tail(&logpage->node,
+				      &target->unattached_logpage_list);
 	}
 }
 
@@ -268,6 +282,41 @@ found:
 			len += n;
 		}
 
+	if (list_empty(&target->unattached_logpage_list))
+		goto out;
+
+	sprintf(buf, "<p><p><b style='color:red'>Unattached Log Pages</b><p>");
+	if ((len + strlen(buf)) > bytes) {
+		bytes += MAX_BODY_SIZE;
+		p = realloc(*resp, bytes);
+		if (!p)
+			return -ENOMEM;
+		*resp = p;
+		p += len;
+	}
+	strcpy(p, buf);
+	n = strlen(buf);
+	p += n;
+	len += n;
+
+	list_for_each_entry(logpage, &target->unattached_logpage_list, node) {
+		format_logpage(buf, &logpage->e);
+
+		if ((len + strlen(buf)) > bytes) {
+			bytes += MAX_BODY_SIZE;
+			p = realloc(*resp, bytes);
+			if (!p)
+				return -ENOMEM;
+			*resp = p;
+			p += len;
+		}
+		strcpy(p, buf);
+		n = strlen(buf);
+		p += n;
+		len += n;
+	}
+
+out:
 	if (!len)
 		sprintf(*resp, "No valid Log Pages");
 
@@ -564,6 +613,7 @@ struct target *alloc_target(char *alias)
 	INIT_LINKED_LIST(&target->fabric_iface_list);
 	INIT_LINKED_LIST(&target->device_list);
 	INIT_LINKED_LIST(&target->discovery_queue_list);
+	INIT_LINKED_LIST(&target->unattached_logpage_list);
 
 	list_add_tail(&target->node, target_list);
 
