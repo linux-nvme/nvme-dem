@@ -69,7 +69,7 @@ static void signal_handler(int sig_num)
 	shutdown_dem();
 }
 
-void wait_for_signalled_shutdown(void)
+static void wait_for_signalled_shutdown(void)
 {
 	while (!stopped)
 		usleep(100);
