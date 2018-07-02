@@ -450,7 +450,7 @@ void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
 		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
 	} else {
 		host = list_first_entry(&subsys->host_list, struct host, node);
-		sprintf(dq->hostnqn, host->nqn);
+		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
 	}
 
 	if (connect_ctrl(dq))

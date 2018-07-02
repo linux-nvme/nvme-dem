@@ -1430,7 +1430,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 found:
 	ret = _unlink_host(subsys, host);
 	if (ret) {
-		sprintf(resp, CONFIG_ERR);
+		strcpy(resp, CONFIG_ERR);
 		goto out;
 	}
 
@@ -1440,7 +1440,7 @@ skip_unlink:
 
 	ret = _link_host(subsys, host);
 	if (ret)
-		sprintf(resp, CONFIG_ERR);
+		strcpy(resp, CONFIG_ERR);
 
 	list_add_tail(&host->node, &subsys->host_list);
 
@@ -1794,7 +1794,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 	ret = _config_subsys(target, subsys);
 	if (ret) {
-		sprintf(resp, CONFIG_ERR);
+		strcpy(resp, CONFIG_ERR);
 		goto out;
 	}
 
@@ -1955,7 +1955,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	if (!target) {
 		free(portid);
 		ret = -ENOENT;
-		sprintf(resp, TARGET_ERR);
+		strcpy(resp, TARGET_ERR);
 		goto out;
 	}
 
@@ -1973,7 +1973,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 
 	ret = _config_portid(target, portid);
 	if (ret) {
-		sprintf(resp, CONFIG_ERR);
+		strcpy(resp, CONFIG_ERR);
 		goto out;
 	}
 
@@ -2073,7 +2073,7 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 		    (nsdev->nsid == result.devns))
 			goto found;
 
-	sprintf(resp, NSDEV_ERR);
+	strcpy(resp, NSDEV_ERR);
 
 	ret = -ENOENT;
 	goto out;
@@ -2086,7 +2086,7 @@ found:
 	if (!ns) {
 		ns = malloc(sizeof(*ns));
 		if (!ns) {
-			sprintf(resp, INTERNAL_ERR);
+			strcpy(resp, INTERNAL_ERR);
 			ret = -ENOMEM;
 			goto out;
 		}
@@ -2100,7 +2100,7 @@ found:
 
 	ret = _set_ns(subsys, ns);
 	if (ret)
-		sprintf(resp, CONFIG_ERR);
+		strcpy(resp, CONFIG_ERR);
 out:
 	return ret;
 }
@@ -2466,7 +2466,7 @@ int set_interface(char *alias, char *data, char *resp)
 	target = find_target(alias);
 	if (!target) {
 		ret = -ENOENT;
-		sprintf(resp, TARGET_ERR);
+		strcpy(resp, TARGET_ERR);
 		goto out;
 	}
 

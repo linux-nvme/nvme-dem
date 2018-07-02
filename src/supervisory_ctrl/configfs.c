@@ -883,6 +883,8 @@ int enumerate_interfaces(void)
 		case NVMF_ADDR_FAMILY_FC:
 			ret = fc_to_addr(iface->address, iface->addr);
 			break;
+		default:
+			ret = -EINVAL;
 		}
 
 		if (ret < 0) {

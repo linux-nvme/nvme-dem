@@ -696,7 +696,7 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 	struct sockaddr		 dest = { 0 };
 	struct sockaddr_in	*dest_in = (struct sockaddr_in *) &dest;
 	struct sockaddr_in6	*dest_in6 = (struct sockaddr_in6 *) &dest;
-	struct nvme_rdma_cm_req	*req;
+	struct nvme_rdma_cm_req	*req = NULL;
 	void			*cmd;
 	void			*data;
 	int			 bytes;

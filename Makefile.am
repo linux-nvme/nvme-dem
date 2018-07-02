@@ -14,8 +14,29 @@ BIN_DIR=.bin
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
 GCC = ${KWWRAP}gcc
-CFLAGS = -W -Wall -Werror -Wno-unused-function
+CFLAGS = -W -Wall -Wno-unused-function
 CFLAGS += -Imongoose -Ijansson/src -I${INCL_DIR}
+
+if EXTRA_SECURITY_CFLAGS
+LDFLAGS += -z noexecstack -z relro -z now -pie
+
+CFLAGS += -fstack-protector-strong
+CFLAGS += -fPIE -fPIC
+CFLAGS += -Wformat
+
+CFLAGS += -D_FORTIFY_SOURCE=2
+CFLAGS += -Wformat-security
+CFLAGS += -Wno-unused-result
+GDB_OPTS = -O2
+else
+CFLAGS += -Werror
+if DEBUG
+GDB_OPTS = -g -O0
+else
+GDB_OPTS = -O2
+endif
+
+endif
 
 # ALT_CFLAGS used for sparse since mongoose has too many errors
 # a modified version of mongoose.h can be created and stored in /files
@@ -34,8 +55,6 @@ HAC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
 MON_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
 
 CLI_LIBS = -lcurl jansson/libjansson.a
-
-GDB_OPTS = -g -O0
 
 LINUX_INCL = ${INCL_DIR}/nvme.h ${INCL_DIR}/utils.h
 
@@ -83,25 +102,28 @@ dem-sc: ${BIN_DIR}/dem-sc
 
 ${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
 	echo CC dem
-	${GCC} ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} -I${CLI_DIR} \
-		-DDEM_CLI
+	${GCC} ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} \
+		-I${CLI_DIR} -DDEM_CLI
 
 ${BIN_DIR}/dem-hac: ${HAC_SRC} ${HAC_INC} Makefile
 	echo CC dem-hac
-	${GCC} ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${HAC_LIBS} -I${HAC_DIR}
+	${GCC} ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${HAC_LIBS} -I${HAC_DIR}
 
 ${BIN_DIR}/dem-mon: ${MON_SRC} ${MON_INC} Makefile
 	echo CC dem-mon
-	${GCC} ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${MON_LIBS} \
-		-I${MON_DIR} -DDEBUG_LOG_PAGES
+	${GCC} ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${MON_LIBS} -I${MON_DIR} -DDEBUG_LOG_PAGES
 
 ${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
 	echo CC dem-dc
-	${GCC} ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${DC_LIBS} -I${DC_DIR}
+	${GCC} ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${DC_LIBS} -I${DC_DIR}
 
 ${BIN_DIR}/dem-sc: ${SC_SRC} ${SC_INC} Makefile jansson/libjansson.a
 	echo CC dem-sc
-	${GCC} ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} ${SC_LIBS} -I${SC_DIR}
+	${GCC} ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${SC_LIBS} -I${SC_DIR}
 
 clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog .k* kw.cfg
