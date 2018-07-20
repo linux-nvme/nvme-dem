@@ -45,6 +45,7 @@
 int target_reconfig(char *alias)
 {
 	struct target		*target;
+	struct logpage		*lp, *n;
 	int			 ret;
 
 	list_for_each_entry(target, target_list, node)
@@ -56,6 +57,12 @@ found:
 	ret = send_del_target(target);
 	if (ret)
 		return ret;
+
+	list_for_each_entry_safe(lp, n, &target->unattached_logpage_list,
+				 node) {
+		list_del(&lp->node);
+		free(lp);
+	}
 
 	return config_target(target);
 }
