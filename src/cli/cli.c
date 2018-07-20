@@ -1167,7 +1167,7 @@ static struct verbs verb_list[] = {
 	  "update a target's management mode to in-of-band" },
 	{ set_oob_mgmt, TARGET,  4, _SET,  _OOB_MGMT,
 	  "<alias> <family> <address> <port>",
-	  "update a target's managment mode to out-of-band" },
+	  "update a target's management mode to out-of-band" },
 	{ set_refresh,	 TARGET,  2, _SET,  _REFRESH, "<alias> <refresh>",
 	  "update a target's refresh rate in minutes" },
 	{ rename_target, TARGET,  2, _RENA, _TARGET, "<old> <new>",
@@ -1298,7 +1298,7 @@ static void show_help(char *prog, char *msg, char *opt)
 		printf("allow_any -- 0 : use host list\n");
 		printf("	  -- 1 : allow any host to access a");
 		printf(" subsystem\n");
-		printf("devid -- interger value of device id\n");
+		printf("devid -- integer value of device id\n");
 		printf("      -- 'nullb0': use nullb0 inplace of physical");
 		printf(" device\n");
 	}
