@@ -611,13 +611,6 @@ static void cleanup_log_pages(struct ctrl_queue *dq)
 	}
 }
 
-static void process_updates(struct ctrl_queue *dq)
-{
-	fetch_log_pages(dq);
-	mark_connected_subsystems(dq);
-	cleanup_log_pages(dq);
-}
-
 static int enable_aens(struct ctrl_queue *dq)
 {
 	int			 ret;
@@ -646,22 +639,23 @@ static int enable_aens(struct ctrl_queue *dq)
 	return 0;
 }
 
+static void process_updates(struct ctrl_queue *dq)
+{
+	fetch_log_pages(dq);
+	mark_connected_subsystems(dq);
+	cleanup_log_pages(dq);
+
+	if (!dq->failed_kato)
+		enable_aens(dq);
+}
+
 static inline int complete_connection(struct ctrl_queue *dq)
 {
-	int			 ret;
-
 	dq->connected = CONNECTED;
 	print_info("Connected to %s", dc_str);
 	usleep(100);
 	if (stopped)
 		return -ESHUTDOWN;
-
-	if (!dq->failed_kato) {
-		ret = enable_aens(dq);
-		if (ret)
-			return ret;
-		usleep(250);
-	}
 
 	process_updates(dq);
 

@@ -496,13 +496,6 @@ static void cleanup_log_pages(struct ctrl_queue *dq)
 			}
 }
 
-static inline void report_updates(struct ctrl_queue *dq)
-{
-	fetch_log_pages(dq);
-	print_log_pages(dq);
-	cleanup_log_pages(dq);
-}
-
 static int enable_aens(struct ctrl_queue *dq)
 {
 	int			 ret;
@@ -531,21 +524,22 @@ static int enable_aens(struct ctrl_queue *dq)
 	return 0;
 }
 
+static inline void report_updates(struct ctrl_queue *dq)
+{
+	fetch_log_pages(dq);
+	print_log_pages(dq);
+	cleanup_log_pages(dq);
+
+	if (!dq->failed_kato)
+		enable_aens(dq);
+}
+
 static inline int complete_connection(struct ctrl_queue *dq)
 {
-	int			 ret;
-
 	dq->connected = CONNECTED;
 	usleep(100);
 	if (stopped)
 		return -ESHUTDOWN;
-
-	if (!dq->failed_kato) {
-		ret = enable_aens(dq);
-		if (ret)
-			return ret;
-		usleep(250);
-	}
 
 	report_updates(dq);
 
@@ -609,7 +603,6 @@ int main(int argc, char *argv[])
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
 				print_info("%s", divider);
 				print_info("Received AEN");
-				send_async_event_request(&dq->ep);
 				report_updates(dq);
 				cnt = 0;
 			} else if (++cnt > KEEP_ALIVE_COUNTER) {
