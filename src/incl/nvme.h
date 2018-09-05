@@ -150,7 +150,7 @@ enum {
 };
 
 enum {
-	NVME_AER_NOTICE_LOG_PAGE_CHANGE = 0xD002,
+	NVME_AER_NOTICE_LOG_PAGE_CHANGE = 0xF002,
 };
 
 enum {
@@ -206,6 +206,10 @@ enum {
 
 enum {
 	NVME_CMD_SGL_METABUF		= 0x40,
+};
+
+enum {
+	NVME_AEN_CFG_DISC_LOG_CHG	= 1 << 31,
 };
 
 struct nvme_sgl_desc {

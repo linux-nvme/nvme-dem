@@ -519,7 +519,8 @@ static int enable_aens(struct ctrl_queue *dq)
 		return -EINVAL;
 	}
 
-	ret = send_set_features(&dq->ep, NVME_FEAT_ASYNC_EVENT, 1);
+	ret = send_set_features(&dq->ep, NVME_FEAT_ASYNC_EVENT,
+				NVME_AEN_CFG_DISC_LOG_CHG);
 	if (ret) {
 		print_err("set AEN feature failed");
 		return ret;

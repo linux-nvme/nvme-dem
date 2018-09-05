@@ -39,7 +39,7 @@
 
 #define unlikely __glibc_unlikely
 
-#define NVMF_UUID_FMT		"nqn.2014-08.org.nvmexpress:NVMf:uuid:%s"
+#define NVMF_UUID_FMT		"nqn.2014-08.org.nvmexpress:uuid:%s"
 
 #define PAGE_SIZE		4096
 #define BUF_SIZE		4096
