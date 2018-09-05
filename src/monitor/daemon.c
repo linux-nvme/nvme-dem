@@ -574,30 +574,26 @@ int main(int argc, char *argv[])
 	signal(SIGINT, signal_handler);
 	signal(SIGTERM, signal_handler);
 
-	if (connect_ctrl(dq)) {
+	if (connect_ctrl(dq))
 		print_info("Unable to connect to %s", dc_str);
-		sleep(CONNECT_DELAY);
-	} else if (complete_connection(dq))
+	else if (complete_connection(dq))
 		goto cleanup;
 
 	while (!stopped) {
 		if (!dq->connected) {
 			usleep(DELAY);
 
-			if (dq->failed_kato)
-				if (++cnt < KEEP_ALIVE_COUNTER)
-					continue;
-			cnt = 0;
-			if (connect_ctrl(dq)) {
-				sleep(CONNECT_DELAY);
+			if (++cnt < CONNECT_RETRY_COUNTER)
 				continue;
+
+			if (!connect_ctrl(dq)) {
+				cnt = 0;
+				if (complete_connection(dq))
+					break;
+
+				if (stopped)
+					break;
 			}
-
-			if (complete_connection(dq))
-				break;
-
-			if (stopped)
-				break;
 		}
 		if (dq->connected) {
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
@@ -613,7 +609,6 @@ int main(int argc, char *argv[])
 				if (ret) {
 					print_err("Lost connection to %s",
 						  dc_str);
-					sleep(CONNECT_DELAY);
 					cleanup_dq(dq);
 				}
 			}
