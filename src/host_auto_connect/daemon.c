@@ -501,11 +501,10 @@ static void mark_connected_subsystems(struct ctrl_queue *dq)
 
 			fgets(val, sizeof(val), fd);
 			fclose(fd);
+
 			*strchrnul(val, '\n') = 0;
-			if (strcmp(subsys->nqn, val)) {
-				fclose(fd);
+			if (strcmp(subsys->nqn, val))
 				continue;
-			}
 
 			strcpy(path + pos, SYS_CLASS_ADDR_FILE);
 			fd = fopen(path, "r");
@@ -546,11 +545,11 @@ static void mark_connected_subsystems(struct ctrl_queue *dq)
 					continue;
 				if (strcmp(logpage->e.trsvcid, port))
 					continue;
-				if (logpage->valid) {
+				if (logpage->valid == VALID_LOGPAGE) {
 					logpage->connected = 1;
 					print_debug("subsys %s already %s",
 						   subsys->nqn, entry->d_name);
-				} else {
+				} else if (logpage->valid == DELETED_LOGPAGE) {
 					list_del(&logpage->node);
 					print_debug("subsys %s removed",
 						   subsys->nqn);
