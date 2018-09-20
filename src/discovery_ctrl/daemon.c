@@ -418,12 +418,15 @@ static inline int check_logpage_portid(struct subsystem *subsys,
 	return 0;
 }
 
-void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
+void create_discovery_queue(struct target *target, struct subsystem *subsys,
+			    struct portid *portid)
 {
 	struct ctrl_queue	*dq;
-	struct target		*target = subsys->target;
 	struct host		*host;
 	char			 uuid[UUID_LEN + 1];
+
+	if (subsys && subsys->access == ALLOW_ANY)
+		return;
 
 	dq = malloc(sizeof(*dq));
 	if (!dq) {
@@ -445,7 +448,7 @@ void create_discovery_queue(struct subsystem *subsys, struct portid *portid)
 
 	list_add_tail(&dq->node, &target->discovery_queue_list);
 
-	if (subsys->access == ALLOW_ANY) {
+	if (!subsys) {
 		gen_uuid(uuid);
 		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
 	} else {
@@ -467,7 +470,7 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		if (!check_logpage_portid(subsys, portid))
-			create_discovery_queue(subsys, portid);
+			create_discovery_queue(target, subsys, portid);
 }
 
 static void init_targets(void)

@@ -254,8 +254,8 @@ void get_host_nqn(void *context, void *haddr, char *nqn);
 struct subsystem *new_subsys(struct target *target, char *nqn);
 
 void fetch_log_pages(struct ctrl_queue *dq);
-void create_discovery_queue(struct subsystem *subsys, struct portid *portid);
-
+void create_discovery_queue(struct target *target, struct subsystem *subsys,
+			    struct portid *portid);
 int target_reconfig(char *alias);
 int target_refresh(char *alias);
 int target_usage(char *alias, char **results);

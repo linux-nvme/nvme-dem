@@ -1799,7 +1799,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	}
 
 	list_for_each_entry(portid, &target->portid_list, node)
-		create_discovery_queue(subsys, portid);
+		create_discovery_queue(target, subsys, portid);
 
 	create_event_host_list_for_subsys(&list, subsys);
 	send_notifications(&list);
@@ -1961,8 +1961,10 @@ int set_portid(char *alias, int id, char *data, char *resp)
 
 	list_add_tail(&portid->node, &target->portid_list);
 
-	if (target->mgmt_mode == LOCAL_MGMT)
+	if (target->mgmt_mode == LOCAL_MGMT) {
+		create_discovery_queue(target, NULL, portid);
 		return 0;
+	}
 
 	delportid.portid = id;
 	list_for_each_entry(subsys, &target->subsys_list, node)
@@ -1977,9 +1979,11 @@ int set_portid(char *alias, int id, char *data, char *resp)
 		goto out;
 	}
 
+	create_discovery_queue(target, NULL, portid);
+
 	list_for_each_entry(subsys, &target->subsys_list, node) {
 		_link_portid(subsys, portid);
-		create_discovery_queue(subsys, portid);
+		create_discovery_queue(target, subsys, portid);
 	}
 out:
 	return ret;
