@@ -468,6 +468,8 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 {
 	struct subsystem	*subsys;
 
+	create_discovery_queue(target, NULL, portid);
+
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		if (!check_logpage_portid(subsys, portid))
 			create_discovery_queue(target, subsys, portid);

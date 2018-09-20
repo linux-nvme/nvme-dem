@@ -1684,7 +1684,6 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 {
 	struct ns		*ns;
 	struct host		*host;
-	struct portid		*portid;
 	char			*alias = target->alias;
 	char			*nqn = subsys->nqn;
 	char			 buf[MAX_BODY_SIZE];
@@ -1719,9 +1718,6 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 		if (ret)
 			print_err("set subsys acl OOB failed for %s", alias);
 	}
-
-	list_for_each_entry(portid, &target->portid_list, node)
-		send_link_portid_oob(subsys, portid);
 
 	return 0;
 }
@@ -1798,8 +1794,12 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 		goto out;
 	}
 
-	list_for_each_entry(portid, &target->portid_list, node)
+	list_for_each_entry(portid, &target->portid_list, node) {
+		_link_portid(subsys, portid);
 		create_discovery_queue(target, subsys, portid);
+	}
+
+	target_refresh(alias);
 
 	create_event_host_list_for_subsys(&list, subsys);
 	send_notifications(&list);
@@ -1985,6 +1985,8 @@ int set_portid(char *alias, int id, char *data, char *resp)
 		_link_portid(subsys, portid);
 		create_discovery_queue(target, subsys, portid);
 	}
+
+	target_refresh(target->alias);
 out:
 	return ret;
 }
