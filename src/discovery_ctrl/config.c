@@ -2454,9 +2454,11 @@ static inline void set_inb_interface(union sc_iface *iface,
 		iface->inb.portid = portid;
 	}
 
-	strcpy(portid->port, result->inb.portid->port);
 	strcpy(portid->type, result->inb.portid->type);
+	strcpy(portid->family, result->inb.portid->family);
 	strcpy(portid->address, result->inb.portid->address);
+
+	portid->port_num = result->inb.portid->port_num;
 }
 
 int set_interface(char *alias, char *data, char *resp)
