@@ -796,6 +796,8 @@ function loadAdd(sub, val) {
   var str = "";
   var uri = typ;
 
+  $("#args").html("");
+
   if (sub == undefined) {
     if (typ == "target")
       str += formTargetAlias();
