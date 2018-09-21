@@ -343,6 +343,106 @@ static inline void create_event_host_list_for_host(struct linked_list *list,
 		}
 }
 
+static inline void _del_subsys_dq(struct subsystem *subsys)
+{
+	struct ctrl_queue	*dq;
+	struct target		*target = subsys->target;
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (dq->subsys != subsys)
+			continue;
+
+		list_del(&dq->node);
+		free(dq);
+
+		target_refresh(target->alias);
+
+		break;
+	}
+}
+
+static inline void _reset_subsys_dq(struct subsystem *subsys)
+{
+	struct ctrl_queue	*dq;
+	struct host		*host;
+	struct target		*target = subsys->target;
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (dq->subsys != subsys)
+			continue;
+
+		host = list_first_entry(&subsys->host_list, struct host,
+					node);
+
+		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
+
+		target_refresh(target->alias);
+
+		break;
+	}
+}
+
+static inline void _update_subsys_dq(struct subsystem *subsys, char *old_nqn,
+				     char *new_nqn)
+{
+	struct ctrl_queue	*dq;
+	struct target		*target = subsys->target;
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (dq->subsys != subsys)
+			continue;
+
+		if (strcmp(old_nqn, dq->hostnqn))
+			break;
+
+		if (dq->connected)
+			disconnect_ctrl(dq, 0);
+
+		if (list_empty(&subsys->host_list)) {
+			target_refresh(target->alias);
+			break;
+		}
+
+		strncpy(dq->hostnqn, new_nqn, MAX_NQN_SIZE);
+
+		target_refresh(target->alias);
+
+		break;
+	}
+}
+
+static inline void _reset_subsys_dq_nqn(struct subsystem *subsys, char *nqn)
+{
+	struct ctrl_queue	*dq;
+	struct host		*host;
+	struct target		*target = subsys->target;
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (dq->subsys != subsys)
+			continue;
+
+		if (strcmp(nqn, dq->hostnqn))
+			break;
+
+		if (dq->connected)
+			disconnect_ctrl(dq, 0);
+
+		if (list_empty(&subsys->host_list)) {
+			target_refresh(target->alias);
+			break;
+		}
+
+		host = list_first_entry(&subsys->host_list, struct host,
+					node);
+
+		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
+
+		target_refresh(target->alias);
+
+		break;
+	}
+}
+
 /* config functions that are not send to the target */
 
 struct group *init_group(char *name)
@@ -1128,6 +1228,9 @@ static int config_subsys_inb(struct target *target, struct subsystem *subsys)
 		return -ENOMEM;
 	}
 
+	if (subsys->access == ALLOW_ANY)
+		_del_subsys_dq(subsys);
+
 	ret = _send_set_config(ctrl, nvmf_set_subsys_config, len, entry);
 	if (ret)
 		print_err("send set subsys INB failed for %s", target->alias);
@@ -1320,6 +1423,7 @@ int update_host(char *alias, char *data, char *resp)
 	struct host		*host;
 	char			 newalias[MAX_ALIAS_SIZE + 1];
 	char			 hostnqn[MAX_NQN_SIZE + 1];
+	char			 oldnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
 	ret = update_json_host(alias, data, resp, newalias, hostnqn);
@@ -1335,8 +1439,12 @@ int update_host(char *alias, char *data, char *resp)
 				if (!strcmp(host->alias, alias)) {
 					if (strcmp(host->nqn, hostnqn)) {
 						_unlink_host(subsys, host);
+						strcpy(oldnqn, host->nqn);
 						strcpy(host->nqn, hostnqn);
 						_link_host(subsys, host);
+						_update_subsys_dq(subsys,
+								  oldnqn,
+								  hostnqn);
 					}
 					if (strcmp(host->alias, newalias))
 						strcpy(host->alias, newalias);
@@ -1360,6 +1468,7 @@ int del_host(char *alias, char *resp)
 	struct subsystem	*subsys;
 	struct host		*host;
 	char			 hostnqn[MAX_NQN_SIZE + 1];
+	char			 dummy[MAX_BODY_SIZE];
 	int			 dirty;
 	int			 ret;
 
@@ -1377,6 +1486,10 @@ int del_host(char *alias, char *resp)
 				if (!strcmp(host->alias, alias)) {
 					_unlink_host(subsys, host);
 					list_del(&host->node);
+					_reset_subsys_dq_nqn(subsys, host->nqn);
+					del_json_acl(target->alias, subsys->nqn,
+						     host->alias, dummy);
+					free(host);
 					break;
 				}
 		}
@@ -1433,6 +1546,7 @@ found:
 		strcpy(resp, CONFIG_ERR);
 		goto out;
 	}
+	_reset_subsys_dq_nqn(subsys, host->nqn);
 
 skip_unlink:
 	strcpy(host->alias, alias);
@@ -1442,7 +1556,11 @@ skip_unlink:
 	if (ret)
 		strcpy(resp, CONFIG_ERR);
 
-	list_add_tail(&host->node, &subsys->host_list);
+	if (list_empty(&subsys->host_list)) {
+		list_add(&host->node, &subsys->host_list);
+		_reset_subsys_dq(subsys);
+	} else
+		list_add_tail(&host->node, &subsys->host_list);
 
 	create_event_host_list_for_host(&list, hostnqn);
 	send_notifications(&list);
@@ -1474,6 +1592,7 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 		if (!strcmp(host->alias, alias)) {
 			_unlink_host(subsys, host);
 			list_del(&host->node);
+			_reset_subsys_dq_nqn(subsys, host->nqn);
 			goto found;
 		}
 	goto out;
@@ -1672,10 +1791,14 @@ int del_subsys(char *alias, char *nqn, char *resp)
 
 	ret = _del_subsys(subsys);
 
+	_del_subsys_dq(subsys);
+
 	list_del(&subsys->node);
 
 	create_event_host_list_for_subsys(&list, subsys);
 	send_notifications(&list);
+
+	free(subsys);
 out:
 	return ret;
 }
@@ -1725,12 +1848,21 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 static inline int _config_subsys(struct target *target,
 				 struct subsystem *subsys)
 {
+	struct host		*host, *next_host;
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		ret = config_subsys_inb(target, subsys);
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
+
+	if (subsys->access != ALLOW_ANY)
+		return ret;
+
+	list_for_each_entry_safe(host, next_host, &subsys->host_list, node) {
+		_unlink_host(subsys, host);
+		list_del(&host->node);
+	}
 
 	return ret;
 }
@@ -2428,6 +2560,8 @@ int del_target(char *alias, char *resp)
 
 	create_event_host_list_for_target(&list, target);
 	send_notifications(&list);
+
+	free(target);
 out:
 	return ret;
 }

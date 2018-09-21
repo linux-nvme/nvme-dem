@@ -172,6 +172,7 @@ static inline void gen_uuid(char *uuid)
 struct target;
 struct host_iface;
 struct portid;
+struct subsystem;
 
 struct qe {
 	struct xp_qe		*qe;
@@ -196,6 +197,7 @@ struct ctrl_queue {
 	struct linked_list	 node;
 	struct portid		*portid;
 	struct target		*target;
+	struct subsystem	*subsys;
 	struct endpoint		 ep;
 	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 connected;

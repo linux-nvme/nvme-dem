@@ -68,6 +68,8 @@ struct linked_list			*aen_req_list = &aen_linked_list;
 static pthread_t			*listen_threads;
 static int				 signalled;
 
+char shared_nqn[MAX_NQN_SIZE + 1];
+
 void shutdown_dem(void)
 {
 	stopped = 1;
@@ -423,7 +425,6 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 {
 	struct ctrl_queue	*dq;
 	struct host		*host;
-	char			 uuid[UUID_LEN + 1];
 
 	if (subsys && subsys->access == ALLOW_ANY)
 		return;
@@ -438,6 +439,7 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 
 	dq->portid = portid;
 	dq->target = target;
+	dq->subsys = subsys;
 
 	if (strcmp(dq->portid->type, "rdma") == 0)
 		dq->ep.ops = rdma_register_ops();
@@ -448,10 +450,9 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 
 	list_add_tail(&dq->node, &target->discovery_queue_list);
 
-	if (!subsys) {
-		gen_uuid(uuid);
-		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
-	} else {
+	if (!subsys)
+		strncpy(dq->hostnqn, shared_nqn, MAX_NQN_SIZE);
+	else {
 		host = list_first_entry(&subsys->host_list, struct host, node);
 		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
 	}
@@ -600,6 +601,14 @@ out:
 	fclose(fd);
 }
 
+void init_shared_nqn(void)
+{
+	char			 uuid[UUID_LEN + 1];
+
+	gen_uuid(uuid);
+	sprintf(shared_nqn, NVMF_UUID_FMT, uuid);
+}
+
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -611,6 +620,8 @@ int main(int argc, char *argv[])
 	signal(SIGTERM, signal_handler);
 
 	s_http_server_opts.document_root = default_root;
+
+	init_shared_nqn();
 
 	if (init_dem(argc, argv, &ssl_cert))
 		goto out;

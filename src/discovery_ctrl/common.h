@@ -224,6 +224,8 @@ struct event_notification {
 struct mg_connection;
 struct mg_str;
 
+extern char shared_nqn[];
+
 extern struct mg_str s_signature_user;
 extern struct mg_str *s_signature;
 
