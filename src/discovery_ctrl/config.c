@@ -1151,6 +1151,9 @@ static int get_inb_config(struct target *target)
 	else
 		return -EINVAL;
 
+	if (ctrl->connected)
+		disconnect_ctrl(ctrl, 0);
+
 	ret = connect_ctrl(ctrl);
 	if (ret) {
 		print_err("connect_ctrl to %s returned %d", target->alias, ret);
