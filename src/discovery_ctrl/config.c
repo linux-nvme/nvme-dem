@@ -1886,6 +1886,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	struct subsystem	*subsys;
 	struct subsystem	 new_ss;
 	struct portid		*portid;
+	struct host		*host;
 	struct linked_list	 list;
 	int			 len;
 	int			 ret;
@@ -1930,6 +1931,11 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 				strcpy(subsys->nqn, new_ss.nqn);
 			if (new_ss.access != UNDEFINED_ACCESS)
 				subsys->access = new_ss.access;
+
+			if (subsys->access == ALLOW_ANY)
+				list_for_each_entry(host, &subsys->host_list,
+						    node)
+					_del_host(target, host->alias);
 		}
 	}
 
