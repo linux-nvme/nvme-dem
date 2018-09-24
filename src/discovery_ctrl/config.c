@@ -1810,6 +1810,7 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 {
 	struct ns		*ns;
 	struct host		*host;
+	struct portid		*portid;
 	char			*alias = target->alias;
 	char			*nqn = subsys->nqn;
 	char			 buf[MAX_BODY_SIZE];
@@ -1841,8 +1842,17 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 		}
 
 		ret = send_update_subsys_oob(target, nqn, URI_HOST, buf);
-		if (ret)
+		if (ret) {
 			print_err("set subsys acl OOB failed for %s", alias);
+			continue;
+		}
+
+		list_for_each_entry(portid, &target->portid_list, node) {
+			ret = send_link_portid_oob(subsys, portid);
+			if (ret)
+				print_err("link subsys/port OOB failed for %s",
+					  alias);
+		}
 	}
 
 	return 0;
