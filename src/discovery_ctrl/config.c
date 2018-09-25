@@ -1315,16 +1315,20 @@ static int send_link_host_oob(struct subsystem *subsys, struct host *host)
 static inline int _link_host(struct subsystem *subsys, struct host *host)
 {
 	struct target		*target = subsys->target;
-	int			 ret = 0;
+	int			 ret;
 
 	if (target->mgmt_mode == IN_BAND_MGMT) {
 		ret = send_host_config_inb(target, host);
-		if (!ret)
-			ret = send_link_host_inb(subsys, host);
-	} else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = send_link_host_oob(subsys, host);
+		if (ret)
+			return ret;
 
-	return ret;
+		return send_link_host_inb(subsys, host);
+	}
+
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_link_host_oob(subsys, host);
+
+	return 0;
 }
 
 static int send_unlink_host_inb(struct subsystem *subsys, struct host *host)
@@ -1366,14 +1370,14 @@ static int send_unlink_host_oob(struct subsystem *subsys, struct host *host)
 static inline int _unlink_host(struct subsystem *subsys, struct host *host)
 {
 	struct target		*target = subsys->target;
-	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_unlink_host_inb(subsys, host);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = send_unlink_host_oob(subsys, host);
+		return send_unlink_host_inb(subsys, host);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_unlink_host_oob(subsys, host);
+
+	return 0;
 }
 
 static int send_del_host_inb(struct target *target, char *hostnqn)
@@ -1655,14 +1659,14 @@ static int send_link_portid_oob(struct subsystem *subsys, struct portid *portid)
 static inline int _link_portid(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
-	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_link_portid_inb(subsys, portid);
-	else
-		ret = send_link_portid_oob(subsys, portid);
+		return send_link_portid_inb(subsys, portid);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_link_portid_oob(subsys, portid);
+
+	return 0;
 }
 
 static int send_unlink_portid_inb(struct subsystem *subsys,
@@ -1710,14 +1714,14 @@ static inline int _unlink_portid(struct subsystem *subsys,
 				 struct portid *portid)
 {
 	struct target		*target = subsys->target;
-	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_unlink_portid_inb(subsys, portid);
-	else
-		ret = send_unlink_portid_oob(subsys, portid);
+		return send_unlink_portid_inb(subsys, portid);
 
-	return ret;
+	if (target->mgmt_mode == IN_BAND_MGMT)
+		return send_unlink_portid_oob(subsys, portid);
+
+	return 0;
 }
 
 /* SUBSYS */
@@ -1763,14 +1767,14 @@ static int send_del_subsys_oob(struct subsystem *subsys)
 static inline int _del_subsys(struct subsystem *subsys)
 {
 	struct target		*target = subsys->target;
-	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_del_subsys_inb(subsys);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = send_del_subsys_oob(subsys);
+		return send_del_subsys_inb(subsys);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_del_subsys_oob(subsys);
+
+	return 0;
 }
 
 int del_subsys(char *alias, char *nqn, char *resp)
@@ -1998,14 +2002,13 @@ static int send_del_portid_oob(struct target *target, struct portid *portid)
 
 static inline int _del_portid(struct target *target, struct portid *portid)
 {
-	int			 ret = 0;
-
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_del_portid_inb(target, portid);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = send_del_portid_oob(target, portid);
+		return send_del_portid_inb(target, portid);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_del_portid_oob(target, portid);
+
+	return 0;
 }
 
 int del_portid(char *alias, int id, char *resp)
@@ -2070,14 +2073,13 @@ static int config_portid_oob(struct target *target, struct portid *portid)
 
 static inline int _config_portid(struct target *target, struct portid *portid)
 {
-	int			 ret = 0;
-
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = config_portid_inb(target, portid);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = config_portid_oob(target, portid);
+		return config_portid_inb(target, portid);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return config_portid_oob(target, portid);
+
+	return 0;
 }
 
 int set_portid(char *alias, int id, char *data, char *resp)
@@ -2187,15 +2189,15 @@ static int send_set_ns_oob(struct subsystem *subsys, struct ns *ns)
 
 static inline int _set_ns(struct subsystem *subsys, struct ns *ns)
 {
-	int			 ret = 0;
 	struct target		*target = subsys->target;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = send_set_ns_inb(subsys, ns);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = send_set_ns_oob(subsys, ns);
+		return send_set_ns_inb(subsys, ns);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_set_ns_oob(subsys, ns);
+
+	return 0;
 }
 
 int set_ns(char *alias, char *nqn, char *data, char *resp)
@@ -2466,26 +2468,24 @@ out:
 
 int get_config(struct target *target)
 {
-	int			 ret = 0;
-
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = get_inb_config(target);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = get_oob_config(target);
+		return get_inb_config(target);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return get_oob_config(target);
+
+	return 0;
 }
 
 int config_target(struct target *target)
 {
-	int			 ret = 0;
-
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		ret = config_target_inb(target);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		ret = config_target_oob(target);
+		return config_target_inb(target);
 
-	return ret;
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return config_target_oob(target);
+
+	return 0;
 }
 
 static int _send_reset_config(struct ctrl_queue *ctrl)
