@@ -1141,7 +1141,7 @@ out1:
 	return ret;
 }
 
-static int get_inb_config(struct target *target)
+static int get_inb_config(struct target *target, char *resp)
 {
 	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
@@ -1156,7 +1156,11 @@ static int get_inb_config(struct target *target)
 
 	ret = connect_ctrl(ctrl);
 	if (ret) {
+		if (resp)
+			strcpy(resp, " but failed to contact SC");
+
 		print_err("connect_ctrl to %s returned %d", target->alias, ret);
+
 		return ret;
 	}
 
@@ -2374,13 +2378,17 @@ static int get_oob_xports(struct target *target)
 	return ret;
 }
 
-static int get_oob_config(struct target *target)
+static int get_oob_config(struct target *target, char *resp)
 {
 	int			 ret;
 
 	ret = get_oob_nsdevs(target);
-	if (ret)
+	if (ret) {
+		if (resp)
+			strcpy(resp, " but failed to contact SC");
+
 		return ret;
+	}
 
 	return get_oob_xports(target);
 }
@@ -2469,10 +2477,10 @@ out:
 int get_config(struct target *target)
 {
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		return get_inb_config(target);
+		return get_inb_config(target, NULL);
 
 	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		return get_oob_config(target);
+		return get_oob_config(target, NULL);
 
 	return 0;
 }
@@ -2681,7 +2689,7 @@ int update_target(char *alias, char *data, char *resp)
 	struct target		*target;
 	struct portid		 portid;
 	struct linked_list	 list;
-	int			 ret;
+	int			 ret, len;
 
 	memset(&result, 0, sizeof(result));
 	memset(&portid, 0, sizeof(portid));
@@ -2708,12 +2716,16 @@ int update_target(char *alias, char *data, char *resp)
 	target->mgmt_mode = result.mgmt_mode;
 	target->refresh	  = result.refresh;
 
+	len = sprintf(resp, "DEM configuration updated for target '%s'",
+		      target->alias);
+	resp += len;
+
 	if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
 		set_oob_interface(&target->sc_iface, &result.sc_iface);
-		get_oob_config(target);
+		ret = get_oob_config(target, resp);
 	} else if (target->mgmt_mode == IN_BAND_MGMT) {
 		set_inb_interface(&target->sc_iface, &result.sc_iface);
-		get_inb_config(target);
+		ret = get_inb_config(target, resp);
 	}
 
 	create_event_host_list_for_target(&list, target);
