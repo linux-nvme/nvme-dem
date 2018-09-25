@@ -304,14 +304,19 @@ function formTargetAlias(obj) {
 
   visible = (mode == "InBandMgmt") ? "" : hidden;
   str += "<div id='inb_note'" + visible +
-         ">(use NVMe-of primatives to configure target)</div>";
+         "><p><b>Supervisory Controller Configuration</b>" +
+         "<font style='font-size:smaller'> using NVMe-of primatives to " +
+	 "configure target</font></p></div>";
   visible = (mode == "OutOfBandMgmt") ? "" : hidden;
   str += "<div id='oob_note'" + visible +
-         ">(use restful interface to configure target)</div>";
+         "><p><b>Supervisory Controller Configuration</b>" +
+         "<font style='font-size:smaller'> using RESTful interface to " +
+         "configure target</font></p></div>";
   visible = (mode == "LocalMgmt") ? "" : hidden;
   str += "<div id='local_note'" + visible +
-         ">(locally managed targets need to poll logpages " +
-         "periodically for resource changes)</div>" +
+         "><p><b>Locally Managed</b>" +
+	 "<font style='font-size:smaller'>, Targets need to " +
+         "poll logpages periodically for resource changes</font></p></div>" +
          "</span></p>";
 
   visible = (mode == "InBandMgmt") ? "" : hidden;
@@ -329,6 +334,7 @@ function formTargetAlias(obj) {
   str += formPort(port, "RESTful Port", "oob_port");
   str += "</div></p>";
 
+  str += "<p><b>Periodic Resource Updates</b></p>";
   str += "<p>Refresh: " +
          "<input id='refresh' type='number' value='" + refresh + "' min='0'>" +
          "</input><span class='units'>minutes - 0 disables timer ";
