@@ -42,11 +42,12 @@
 #include "ops.h"
 #include "curl.h"
 
-static const char *CONFIG_ERR    = " - unable to configure remote target";
-static const char *INTERNAL_ERR  = " - unable to comply, internal error";
-static const char *TARGET_ERR    = " - target not found";
-static const char *NSDEV_ERR     = " - invalid ns device";
-static const char *MGMT_MODE_ERR = " - invalid mgmt mode for setting interface";
+static const char *CONFIG_ALERT	=
+	"ALERT - DEM config updated but failed to connect to SC on '%s'";
+static const char *INTERNAL_ERR = " - unable to comply, internal error";
+static const char *TARGET_ERR   = " - target not found";
+static const char *NSDEV_ERR	= " - invalid ns device";
+static const char *MGT_MODE_ERR	= " - invalid mgmt mode for setting interface";
 
 /* helper function(s) */
 
@@ -1141,7 +1142,7 @@ out1:
 	return ret;
 }
 
-static int get_inb_config(struct target *target, char *resp)
+static int get_inb_config(struct target *target)
 {
 	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
@@ -1156,9 +1157,6 @@ static int get_inb_config(struct target *target, char *resp)
 
 	ret = connect_ctrl(ctrl);
 	if (ret) {
-		if (resp)
-			strcpy(resp, " but failed to contact SC");
-
 		print_err("connect_ctrl to %s returned %d", target->alias, ret);
 
 		return ret;
@@ -1419,12 +1417,36 @@ static int send_del_host_oob(struct target *target, char *hostnqn)
 	return exec_delete(uri);
 }
 
-static inline void _del_host(struct target *target, char *hostnqn)
+static inline int _del_host(struct target *target, char *hostnqn)
 {
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		send_del_host_inb(target, hostnqn);
-	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		send_del_host_oob(target, hostnqn);
+		return send_del_host_inb(target, hostnqn);
+
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
+		return send_del_host_oob(target, hostnqn);
+
+	return 0;
+}
+
+static inline int _update_host(struct subsystem *subsys, struct host *host,
+			       char *hostnqn, char *resp)
+{
+	struct target		*target = subsys->target;;
+	char			 oldnqn[MAX_NQN_SIZE + 1];
+	int			 ret;
+
+	_unlink_host(subsys, host);
+
+	strcpy(oldnqn, host->nqn);
+	strcpy(host->nqn, hostnqn);
+
+	ret = _link_host(subsys, host);
+	if (ret)
+		sprintf(resp, CONFIG_ALERT, target->alias);
+
+	_update_subsys_dq(subsys, oldnqn, hostnqn);
+
+	return ret;
 }
 
 int update_host(char *alias, char *data, char *resp)
@@ -1434,7 +1456,6 @@ int update_host(char *alias, char *data, char *resp)
 	struct host		*host;
 	char			 newalias[MAX_ALIAS_SIZE + 1];
 	char			 hostnqn[MAX_NQN_SIZE + 1];
-	char			 oldnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
 	ret = update_json_host(alias, data, resp, newalias, hostnqn);
@@ -1448,15 +1469,9 @@ int update_host(char *alias, char *data, char *resp)
 		list_for_each_entry(subsys, &target->subsys_list, node)
 			list_for_each_entry(host, &subsys->host_list, node)
 				if (!strcmp(host->alias, alias)) {
-					if (strcmp(host->nqn, hostnqn)) {
-						_unlink_host(subsys, host);
-						strcpy(oldnqn, host->nqn);
-						strcpy(host->nqn, hostnqn);
-						_link_host(subsys, host);
-						_update_subsys_dq(subsys,
-								  oldnqn,
-								  hostnqn);
-					}
+					if (strcmp(host->nqn, hostnqn))
+						_update_host(subsys, host,
+							     hostnqn, resp);
 					if (strcmp(host->alias, newalias))
 						strcpy(host->alias, newalias);
 					break;
@@ -1505,11 +1520,15 @@ int del_host(char *alias, char *resp)
 				}
 		}
 
-		if (dirty)
-			_del_host(target, hostnqn);
+		if (dirty) {
+			ret = _del_host(target, hostnqn);
+			if (ret)
+				sprintf(resp, CONFIG_ALERT, target->alias);
+		} else
+			ret = 0;
 	}
 
-	return 0;
+	return ret;
 }
 
 /* link functions (hosts to subsystems and subsystems to ports */
@@ -1527,8 +1546,6 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 	ret = set_json_acl(tgt, subnqn, alias, data, resp, newalias, hostnqn);
 	if (ret)
 		goto out;
-
-	resp += strlen(resp);
 
 	target = find_target(tgt);
 	if (!target)
@@ -1554,7 +1571,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 found:
 	ret = _unlink_host(subsys, host);
 	if (ret) {
-		strcpy(resp, CONFIG_ERR);
+		sprintf(resp, CONFIG_ALERT, target->alias);
 		goto out;
 	}
 	_reset_subsys_dq_nqn(subsys, host->nqn);
@@ -1565,7 +1582,7 @@ skip_unlink:
 
 	ret = _link_host(subsys, host);
 	if (ret)
-		strcpy(resp, CONFIG_ERR);
+		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	if (list_empty(&subsys->host_list)) {
 		list_add(&host->node, &subsys->host_list);
@@ -1613,7 +1630,9 @@ found:
 			if (!strcmp(host->alias, alias))
 				goto out;
 
-	_del_host(target, alias);
+	ret = _del_host(target, alias);
+	if (ret)
+		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	create_event_host_list_for_host(&list, host->nqn);
 	send_notifications(&list);
@@ -1801,6 +1820,8 @@ int del_subsys(char *alias, char *nqn, char *resp)
 		goto out;
 
 	ret = _del_subsys(subsys);
+	if (ret)
+		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	_del_subsys_dq(subsys);
 
@@ -1906,8 +1927,6 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	if (ret)
 		goto out;
 
-	resp += strlen(resp);
-
 	target = find_target(alias);
 	if (!target) {
 		ret = -ENOENT;
@@ -1949,7 +1968,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 
 	ret = _config_subsys(target, subsys);
 	if (ret) {
-		strcpy(resp, CONFIG_ERR);
+		sprintf(resp, CONFIG_ALERT, target->alias);
 		goto out;
 	}
 
@@ -2055,6 +2074,10 @@ int del_portid(char *alias, int id, char *resp)
 			free(logpage);
 		}
 
+	ret = _del_portid(target, portid);
+	if (ret)
+		sprintf(resp, CONFIG_ALERT, target->alias);
+
 	list_del(&portid->node);
 	free(portid);
 out:
@@ -2106,8 +2129,6 @@ int set_portid(char *alias, int id, char *data, char *resp)
 		goto out;
 	}
 
-	resp += strlen(resp);
-
 	target = find_target(alias);
 	if (!target) {
 		free(portid);
@@ -2132,7 +2153,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 
 	ret = _config_portid(target, portid);
 	if (ret) {
-		strcpy(resp, CONFIG_ERR);
+		sprintf(resp, CONFIG_ALERT, target->alias);
 		goto out;
 	}
 
@@ -2219,8 +2240,6 @@ int set_ns(char *alias, char *nqn, char *data, char *resp)
 	if (ret)
 		goto out;
 
-	resp += strlen(resp);
-
 	target = find_target(alias);
 	if (!target)
 		goto out;
@@ -2263,7 +2282,7 @@ found:
 
 	ret = _set_ns(subsys, ns);
 	if (ret)
-		strcpy(resp, CONFIG_ERR);
+		sprintf(resp, CONFIG_ALERT, target->alias);
 out:
 	return ret;
 }
@@ -2334,6 +2353,9 @@ int del_ns(char *alias, char *nqn, int nsid, char *resp)
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = send_del_ns_oob(subsys, ns);
 
+	if (ret)
+		sprintf(resp, CONFIG_ALERT, target->alias);
+
 	list_del(&ns->node);
 out:
 	return ret;
@@ -2378,17 +2400,13 @@ static int get_oob_xports(struct target *target)
 	return ret;
 }
 
-static int get_oob_config(struct target *target, char *resp)
+static int get_oob_config(struct target *target)
 {
 	int			 ret;
 
 	ret = get_oob_nsdevs(target);
-	if (ret) {
-		if (resp)
-			strcpy(resp, " but failed to contact SC");
-
+	if (ret)
 		return ret;
-	}
 
 	return get_oob_xports(target);
 }
@@ -2477,10 +2495,10 @@ out:
 int get_config(struct target *target)
 {
 	if (target->mgmt_mode == IN_BAND_MGMT)
-		return get_inb_config(target, NULL);
+		return get_inb_config(target);
 
 	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
-		return get_oob_config(target, NULL);
+		return get_oob_config(target);
 
 	return 0;
 }
@@ -2646,14 +2664,12 @@ int set_interface(char *alias, char *data, char *resp)
 	else if (mode == IN_BAND_MGMT)
 		ret = set_json_inb_interface(alias, data, resp, &result);
 	else {
-		strcpy(resp, MGMT_MODE_ERR);
+		strcpy(resp, MGT_MODE_ERR);
 		ret = -EINVAL;
 	}
 
 	if (ret)
 		goto out;
-
-	resp += strlen(resp);
 
 	iface = &target->sc_iface;
 
@@ -2689,7 +2705,7 @@ int update_target(char *alias, char *data, char *resp)
 	struct target		*target;
 	struct portid		 portid;
 	struct linked_list	 list;
-	int			 ret, len;
+	int			 ret;
 
 	memset(&result, 0, sizeof(result));
 	memset(&portid, 0, sizeof(portid));
@@ -2716,17 +2732,19 @@ int update_target(char *alias, char *data, char *resp)
 	target->mgmt_mode = result.mgmt_mode;
 	target->refresh	  = result.refresh;
 
-	len = sprintf(resp, "DEM configuration updated for target '%s'",
-		      target->alias);
-	resp += len;
-
 	if (target->mgmt_mode == OUT_OF_BAND_MGMT) {
 		set_oob_interface(&target->sc_iface, &result.sc_iface);
-		ret = get_oob_config(target, resp);
+		ret = get_oob_config(target);
 	} else if (target->mgmt_mode == IN_BAND_MGMT) {
 		set_inb_interface(&target->sc_iface, &result.sc_iface);
-		ret = get_inb_config(target, resp);
+		ret = get_inb_config(target);
 	}
+
+	if (!ret)
+		sprintf(resp, "DEM configuration updated for target '%s'",
+			target->alias);
+	else
+		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	create_event_host_list_for_target(&list, target);
 	send_notifications(&list);

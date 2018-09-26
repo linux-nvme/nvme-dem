@@ -1873,7 +1873,11 @@ function sendRequest() {
 
   xhttp.onreadystatechange = function() {
     if (this.readyState == 4 && this.status != 200)
-         $("#post_err").html("Error " + this.status + " : " + this.responseText);
+      if (this.responseText.substring(0, 5) == "ALERT")
+         window.alert(this.responseText);
+      else
+         $("#post_err").html("Error " + this.status + " : " +
+                             this.responseText);
   };
   xhttp.onerror = function () {
     console.log(xhttp.responseText);
@@ -1892,7 +1896,7 @@ function sendRequest() {
   else
     xhttp.send(buildJSON(page));
 
-  if ($("#post_err").html() == "") {
+  if ($("#post_err").html().substring(0,5) != "Error") {
     if ($("#objectValue").html() == "" || $("#renamedUri").html() == "")
       page = $("#parentUri").html();
     else {

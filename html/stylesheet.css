@@ -184,6 +184,22 @@ h5 {
   font-weight: bold;
 }
 
+.alert {
+    block: none;
+    min-width: 36em;
+    min-height: 13em;
+    z-index: 10;
+    position: absolute;
+    top: 8em;
+    left: 7em;
+    background-color: orangered;
+    font-size: x-large;
+    font-weight: bolder;
+    color: white;
+    padding-top: 3em;
+    padding-left: 3em;
+}
+
 .page {
   margin-bottom: -14px;
 }
