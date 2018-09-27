@@ -240,6 +240,12 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 			goto out;
 		}
 	}
+
+	if (optind < argc) {
+		print_info("Extra arguments");
+		goto out;
+	}
+
 	return 0;
 out:
 	return 1;
@@ -275,7 +281,7 @@ static int validate_dq(struct ctrl_queue *dq)
 	}
 
 	if (!dq->ep.ops) {
-		print_info("Invalid trtype: valid options %s",
+		print_info("Invalid trtype: valid options - %s",
 			   TRTYPE_STR_RDMA);
 		goto out;
 	}
@@ -288,7 +294,7 @@ static int validate_dq(struct ctrl_queue *dq)
 		portid->adrfam = NVMF_ADDR_FAMILY_FC;
 
 	if (!portid->adrfam) {
-		print_info("Invalid adrfam: valid options %s, %s, %s",
+		print_info("Invalid adrfam: valid options - %s, %s, %s",
 			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
 		goto out;
 	}

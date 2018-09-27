@@ -299,6 +299,11 @@ help:
 		}
 	}
 
+	if (optind < argc) {
+		print_info("Extra arguments");
+		goto help;
+	}
+
 	inb_test = (host_iface.type[0]) ? 1 : 0;
 	inb_test += (host_iface.family[0]) ? 1 : 0;
 	inb_test += (host_iface.address[0]) ? 1 : 0;

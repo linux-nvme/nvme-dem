@@ -315,6 +315,11 @@ help:
 		}
 	}
 
+	if (optind < argc) {
+		print_info("Extra arguments");
+		goto help;
+	}
+
 	if (run_as_daemon) {
 		if (daemonize())
 			return 1;
