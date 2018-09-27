@@ -200,21 +200,6 @@ found:
 	return str;
 }
 
-static inline void put_unaligned_le24(u32 val, u8 *p)
-{
-	*p++ = val & 0xff;
-	*p++ = (val >> 8) & 0xff;
-	*p++ = (val >> 16) & 0xff;
-}
-
-static inline void put_unaligned_le32(u32 val, u8 *p)
-{
-	*p++ = val & 0xff;
-	*p++ = (val >> 8) & 0xff;
-	*p++ = (val >> 16) & 0xff;
-	*p++ = (val >> 24) & 0xff;
-}
-
 static inline int post_cmd(struct endpoint *ep, struct nvme_command *cmd,
 			   int bytes)
 {
@@ -269,24 +254,6 @@ int process_nvme_rsp(struct endpoint *ep, int ignore_status, u64 *result)
 	return ret;
 }
 
-static void prep_admin_cmd(struct nvme_command *cmd, u8 opcode, int len,
-			   void *data, int key)
-{
-	struct nvme_keyed_sgl_desc	*sg;
-
-	memset(cmd, 0, sizeof(*cmd));
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= opcode;
-
-	sg = &cmd->common.dptr.ksgl;
-
-	sg->addr = (u64) data;
-	put_unaligned_le32(key, sg->key);
-	put_unaligned_le24(len, sg->length);
-	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
-}
-
 static int send_fabric_connect(struct ctrl_queue *ctrl)
 {
 	struct endpoint		*ep = &ctrl->ep;
@@ -301,8 +268,7 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 	data = ep->data;
 	key = ep->ops->remote_key(ep->data_mr);
 
-
-	prep_admin_cmd(cmd, nvme_fabrics_command, sizeof(*data), data, key);
+	ep->ops->set_sgl(cmd, nvme_fabrics_command, sizeof(*data), data, key);
 
 	cmd->connect.fctype	= nvme_fabrics_type_connect;
 	cmd->connect.qid	= htole16(0);
@@ -343,7 +309,7 @@ static inline int send_admin_cmd(struct endpoint *ep, u8 opcode)
 
 	bytes = sizeof(*cmd);
 
-	prep_admin_cmd(cmd, opcode, 0, NULL, 0);
+	ep->ops->set_sgl(cmd, opcode, 0, NULL, 0);
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
@@ -392,7 +358,7 @@ int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 
 	key = ep->ops->remote_key(mr);
 
-	prep_admin_cmd(cmd, nvme_fabrics_command, len, data, key);
+	ep->ops->set_sgl(cmd, nvme_fabrics_command, len, data, key);
 
 	cmd->config.command_id	= cid;
 	cmd->config.fctype	= nvme_fabrics_type_resource_config_get;
@@ -468,7 +434,7 @@ int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 
 	key = ep->ops->remote_key(mr);
 
-	prep_admin_cmd(cmd, nvme_fabrics_command, len, data, key);
+	ep->ops->set_sgl(cmd, nvme_fabrics_command, len, data, key);
 
 	cmd->config.command_id	= cid;
 	cmd->config.fctype	= nvme_fabrics_type_resource_config_set;
@@ -494,7 +460,7 @@ static int send_get_property(struct endpoint *ep, u32 reg)
 
 	bytes = sizeof(*cmd);
 
-	prep_admin_cmd(cmd, nvme_fabrics_command, 0, NULL, 0);
+	ep->ops->set_sgl(cmd, nvme_fabrics_command, 0, NULL, 0);
 
 	cmd->prop_get.fctype	= nvme_fabrics_type_property_get;
 	cmd->prop_get.attrib	= 1;
@@ -511,7 +477,7 @@ static void prep_set_property(struct endpoint *ep, u32 reg, u64 val)
 {
 	struct nvme_command		*cmd = ep->cmd;
 
-	prep_admin_cmd(cmd, nvme_fabrics_command, 0, NULL, 0);
+	ep->ops->set_sgl(cmd, nvme_fabrics_command, 0, NULL, 0);
 
 	cmd->prop_set.fctype	= nvme_fabrics_type_property_set;
 	cmd->prop_set.offset	= htole32(reg);
@@ -573,7 +539,7 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	numdl	= size & 0xffff;
 	numdu	= (size >> 16) & 0xffff;
 
-	prep_admin_cmd(cmd, nvme_admin_get_log_page, log_size, data, key);
+	ep->ops->set_sgl(cmd, nvme_admin_get_log_page, log_size, data, key);
 
 	cmd->get_log_page.lid	= NVME_LOG_DISC;
 	cmd->get_log_page.numdl = numdl;
@@ -600,7 +566,7 @@ int send_get_features(struct endpoint *ep, u8 fid, u64 *result)
 
 	bytes = sizeof(*cmd);
 
-	prep_admin_cmd(cmd, nvme_admin_get_features, 0, NULL, 0);
+	ep->ops->set_sgl(cmd, nvme_admin_get_features, 0, NULL, 0);
 
 	cmd->features.fid = htole32(fid);
 
@@ -621,7 +587,7 @@ int send_set_features(struct endpoint *ep, u8 fid, u32 dword11)
 
 	bytes = sizeof(*cmd);
 
-	prep_admin_cmd(cmd, nvme_admin_set_features, 0, NULL, 0);
+	ep->ops->set_sgl(cmd, nvme_admin_set_features, 0, NULL, 0);
 
 	cmd->features.fid	= htole32(fid);
 	cmd->features.dword11	= htole32(dword11);

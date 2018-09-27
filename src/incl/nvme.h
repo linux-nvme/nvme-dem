@@ -621,4 +621,19 @@ struct nvme_rdma_cm_rep {
 	__u8			rsvd[28];
 };
 
+static inline void put_unaligned_le24(__u32 val, __u8 *p)
+{
+	*p++ = val & 0xff;
+	*p++ = (val >> 8) & 0xff;
+	*p++ = (val >> 16) & 0xff;
+}
+
+static inline void put_unaligned_le32(__u32 val, __u8 *p)
+{
+	*p++ = val & 0xff;
+	*p++ = (val >> 8) & 0xff;
+	*p++ = (val >> 16) & 0xff;
+	*p++ = (val >> 24) & 0xff;
+}
+
 #endif

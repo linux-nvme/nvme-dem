@@ -68,6 +68,8 @@ struct xp_ops {
 			 struct xp_mr **mr);
 	u32 (*remote_key)(struct xp_mr *mr);
 	int (*dealloc_key)(struct xp_mr *mr);
+	void (*set_sgl)(struct nvme_command *cmd, u8 opcode, int len,
+			void *data, int key);
 };
 
 struct xp_ops *rdma_register_ops(void);

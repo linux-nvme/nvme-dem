@@ -859,6 +859,23 @@ static int rdma_dealloc_key(struct xp_mr *_mr)
 	return ibv_dereg_mr(mr);
 }
 
+static void rdma_set_sgl(struct nvme_command *cmd, u8 opcode, int len,
+			 void *data, int key)
+{
+	struct nvme_keyed_sgl_desc      *sg;
+
+	memset(cmd, 0, sizeof(*cmd));
+
+	cmd->common.opcode      = opcode;
+
+	sg = &cmd->common.dptr.ksgl;
+	put_unaligned_le32(key, sg->key);
+	put_unaligned_le24(len, sg->length);
+	sg->type = NVME_KEY_SGL_FMT_DATA_DESC << 4;
+
+	sg->addr = (u64) data;
+}
+
 static struct xp_ops rdma_ops = {
 	.init_endpoint		= rdma_init_endpoint,
 	.create_endpoint	= rdma_create_endpoint,
@@ -878,6 +895,7 @@ static struct xp_ops rdma_ops = {
 	.alloc_key		= rdma_alloc_key,
 	.remote_key		= rdma_remote_key,
 	.dealloc_key		= rdma_dealloc_key,
+	.set_sgl                = rdma_set_sgl,
 };
 
 struct xp_ops *rdma_register_ops(void)
