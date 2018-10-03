@@ -652,11 +652,9 @@ void *interface_thread(void *arg)
 		ret = iface->ops->wait_for_connection(listener, &id);
 		if (ret == 0)
 			add_host_to_queue(id, iface->ops, &q);
-		else if (ret == -ESHUTDOWN || ret != -EAGAIN)
+		else if (ret == -ESHUTDOWN || ret == -ECONNRESET)
 			continue;
-		else if (ret == -ECONNRESET)
-			continue;
-		else
+		else if (ret != -EAGAIN)
 			print_err("Host connection failed %d", ret);
 	}
 
