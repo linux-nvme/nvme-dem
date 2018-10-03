@@ -115,10 +115,10 @@ static void show_help(char *app)
 #endif
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 	print_info("%s info:", dc_str);
-	print_info("  -t - transport type (default %s)", DEFAULT_TYPE);
-	print_info("  -f - address family (default %s)", DEFAULT_FAMILY);
-	print_info("  -a - transport address (default %s)", DEFAULT_ADDR);
-	print_info("  -s - transport sevice id (default %s)", DEFAULT_PORT);
+	print_info("  -t - transport type (rdma)");
+	print_info("  -f - address family (ipv4, ipv6)");
+	print_info("  -a - transport address (e.g. 192.168.1.1)");
+	print_info("  -s - transport service id (e.g. 4420)");
 }
 
 static int init_dq(struct ctrl_queue *dq)
@@ -148,11 +148,6 @@ static int init_dq(struct ctrl_queue *dq)
 
 	dq->portid = portid;
 	dq->target = target;
-
-	strcpy(portid->type, DEFAULT_TYPE);
-	strcpy(portid->family, DEFAULT_FAMILY);
-	strcpy(portid->address, DEFAULT_ADDR);
-	strcpy(portid->port, DEFAULT_PORT);
 
 	return 0;
 }

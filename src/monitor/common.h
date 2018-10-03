@@ -59,12 +59,6 @@
 #define KEEP_ALIVE_COUNTER	4 /* x DELAY */
 #define CONNECT_RETRY_COUNTER   (60 * SECONDS)
 
-// TODO customize discovery controller info
-#define DEFAULT_TYPE		"rdma"
-#define DEFAULT_FAMILY		"ipv4"
-#define DEFAULT_ADDR		"192.168.22.2"
-#define DEFAULT_PORT		"4422"
-
 #define NVME_FABRICS_DEV	"/dev/nvme-fabrics"
 #define SYS_CLASS_PATH		"/sys/class/nvme-fabrics/ctl/"
 #define SYS_CLASS_ADDR_FILE	"address"
