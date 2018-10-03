@@ -276,6 +276,7 @@ static int validate_dq(struct ctrl_queue *dq)
 	if (!dq->ep.ops) {
 		print_info("Invalid trtype: valid options [ %s ]",
 			   valid_trtype_str);
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -283,6 +284,7 @@ static int validate_dq(struct ctrl_queue *dq)
 	if (!portid->adrfam) {
 		print_info("Invalid adrfam: valid options [ %s ]",
 			   valid_adrfam_str);
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -310,6 +312,7 @@ static int validate_dq(struct ctrl_queue *dq)
 
 	if (!portid->port_num) {
 		print_info("Invalid trsvcid");
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -321,11 +324,11 @@ static int validate_dq(struct ctrl_queue *dq)
 	}
 
 	if (run_as_daemon)
-		if (daemonize())
-			goto out;
-	return 0;
+		ret = daemonize();
+	else
+		ret = 0;
 out:
-	return 1;
+	return ret;
 }
 
 static inline void invalidate_log_pages(struct target *target)

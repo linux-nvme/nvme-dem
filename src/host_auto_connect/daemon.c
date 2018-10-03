@@ -270,15 +270,11 @@ static int validate_dq(struct ctrl_queue *dq)
 	struct portid		*portid = dq->portid;
 	int			 ret;
 
-	if (portid->type) {
-		dq->ep.ops = register_ops(portid->type);
-		if (!dq->ep.ops)
-			return -EINVAL;
-	}
-
+	dq->ep.ops = register_ops(portid->type);
 	if (!dq->ep.ops) {
 		print_info("Invalid trtype: valid options [ %s ]",
 			   valid_trtype_str);
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -286,6 +282,7 @@ static int validate_dq(struct ctrl_queue *dq)
 	if (!portid->adrfam) {
 		print_info("Invalid adrfam: valid options [ %s ]",
 			   valid_adrfam_str);
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -313,6 +310,7 @@ static int validate_dq(struct ctrl_queue *dq)
 
 	if (!portid->port_num) {
 		print_info("Invalid trsvcid");
+		ret = -EINVAL;
 		goto out;
 	}
 
@@ -324,11 +322,11 @@ static int validate_dq(struct ctrl_queue *dq)
 	}
 
 	if (run_as_daemon)
-		if (daemonize())
-			goto out;
-	return 0;
+		ret = daemonize();
+	else
+		ret = 0;
 out:
-	return 1;
+	return ret;
 }
 
 static int validate_usage(void)
