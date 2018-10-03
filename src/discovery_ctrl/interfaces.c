@@ -42,10 +42,20 @@
 
 #include "common.h"
 
+static void _del_unattached_logpage_list(struct target *target)
+{
+	struct logpage		*lp, *n;
+
+	list_for_each_entry_safe(lp, n, &target->unattached_logpage_list,
+				 node) {
+		list_del(&lp->node);
+		free(lp);
+	}
+}
+
 int target_reconfig(char *alias)
 {
 	struct target		*target;
-	struct logpage		*lp, *n;
 	int			 ret;
 
 	list_for_each_entry(target, target_list, node)
@@ -54,15 +64,11 @@ int target_reconfig(char *alias)
 
 	return -ENOENT;
 found:
+	_del_unattached_logpage_list(target);
+
 	ret = send_del_target(target);
 	if (ret)
 		return ret;
-
-	list_for_each_entry_safe(lp, n, &target->unattached_logpage_list,
-				 node) {
-		list_del(&lp->node);
-		free(lp);
-	}
 
 	return config_target(target);
 }
@@ -75,6 +81,8 @@ static inline void invalidate_log_pages(struct target *target)
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		list_for_each_entry(logpage, &subsys->logpage_list, node)
 			logpage->valid = 0;
+
+	_del_unattached_logpage_list(target);
 }
 
 static inline int match_logpage(struct logpage *logpage,

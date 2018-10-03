@@ -2463,6 +2463,8 @@ static int config_target_inb(struct target *target)
 		}
 	}
 
+	ret = target_refresh(target->alias);
+
 	return 0;
 out2:
 	disconnect_ctrl(ctrl, 0);
@@ -2487,6 +2489,8 @@ static int config_target_oob(struct target *target)
 		if (ret)
 			break;
 	}
+
+	ret = target_refresh(target->alias);
 out:
 	return ret;
 }
