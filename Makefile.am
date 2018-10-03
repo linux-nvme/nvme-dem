@@ -31,7 +31,7 @@ GDB_OPTS = -O2
 else
 CFLAGS += -Werror
 if DEBUG
-GDB_OPTS = -g -O0
+GDB_OPTS = -g -O0 -DCONFIG_DEBUG
 else
 GDB_OPTS = -O2
 endif

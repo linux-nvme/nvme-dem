@@ -140,7 +140,7 @@ static int daemonize(void)
 
 static void show_help(char *app)
 {
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	const char		*arg_list = "{-q} {-d}";
 #else
 	const char		*arg_list = "{-d} {-S}";
@@ -154,7 +154,7 @@ static void show_help(char *app)
 	print_info(" FOR Out-of-Band (HTTP) -- %s", oob_args);
 	print_info(" FOR In-Band (SC) -- %s", inb_args);
 
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	print_info("  -q - quite mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
@@ -232,7 +232,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	int			 opt;
 	int			 inb_test;
 	int			 run_as_daemon;
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	const char		*opt_list = "?qdp:r:c:t:f:a:s:";
 #else
 	const char		*opt_list = "?dSp:r:c:t:f:a:s:";
@@ -243,7 +243,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
 
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	debug = 1;
 	run_as_daemon = 0;
 #else
@@ -253,7 +253,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 		case 'q':
 			debug = 0;
 			break;

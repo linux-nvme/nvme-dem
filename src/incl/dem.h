@@ -51,11 +51,6 @@
 
 #define NULLB_DEVID		-1
 
-// TODO disable DEV_DEBUG before pushing to gitlab
-#if 1
-#define DEV_DEBUG
-#endif
-
 #define CONFIG_DIR		"/etc/nvme/nvmeof-dem/"
 #define CONFIG_FILENAME		"config"
 #define SIGNATURE_FILE_FILENAME	"signature"

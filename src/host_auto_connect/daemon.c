@@ -96,7 +96,7 @@ static int daemonize(void)
 
 static void show_help(char *app)
 {
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	const char		*app_args = "{-q} {-d}";
 #else
 	const char		*app_args = "{-d} {-S}";
@@ -106,7 +106,7 @@ static void show_help(char *app)
 		"{-t <tryp>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 
 	print_info("Usage: %s %s %s\n\t%s", app, app_args, hac_args, dc_args);
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	print_info("  -q - quite mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
@@ -161,7 +161,7 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 {
 	struct portid		*portid = dq->portid;
 	int			 opt;
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	const char		*opt_list = "?qdt:f:a:s:h:";
 #else
 	const char		*opt_list = "?dSt:f:a:s:h:";
@@ -170,7 +170,7 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto out;
 
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 	debug = 1;
 	run_as_daemon = 0;
 #else
@@ -180,7 +180,7 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
-#ifdef DEV_DEBUG
+#ifdef CONFIG_DEBUG
 		case 'q':
 			debug = 0;
 			break;
