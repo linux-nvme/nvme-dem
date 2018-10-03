@@ -865,7 +865,7 @@ static int rdma_build_connect_data(void **req, char *hostnqn)
 {
 	struct nvme_rdma_cm_req *priv;
 	struct nvmf_connect_data *data;
-	int                      bytes = sizeof(*priv) + sizeof(*data);
+	int			bytes = sizeof(*priv) + sizeof(*data);
 
 	if (posix_memalign((void **) &priv, PAGE_SIZE, bytes)) {
 		print_err("no memory for buffer, errno %d", errno);
@@ -929,7 +929,7 @@ static struct xp_ops rdma_ops = {
 	.remote_key		= rdma_remote_key,
 	.dealloc_key		= rdma_dealloc_key,
 	.build_connect_data     = rdma_build_connect_data,
-	.set_sgl                = rdma_set_sgl,
+	.set_sgl		= rdma_set_sgl,
 };
 
 struct xp_ops *rdma_register_ops(void)

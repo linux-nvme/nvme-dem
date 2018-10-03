@@ -55,7 +55,7 @@
 #include "dem.h"
 
 #define DELAY			480 /* ms */
-#define SECONDS                 (1000000 / DELAY)
+#define SECONDS			(1000000 / DELAY)
 #define KEEP_ALIVE_COUNTER	4 /* x DELAY */
 #define CONNECT_RETRY_COUNTER   (60 * SECONDS)
 

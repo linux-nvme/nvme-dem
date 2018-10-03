@@ -187,8 +187,8 @@ static inline int set_adrfam(char *family)
 	if (strcmp(family, ADRFAM_STR_IPV4) == 0)
 		return NVMF_ADDR_FAMILY_IP4;
 
-        if (strcmp(family, ADRFAM_STR_IPV6) == 0)
-                return NVMF_ADDR_FAMILY_IP6;
+	if (strcmp(family, ADRFAM_STR_IPV6) == 0)
+		return NVMF_ADDR_FAMILY_IP6;
 
 	return 0;
 }
