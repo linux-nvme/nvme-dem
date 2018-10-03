@@ -274,16 +274,14 @@ static int validate_dq(struct ctrl_queue *dq)
 
 	dq->ep.ops = register_ops(portid->type);
 	if (!dq->ep.ops) {
-		print_info("Invalid trtype: valid options [ %s ]",
-			   valid_trtype_str);
+		print_info("Invalid trtype");
 		ret = -EINVAL;
 		goto out;
 	}
 
 	portid->adrfam = set_adrfam(portid->family);
 	if (!portid->adrfam) {
-		print_info("Invalid adrfam: valid options [ %s ]",
-			   valid_adrfam_str);
+		print_info("Invalid adrfam");
 		ret = -EINVAL;
 		goto out;
 	}

@@ -848,16 +848,14 @@ int enumerate_interfaces(void)
 		fclose(fd);
 
 		if (!valid_trtype(iface->type)) {
-			print_info("Invalid trtype: valid options [ %s ]",
-				   valid_trtype_str);
+			print_info("Invalid trtype");
 			free(iface);
 			continue;
 		}
 
 		adrfam = set_adrfam(iface->family);
 		if (!adrfam) {
-			print_info("Invalid adrfam: valid options [ %s ]",
-				   valid_adrfam_str);
+			print_info("Invalid adrfam");
 			free(iface);
 			continue;
 		}

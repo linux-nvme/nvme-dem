@@ -168,8 +168,8 @@ static void show_help(char *app)
 	print_info("  -c - SSL cert file (default no SSL)");
 
 	print_info("  In-Band (Supervisory Controller) interface:");
-	print_info("  -t - transport type (rdma)");
-	print_info("  -f - address family (ipv4, ipv6)");
+	print_info("  -t - transport type [ %s ]", valid_trtype_str);
+	print_info("  -f - address family [ %s ]", valid_adrfam_str);
 	print_info("  -a - transport address (e.g. 192.168.1.1)");
 	print_info("  -s - transport service id (e.g. 4444 - not 4420 if used by NVMe-oF ctrl)");
 }
@@ -190,8 +190,7 @@ static int validate_host_iface(void)
 		host_iface.adrfam = NVMF_ADDR_FAMILY_FC;
 
 	if (!host_iface.adrfam) {
-		print_info("Invalid adrfam: valid options %s, %s, %s",
-			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+		print_info("Invalid adrfam");
 		goto out;
 	}
 

@@ -177,8 +177,10 @@ static inline int list_empty(const struct linked_list *list)
 #define __round_mask(x, y) ((__typeof__(x))((y) - 1))
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
+#define valid_delim	 ", "
 #define valid_trtype_str TRTYPE_STR_RDMA
-#define valid_adrfam_str ADRFAM_STR_IPV4 "," ADRFAM_STR_IPV6
+#define valid_adrfam_str ADRFAM_STR_IPV4 valid_delim \
+			 ADRFAM_STR_IPV6
 
 static inline int set_adrfam(char *family)
 {
