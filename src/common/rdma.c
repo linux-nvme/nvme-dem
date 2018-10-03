@@ -923,6 +923,7 @@ static struct xp_ops rdma_ops = {
 	.repost_recv		= rdma_repost_recv,
 	.post_msg		= rdma_post_msg,
 	.send_msg		= rdma_send_msg,
+	.send_rsp		= rdma_send_msg,
 	.poll_for_msg		= rdma_poll_for_msg,
 	.alloc_key		= rdma_alloc_key,
 	.remote_key		= rdma_remote_key,

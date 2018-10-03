@@ -153,7 +153,7 @@ static inline int send_notifications(struct linked_list *list)
 
 		resp->result.U32 = NVME_AER_NOTICE_LOG_PAGE_CHANGE;
 
-		ep->ops->send_msg(ep->ep, resp, sizeof(*resp), ep->mr);
+		ep->ops->send_rsp(ep->ep, resp, sizeof(*resp), ep->mr);
 
 		list_del(&entry->req->node);
 		free(entry->req);

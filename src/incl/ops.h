@@ -62,6 +62,8 @@ struct xp_ops {
 			struct xp_mr *mr);
 	int (*send_msg)(struct xp_ep *ep, void *msg, int len,
 			struct xp_mr *mr);
+	int (*send_rsp)(struct xp_ep *ep, void *msg, int len,
+			struct xp_mr *mr);
 	int (*poll_for_msg)(struct xp_ep *ep, struct xp_qe **qe, void **msg,
 			    int *bytes);
 	int (*alloc_key)(struct xp_ep *ep, void *buf, int len,
