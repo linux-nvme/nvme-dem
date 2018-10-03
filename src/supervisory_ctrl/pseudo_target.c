@@ -815,6 +815,10 @@ void *interface_thread(void *arg)
 
 	while (!stopped) {
 		ret = iface->ops->wait_for_connection(listener, &id);
+
+		if (stopped)
+			break;
+
 		if (ret == 0)
 			add_host_to_queue(id, iface->ops, &q);
 		else if (ret == -ESHUTDOWN || ret == -ECONNRESET)
