@@ -899,6 +899,7 @@ static void rdma_set_sgl(struct nvme_command *cmd, u8 opcode, int len,
 	memset(cmd, 0, sizeof(*cmd));
 
 	cmd->common.opcode      = opcode;
+	cmd->common.flags	= NVME_CMD_SGL_METABUF;
 
 	sg = &cmd->common.dptr.ksgl;
 	put_unaligned_le32(key, sg->key);
