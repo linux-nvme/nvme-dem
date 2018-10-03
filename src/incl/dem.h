@@ -57,36 +57,6 @@
 #define CONFIG_FILE		(CONFIG_DIR CONFIG_FILENAME)
 #define SIGNATURE_FILE		(CONFIG_DIR SIGNATURE_FILE_FILENAME)
 
-#define print_debug(f, x...) \
-	do { \
-		if (debug) { \
-			printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
-			fflush(stdout); \
-		} \
-	} while (0)
-#define print_trace()\
-	do { \
-		printf("%s(%d)\n", __func__, __LINE__); \
-		fflush(stdout); \
-	} while (0)
-#define print_info(f, x...)\
-	do { \
-		printf(f "\n", ##x); \
-		fflush(stdout); \
-	} while (0)
-#define print_err(f, x...)\
-	do { \
-		fprintf(stderr, "Error: " f "\n", ##x); \
-		fflush(stderr); \
-	} while (0)
-
-#define UNUSED(x) ((void) x)
-
-#define min(x, y) ((x < y) ? x : y)
-
-#define __round_mask(x, y) ((__typeof__(x))((y) - 1))
-#define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
-
 extern int			 stopped;
 
 enum { DISCONNECTED, CONNECTED };

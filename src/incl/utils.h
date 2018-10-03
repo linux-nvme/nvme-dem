@@ -35,6 +35,8 @@
 #ifndef _UTILS_H
 #define _UTILS_H
 
+#include "tags.h"
+
 #define NUM_ENTRIES(x) (int)(sizeof(x) / sizeof(x[0]))
 
 typedef __signed__ char __s8;
@@ -144,5 +146,54 @@ static inline int list_empty(const struct linked_list *list)
 	     &entry->member != (list);					   \
 	     entry = tmp,						   \
 	     tmp = list_entry(tmp->member.next, typeof(*tmp), member))
+
+#define print_debug(f, x...) \
+	do { \
+		if (debug) { \
+			printf("%s(%d) " f "\n", __func__, __LINE__, ##x); \
+			fflush(stdout); \
+		} \
+	} while (0)
+#define print_trace()\
+	do { \
+		printf("%s(%d)\n", __func__, __LINE__); \
+		fflush(stdout); \
+	} while (0)
+#define print_info(f, x...)\
+	do { \
+		printf(f "\n", ##x); \
+		fflush(stdout); \
+	} while (0)
+#define print_err(f, x...)\
+	do { \
+		fprintf(stderr, "Error: " f "\n", ##x); \
+		fflush(stderr); \
+	} while (0)
+
+#define UNUSED(x) ((void) x)
+
+#define min(x, y) ((x < y) ? x : y)
+
+#define __round_mask(x, y) ((__typeof__(x))((y) - 1))
+#define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
+
+#define valid_trtype_str TRTYPE_STR_RDMA
+#define valid_adrfam_str ADRFAM_STR_IPV4 "," ADRFAM_STR_IPV6
+
+static inline int set_adrfam(char *family)
+{
+	if (strcmp(family, ADRFAM_STR_IPV4) == 0)
+		return NVMF_ADDR_FAMILY_IP4;
+
+        if (strcmp(family, ADRFAM_STR_IPV6) == 0)
+                return NVMF_ADDR_FAMILY_IP6;
+
+	return 0;
+}
+
+static inline int valid_trtype(char *type)
+{
+	return !strcmp(type, TRTYPE_STR_RDMA);
+}
 
 #endif

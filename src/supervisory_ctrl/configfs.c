@@ -40,7 +40,6 @@
 #include <sys/stat.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
-//#include <netinet/in.h>
 
 #include "common.h"
 #include "tags.h"
@@ -848,27 +847,17 @@ int enumerate_interfaces(void)
 
 		fclose(fd);
 
-		if ((strcmp(iface->type, TRTYPE_STR_RDMA) != 0) &&
-		    (strcmp(iface->type, TRTYPE_STR_TCP) != 0) &&
-		    (strcmp(iface->type, TRTYPE_STR_FC) != 0)) {
-			print_err("Ignored invalid trtype %s: expect %s/%s/%s",
-				   iface->type, TRTYPE_STR_RDMA,
-				   TRTYPE_STR_TCP, TRTYPE_STR_FC);
+		if (!valid_trtype(iface->type)) {
+			print_info("Invalid trtype: valid options [ %s ]",
+				   valid_trtype_str);
 			free(iface);
 			continue;
 		}
 
-		if (strcmp(iface->family, ADRFAM_STR_IPV4) == 0)
-			adrfam = NVMF_ADDR_FAMILY_IP4;
-		else if (strcmp(iface->family, ADRFAM_STR_IPV6) == 0)
-			adrfam = NVMF_ADDR_FAMILY_IP6;
-		else if (strcmp(iface->family, ADRFAM_STR_FC) == 0)
-			adrfam = NVMF_ADDR_FAMILY_FC;
-
+		adrfam = set_adrfam(iface->family);
 		if (!adrfam) {
-			print_err("Ignored invalid adrfam %s: expect %s/%s/%s",
-				   iface->family, ADRFAM_STR_IPV4,
-				   ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+			print_info("Invalid adrfam: valid options [ %s ]",
+				   valid_adrfam_str);
 			free(iface);
 			continue;
 		}
@@ -894,8 +883,7 @@ int enumerate_interfaces(void)
 		}
 
 		print_debug("adding interface for %s %s %s",
-			    iface->type, iface->family,
-			    iface->address);
+			    iface->type, iface->family, iface->address);
 
 		list_add_tail(&iface->node, interfaces);
 		cnt++;

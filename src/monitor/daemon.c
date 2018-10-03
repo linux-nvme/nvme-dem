@@ -115,8 +115,8 @@ static void show_help(char *app)
 #endif
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 	print_info("%s info:", dc_str);
-	print_info("  -t - transport type (rdma)");
-	print_info("  -f - address family (ipv4, ipv6)");
+	print_info("  -t - transport type [ %s ]", valid_trtype_str);
+	print_info("  -f - address family [ %s ]", valid_adrfam_str);
 	print_info("  -a - transport address (e.g. 192.168.1.1)");
 	print_info("  -s - transport service id (e.g. 4420)");
 }
@@ -274,21 +274,15 @@ static int validate_dq(struct ctrl_queue *dq)
 
 	dq->ep.ops = register_ops(portid->type);
 	if (!dq->ep.ops) {
-		print_info("Invalid trtype: valid options - %s",
-			   TRTYPE_STR_RDMA);
+		print_info("Invalid trtype: valid options [ %s ]",
+			   valid_trtype_str);
 		goto out;
 	}
 
-	if (strcmp(portid->family, ADRFAM_STR_IPV4) == 0)
-		portid->adrfam = NVMF_ADDR_FAMILY_IP4;
-	else if (strcmp(portid->family, ADRFAM_STR_IPV6) == 0)
-		portid->adrfam = NVMF_ADDR_FAMILY_IP6;
-	else if (strcmp(portid->family, ADRFAM_STR_FC) == 0)
-		portid->adrfam = NVMF_ADDR_FAMILY_FC;
-
+	portid->adrfam = set_adrfam(portid->family);
 	if (!portid->adrfam) {
-		print_info("Invalid adrfam: valid options - %s, %s, %s",
-			   ADRFAM_STR_IPV4, ADRFAM_STR_IPV6, ADRFAM_STR_FC);
+		print_info("Invalid adrfam: valid options [ %s ]",
+			   valid_adrfam_str);
 		goto out;
 	}
 
