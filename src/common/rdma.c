@@ -670,7 +670,7 @@ static int rdma_rma_read(struct xp_ep *_ep, void *buf, u64 addr, u64 len,
 }
 
 static int rdma_rma_write(struct xp_ep *_ep, void *buf, u64 addr, u64 len,
-			  u32 rkey, struct xp_mr *_mr)
+			  u32 rkey, struct xp_mr *_mr, struct nvme_command *cmd)
 {
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 	struct ibv_mr		*mr = (struct ibv_mr *) _mr;
@@ -678,6 +678,8 @@ static int rdma_rma_write(struct xp_ep *_ep, void *buf, u64 addr, u64 len,
 	struct ibv_sge		 sge;
 	struct ibv_wc		 wc;
 	int			 ret;
+
+	UNUSED(cmd);
 
 	memset(&wr, 0, sizeof(wr));
 

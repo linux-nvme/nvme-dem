@@ -179,7 +179,8 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	if (len > sizeof(*id))
 		len = sizeof(*id);
 
-	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
+				 ep->data_mr, cmd);
 	if (ret) {
 		print_err("rma_write returned %d", ret);
 		ret = NVME_SC_WRITE_FAULT;
@@ -422,7 +423,8 @@ static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
 		print_err("Unknown set config id %x", c->command_id);
 	}
 
-	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
+				 ep->data_mr, cmd);
 	if (ret) {
 		print_err("rma_write returned %d", ret);
 		ret = NVME_SC_WRITE_FAULT;

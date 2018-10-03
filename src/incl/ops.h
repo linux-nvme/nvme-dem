@@ -56,7 +56,7 @@ struct xp_ops {
 	int (*rma_read)(struct xp_ep *ep, void *buf, u64 addr, u64 len,
 			u32 key, struct xp_mr *mr);
 	int (*rma_write)(struct xp_ep *ep, void *buf, u64 addr, u64 len,
-			 u32 key, struct xp_mr *mr);
+			 u32 key, struct xp_mr *mr, struct nvme_command *cmd);
 	int (*repost_recv)(struct xp_ep *ep, struct xp_qe *qe);
 	int (*post_msg)(struct xp_ep *ep, void *msg, int len,
 			struct xp_mr *mr);

@@ -231,7 +231,8 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	if (len > sizeof(*id))
 		len = sizeof(*id);
 
-	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
+				 ep->data_mr, cmd);
 	if (ret) {
 		print_err("rma_write returned %d", ret);
 		ret = NVME_SC_WRITE_FAULT;
@@ -254,8 +255,9 @@ static int host_access(struct subsystem *subsys, char *nqn)
 	return 0;
 }
 
-static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
-				     u64 len)
+static int handle_get_log_page_count(struct endpoint *ep,
+				     struct nvme_command *cmd, u64 addr,
+				     u64 key, u64 len)
 {
 	struct nvmf_disc_rsp_page_hdr	*log = ep->data;
 	struct target			*target;
@@ -286,7 +288,8 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
 	print_debug("log_page count %d", numrec);
 #endif
 
-	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key, ep->data_mr);
+	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len,
+				 key, ep->data_mr, cmd);
 	if (ret) {
 		print_err("rma_write returned %d", ret);
 		ret = NVME_SC_WRITE_FAULT;
@@ -295,7 +298,8 @@ static int handle_get_log_page_count(struct endpoint *ep, u64 addr, u64 key,
 	return ret;
 }
 
-static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
+static int handle_get_log_pages(struct endpoint *ep, struct nvme_command *cmd,
+				u64 addr, u64 key, u64 len)
 {
 	struct nvmf_disc_rsp_page_hdr	*log;
 	struct nvmf_disc_rsp_page_entry *e;
@@ -339,7 +343,7 @@ static int handle_get_log_pages(struct endpoint *ep, u64 addr, u64 key, u64 len)
 	log->numrec = numrec;
 	log->genctr = 1;
 
-	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr);
+	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr, cmd);
 	if (ret) {
 		print_err("rma_write returned %d", ret);
 		ret = NVME_SC_WRITE_FAULT;
@@ -402,9 +406,10 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 		break;
 	case nvme_admin_get_log_page:
 		if (len == 16)
-			ret = handle_get_log_page_count(ep, addr, key, len);
+			ret = handle_get_log_page_count(ep, cmd, addr, key,
+							len);
 		else
-			ret = handle_get_log_pages(ep, addr, key, len);
+			ret = handle_get_log_pages(ep, cmd, addr, key, len);
 		break;
 	case nvme_admin_get_features:
 		ret = handle_get_features(cmd, resp, host);
