@@ -237,7 +237,7 @@ static void show_help(char *app)
 	print_info("Usage: %s %s {-p <port>} {-r <root>} {-c <cert_file>}",
 		   app, arg_list);
 #ifdef CONFIG_DEBUG
-	print_info("  -q - quite mode, no debug prints");
+	print_info("  -q - quiet mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
 	print_info("  -d - enable debug prints in log files");

@@ -103,11 +103,11 @@ static void show_help(char *app)
 #endif
 	const char		*hac_args = "{-h <hostnqn>}";
 	const char		*dc_args =
-		"{-t <tryp>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
+		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 
 	print_info("Usage: %s %s %s\n\t%s", app, app_args, hac_args, dc_args);
 #ifdef CONFIG_DEBUG
-	print_info("  -q - quite mode, no debug prints");
+	print_info("  -q - quiet mode, no debug prints");
 	print_info("  -d - run as a daemon process (default is standalone)");
 #else
 	print_info("  -d - enable debug prints in log files");
