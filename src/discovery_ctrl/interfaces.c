@@ -143,7 +143,8 @@ next:
 		}
 
 		list_for_each_entry(lp, &target->unattached_logpage_list, node)
-			if (match_logpage(lp, e)) {
+			if (!strcmp(lp->e.subnqn, e->subnqn) &&
+			    match_logpage(lp, e)) {
 				found = 1;
 				free(logpage);
 				break;
