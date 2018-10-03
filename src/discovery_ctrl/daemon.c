@@ -446,9 +446,8 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 	dq->target = target;
 	dq->subsys = subsys;
 
-	if (strcmp(dq->portid->type, "rdma") == 0)
-		dq->ep.ops = rdma_register_ops();
-	else {
+	dq->ep.ops = register_ops(dq->portid->type);
+	if (!dq->ep.ops) {
 		free(dq);
 		return;
 	}

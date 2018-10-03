@@ -1147,9 +1147,8 @@ static int get_inb_config(struct target *target)
 	struct ctrl_queue	*ctrl = &target->sc_iface.inb;
 	int			 ret;
 
-	if (strcmp(ctrl->portid->type, "rdma") == 0)
-		ctrl->ep.ops = rdma_register_ops();
-	else
+	ctrl->ep.ops = register_ops(ctrl->portid->type);
+	if (!ctrl->ep.ops)
 		return -EINVAL;
 
 	if (ctrl->connected)

@@ -730,9 +730,8 @@ int start_pseudo_target(struct host_iface *iface)
 	if (ret < 0)
 		return errno;
 
-	if (strcmp(iface->type, "rdma") == 0)
-		iface->ops = rdma_register_ops();
-	else
+	iface->ops = register_ops(iface->type);
+	if (!iface->ops)
 		return -EINVAL;
 
 	ret = iface->ops->init_listener(&iface->listener, iface->port);

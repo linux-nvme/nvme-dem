@@ -272,11 +272,7 @@ static int validate_dq(struct ctrl_queue *dq)
 	struct portid		*portid = dq->portid;
 	int			 ret;
 
-	if (portid->type) {
-		if (strcmp(portid->type, TRTYPE_STR_RDMA) == 0)
-			dq->ep.ops = rdma_register_ops();
-	}
-
+	dq->ep.ops = register_ops(portid->type);
 	if (!dq->ep.ops) {
 		print_info("Invalid trtype: valid options - %s",
 			   TRTYPE_STR_RDMA);

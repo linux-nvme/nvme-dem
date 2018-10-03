@@ -178,9 +178,7 @@ static int validate_host_iface(void)
 {
 	int			 ret = 0;
 
-	if (strcmp(host_iface.type, TRTYPE_STR_RDMA) == 0)
-		host_iface.ep.ops = rdma_register_ops();
-
+	host_iface.ep.ops = register_ops(host_iface.type);
 	if (!host_iface.ep.ops)
 		goto out;
 

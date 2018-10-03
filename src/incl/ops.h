@@ -37,6 +37,8 @@
 
 #include <sys/socket.h>
 
+#include "tags.h"
+
 struct xp_ep;
 struct xp_pep;
 struct xp_qe;
@@ -76,5 +78,16 @@ struct xp_ops {
 };
 
 struct xp_ops *rdma_register_ops(void);
+
+static inline struct xp_ops *register_ops(char *type)
+{
+	if (!type || !*type)
+		return NULL;
+
+	if (strcmp(type, TRTYPE_STR_RDMA) == 0)
+		return rdma_register_ops();
+
+	return NULL;
+}
 
 #endif /* __OPS_H__ */
