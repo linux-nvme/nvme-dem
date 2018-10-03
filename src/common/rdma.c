@@ -859,6 +859,36 @@ static int rdma_dealloc_key(struct xp_mr *_mr)
 	return ibv_dereg_mr(mr);
 }
 
+static int rdma_build_connect_data(void **req, char *hostnqn)
+{
+	struct nvme_rdma_cm_req *priv;
+	struct nvmf_connect_data *data;
+	int                      bytes = sizeof(*priv) + sizeof(*data);
+
+	if (posix_memalign((void **) &priv, PAGE_SIZE, bytes)) {
+		print_err("no memory for buffer, errno %d", errno);
+		return -errno;
+	}
+
+	memset(priv, 0, bytes);
+
+	priv->recfmt = htole16(NVME_RDMA_CM_FMT_1_0);
+	priv->hrqsize = htole16(NVMF_DQ_DEPTH);
+	priv->hsqsize = htole16(NVMF_DQ_DEPTH);
+
+	data = (void *) &priv[1];
+
+	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
+
+	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
+	strncpy(data->hostnqn, hostnqn, NVMF_NQN_SIZE);
+
+	*req = (void *) priv;
+
+	return bytes;
+}
+
+
 static void rdma_set_sgl(struct nvme_command *cmd, u8 opcode, int len,
 			 void *data, int key)
 {
@@ -895,6 +925,7 @@ static struct xp_ops rdma_ops = {
 	.alloc_key		= rdma_alloc_key,
 	.remote_key		= rdma_remote_key,
 	.dealloc_key		= rdma_dealloc_key,
+	.build_connect_data     = rdma_build_connect_data,
 	.set_sgl                = rdma_set_sgl,
 };
 

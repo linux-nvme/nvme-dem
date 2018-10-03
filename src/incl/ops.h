@@ -68,6 +68,7 @@ struct xp_ops {
 			 struct xp_mr **mr);
 	u32 (*remote_key)(struct xp_mr *mr);
 	int (*dealloc_key)(struct xp_mr *mr);
+	int (*build_connect_data)(void **req, char *hostnqn);
 	void (*set_sgl)(struct nvme_command *cmd, u8 opcode, int len,
 			void *data, int key);
 };

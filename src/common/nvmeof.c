@@ -626,35 +626,6 @@ void disconnect_ctrl(struct ctrl_queue *ctrl, int shutdown)
 	ctrl->connected = 0;
 }
 
-static int build_connect_data(struct nvme_rdma_cm_req **req, char *hostnqn)
-{
-	struct nvme_rdma_cm_req	*priv;
-	struct nvmf_connect_data *data;
-	int			bytes = sizeof(*priv) + sizeof(*data);
-
-	if (posix_memalign((void **) &priv, PAGE_SIZE, bytes)) {
-		print_err("no memory for buffer, errno %d", errno);
-		return errno;
-	}
-
-	memset(priv, 0, bytes);
-
-	priv->recfmt = htole16(NVME_RDMA_CM_FMT_1_0);
-	priv->hrqsize = htole16(NVMF_DQ_DEPTH);
-	priv->hsqsize = htole16(NVMF_DQ_DEPTH);
-
-	data = (void *) &priv[1];
-
-	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
-
-	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);
-	strncpy(data->hostnqn, hostnqn, NVMF_NQN_SIZE);
-
-	*req = priv;
-
-	return bytes;
-}
-
 int connect_ctrl(struct ctrl_queue *ctrl)
 {
 	struct portid		*portid = ctrl->portid;
@@ -662,7 +633,7 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 	struct sockaddr		 dest = { 0 };
 	struct sockaddr_in	*dest_in = (struct sockaddr_in *) &dest;
 	struct sockaddr_in6	*dest_in6 = (struct sockaddr_in6 *) &dest;
-	struct nvme_rdma_cm_req	*req = NULL;
+	void			*req = NULL;
 	void			*cmd;
 	void			*data;
 	int			 bytes;
@@ -691,7 +662,7 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 	if (ret)
 		return ret;
 
-	bytes = build_connect_data(&req, ctrl->hostnqn);
+	bytes = ep->ops->build_connect_data(&req, ctrl->hostnqn);
 
 	do {
 		usleep(CONFIG_TIMEOUT);
