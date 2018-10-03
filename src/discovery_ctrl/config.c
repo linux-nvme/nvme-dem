@@ -1874,13 +1874,13 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 			print_err("set subsys acl OOB failed for %s", alias);
 			continue;
 		}
+	}
 
-		list_for_each_entry(portid, &target->portid_list, node) {
-			ret = send_link_portid_oob(subsys, portid);
-			if (ret)
-				print_err("link subsys/port OOB failed for %s",
-					  alias);
-		}
+	list_for_each_entry(portid, &target->portid_list, node) {
+		ret = send_link_portid_oob(subsys, portid);
+		if (ret)
+			print_err("link subsys/port OOB failed for %s",
+				  alias);
 	}
 
 	return 0;
