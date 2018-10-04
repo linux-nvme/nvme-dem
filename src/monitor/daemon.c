@@ -42,7 +42,6 @@
 #include "tags.h"
 #include "dem.h"
 
-static int			 run_as_daemon;
 int				 stopped;
 static int			 signalled;
 int				 debug;
@@ -62,57 +61,14 @@ static void signal_handler(int sig_num)
 	shutdown_dem();
 }
 
-static int daemonize(void)
-{
-	pid_t			 pid, sid;
-
-	pid = fork();
-	if (pid < 0) {
-		print_err("fork failed %d", pid);
-		return pid;
-	}
-
-	if (pid) /* if parent, exit to allow child to run as daemon */
-		exit(0);
-
-	umask(0022);
-
-	sid = setsid();
-	if (sid < 0) {
-		print_err("setsid failed %d", sid);
-		return sid;
-	}
-
-	if ((chdir("/")) < 0) {
-		print_err("could not change dir to /");
-		return -1;
-	}
-
-	freopen("/var/log/dem-hac_debug.log", "a", stdout);
-	freopen("/var/log/dem-hac.log", "a", stderr);
-
-	return 0;
-}
-
 static void show_help(char *app)
 {
-#ifdef CONFIG_DEBUG
-	const char		*app_args = "{-q} {-d}";
-#else
-	const char		*app_args = "{-d} {-S}";
-#endif
-	const char		*hac_args = "{-h <hostnqn>}";
+	const char		*app_args = "{-d} {-h <hostnqn>}";
 	const char		*dc_args =
 		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 
-	print_info("Usage: %s %s %s\n\t%s", app, app_args, hac_args, dc_args);
-#ifdef CONFIG_DEBUG
-	print_info("  -q - quiet mode, no debug prints");
-	print_info("  -d - run as a daemon process (default is standalone)");
-#else
+	print_info("Usage: %s %s\n\t%s", app, app_args, dc_args);
 	print_info("  -d - enable debug prints in log files");
-	print_info("  -S - run as a standalone process (default is daemon)");
-#endif
 	print_info("  -h - HostNQN to use to connect to the %s", dc_str);
 	print_info("%s info:", dc_str);
 	print_info("  -t - transport type [ %s ]", valid_trtype_str);
@@ -156,40 +112,18 @@ static int parse_args(int argc, char *argv[], struct ctrl_queue *dq)
 {
 	struct portid		*portid = dq->portid;
 	int			 opt;
-#ifdef CONFIG_DEBUG
-	const char		*opt_list = "?qdt:f:a:s:h:";
-#else
-	const char		*opt_list = "?dSt:f:a:s:h:";
-#endif
+	const char		*opt_list = "?dt:f:a:s:h:";
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto out;
 
-#ifdef CONFIG_DEBUG
-	debug = 1;
-	run_as_daemon = 0;
-#else
 	debug = 0;
-	run_as_daemon = 1;
-#endif
 
 	while ((opt = getopt(argc, argv, opt_list)) != -1) {
 		switch (opt) {
-#ifdef CONFIG_DEBUG
-		case 'q':
-			debug = 0;
-			break;
-		case 'd':
-			run_as_daemon = 1;
-			break;
-#else
 		case 'd':
 			debug = 0;
 			break;
-		case 'S':
-			run_as_daemon = 1;
-			break;
-#endif
 		case 't':
 			if (!optarg) {
 				print_info("Invalid trtype");
@@ -321,10 +255,7 @@ static int validate_dq(struct ctrl_queue *dq)
 		sprintf(dq->hostnqn, NVMF_UUID_FMT, uuid);
 	}
 
-	if (run_as_daemon)
-		ret = daemonize();
-	else
-		ret = 0;
+	ret = 0;
 out:
 	return ret;
 }
