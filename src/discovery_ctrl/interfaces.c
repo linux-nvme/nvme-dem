@@ -553,7 +553,7 @@ static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 
 	obj = json_object_get(grp, TAG_TYPE);
 	if (!obj) {
-		print_err("Controller '%s' error: transport type missing",
+		print_err("controller '%s' error: transport type missing",
 			  alias);
 		goto out;
 	}
@@ -565,7 +565,7 @@ static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 
 	obj = json_object_get(grp, TAG_FAMILY);
 	if (!obj) {
-		print_err("Controller '%s' error: transport family missing",
+		print_err("controller '%s' error: transport family missing",
 			  alias);
 		goto out;
 	}
@@ -574,7 +574,7 @@ static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 
 	obj = json_object_get(grp, TAG_ADDRESS);
 	if (!obj) {
-		print_err("Controller '%s' error: transport address missing",
+		print_err("controller '%s' error: transport address missing",
 			  alias);
 		goto out;
 	}
@@ -587,13 +587,13 @@ static int get_transport_info(char *alias, json_t *grp, struct portid *portid)
 	else if (strcmp(portid->family, "fc") == 0)
 		ret = fc_to_addr(str, addr);
 	else {
-		print_err("Controller '%s' error: bad transport family '%s'",
+		print_err("controller '%s' error: bad transport family '%s'",
 			  alias, portid->family);
 		goto out;
 	}
 
 	if (ret < 0) {
-		print_err("Controller '%s' error: bad '%s' address '%s'",
+		print_err("controller '%s' error: bad '%s' address '%s'",
 			  alias, portid->family, str);
 		goto out;
 	}
@@ -711,8 +711,8 @@ static int setup_inb_target(json_t *parent, struct target *target)
 
 	return 0;
 reset:
-	print_err("In-Band SC misconfigured %s, reverting to Local Management",
-		  target->alias);
+	print_debug("In-Band SC misconfigured %s, set to Local Management",
+		    target->alias);
 
 	target->mgmt_mode = LOCAL_MGMT;
 	free(target->sc_iface.inb.portid);
@@ -985,14 +985,14 @@ static int read_dem_config_files(struct host_iface *iface)
 				count++;
 			}
 		} else {
-			print_err("Failed to open config file %s", config_file);
+			print_err("failed to open config file %s", config_file);
 			ret = -ENOENT;
 			goto out;
 		}
 	}
 
 	if (count == 0) {
-		print_err("No viable interfaces. Exiting");
+		print_err("no viable interfaces. Exiting");
 		ret = -ENODATA;
 	}
 

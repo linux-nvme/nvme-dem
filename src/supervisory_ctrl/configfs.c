@@ -875,7 +875,7 @@ int enumerate_interfaces(void)
 		}
 
 		if (ret < 0) {
-			print_err("Ignored invalid traddr %s", iface->address);
+			print_err("ignored invalid traddr %s", iface->address);
 			free(iface);
 			continue;
 		}

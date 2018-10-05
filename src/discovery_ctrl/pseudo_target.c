@@ -180,7 +180,7 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
-		print_err("rma_read returned %d", ret);
+		print_errno("rma_read failed", ret);
 		ret = NVME_SC_READ_ERROR;
 		goto out;
 	}
@@ -234,7 +234,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
 				 ep->data_mr, cmd);
 	if (ret) {
-		print_err("rma_write returned %d", ret);
+		print_errno("rma_write failed", ret);
 		ret = NVME_SC_WRITE_FAULT;
 	}
 
@@ -291,7 +291,7 @@ static int handle_get_log_page_count(struct endpoint *ep,
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len,
 				 key, ep->data_mr, cmd);
 	if (ret) {
-		print_err("rma_write returned %d", ret);
+		print_errno("rma_write failed", ret);
 		ret = NVME_SC_WRITE_FAULT;
 	}
 
@@ -316,7 +316,7 @@ static int handle_get_log_pages(struct endpoint *ep, struct nvme_command *cmd,
 
 	ret = ep->ops->alloc_key(ep->ep, log, len, &mr);
 	if (ret) {
-		print_err("alloc_key returned %d", ret);
+		print_errno("alloc_key failed", ret);
 		return NVME_SC_INTERNAL;
 	}
 
@@ -345,7 +345,7 @@ static int handle_get_log_pages(struct endpoint *ep, struct nvme_command *cmd,
 
 	ret = ep->ops->rma_write(ep->ep, log, addr, len, key, mr, cmd);
 	if (ret) {
-		print_err("rma_write returned %d", ret);
+		print_errno("rma_write failed", ret);
 		ret = NVME_SC_WRITE_FAULT;
 	}
 
@@ -599,7 +599,7 @@ static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 
 	ret = run_pseudo_target(ep, id);
 	if (ret) {
-		print_err("run_pseudo_target returned %d", ret);
+		print_errno("run_pseudo_target failed", ret);
 		goto out;
 	}
 
@@ -628,7 +628,8 @@ void *interface_thread(void *arg)
 
 	ret = start_pseudo_target(iface);
 	if (ret) {
-		print_err("Failed to start pseudo target");
+		print_err("failed to start pseudo target");
+		print_errno("start_pseudo_target failed", ret);
 		goto out1;
 	}
 
@@ -643,6 +644,7 @@ void *interface_thread(void *arg)
 	ret = pthread_create(&pthread, &pthread_attr, host_thread, &q);
 	if (ret) {
 		print_err("failed to start host thread");
+		print_errno("pthread_create failed", ret);
 		goto out2;
 	}
 
@@ -657,7 +659,7 @@ void *interface_thread(void *arg)
 		if (ret == 0)
 			add_host_to_queue(id, iface->ops, &q);
 		else if (ret != -EAGAIN)
-			print_err("Host connection failed %d", ret);
+			print_errno("Host connection failed", ret);
 	}
 
 	pthread_join(pthread, NULL);

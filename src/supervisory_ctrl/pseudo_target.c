@@ -125,7 +125,7 @@ static int handle_connect(struct endpoint *ep, u64 addr, u64 key, u64 len)
 
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
-		print_err("rma_read returned %d", ret);
+		print_errno("rma_read failed", ret);
 		goto out;
 	}
 
@@ -182,7 +182,7 @@ static int handle_identify(struct endpoint *ep, struct nvme_command *cmd,
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
 				 ep->data_mr, cmd);
 	if (ret) {
-		print_err("rma_write returned %d", ret);
+		print_errno("rma_write failed", ret);
 		ret = NVME_SC_WRITE_FAULT;
 	}
 
@@ -420,13 +420,13 @@ static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
 		len = get_xport(ep->data);
 		break;
 	default:
-		print_err("Unknown set config id %x", c->command_id);
+		print_err("unknown set config id %x", c->command_id);
 	}
 
 	ret = ep->ops->rma_write(ep->ep, ep->data, addr, len, key,
 				 ep->data_mr, cmd);
 	if (ret) {
-		print_err("rma_write returned %d", ret);
+		print_errno("rma_write failed", ret);
 		ret = NVME_SC_WRITE_FAULT;
 	}
 
@@ -444,7 +444,7 @@ static int handle_reset_config(struct nvme_command *cmd)
 		ret = 0;
 		break;
 	default:
-		print_err("Unknown set command id %x", c->command_id);
+		print_err("unknown set command id %x", c->command_id);
 		ret = NVME_SC_INVALID_FIELD;
 	}
 
@@ -459,7 +459,7 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
 	if (ret) {
-		print_err("rma_read returned %d", ret);
+		print_errno("rma_read failed", ret);
 		goto out;
 	}
 
@@ -525,7 +525,7 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 			ret = NVME_SC_ACCESS_DENIED;
 		break;
 	default:
-		print_err("Unknown set config id %x", c->command_id);
+		print_err("unknown set config id %x", c->command_id);
 		ret = NVME_SC_INVALID_FIELD;
 	}
 
@@ -764,7 +764,7 @@ static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 
 	ret = run_pseudo_target(ep, id);
 	if (ret) {
-		print_err("run_pseudo_target returned %d", ret);
+		print_errno("run_pseudo_target failed", ret);
 		goto out;
 	}
 
@@ -793,7 +793,7 @@ void *interface_thread(void *arg)
 
 	ret = start_pseudo_target(iface);
 	if (ret) {
-		print_err("Failed to start pseudo target");
+		print_err("failed to start pseudo target");
 		goto out1;
 	}
 
@@ -808,6 +808,7 @@ void *interface_thread(void *arg)
 	ret = pthread_create(&pthread, &pthread_attr, host_thread, &q);
 	if (ret) {
 		print_err("failed to start host thread");
+		print_errno("pthread_create failed", ret);
 		goto out2;
 	}
 
@@ -822,7 +823,7 @@ void *interface_thread(void *arg)
 		if (ret == 0)
 			add_host_to_queue(id, iface->ops, &q);
 		else if (ret != -EAGAIN)
-			print_err("Host connection failed %d", ret);
+			print_errno("Host connection failed", ret);
 	}
 
 	pthread_join(pthread, NULL);

@@ -68,7 +68,7 @@ static int daemonize(void)
 
 	pid = fork();
 	if (pid < 0) {
-		print_err("fork failed %d", pid);
+		print_errno("fork failed", pid);
 		return pid;
 	}
 
@@ -79,7 +79,7 @@ static int daemonize(void)
 
 	sid = setsid();
 	if (sid < 0) {
-		print_err("setsid failed %d", sid);
+		print_errno("setsid failed", sid);
 		return sid;
 	}
 
@@ -722,7 +722,7 @@ int main(int argc, char *argv[])
 				if (stopped)
 					break;
 				if (ret) {
-					print_err("Lost connection to %s",
+					print_err("lost connection to %s",
 						  dc_str);
 					cleanup_dq(dq);
 				}

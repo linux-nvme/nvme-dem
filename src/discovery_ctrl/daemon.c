@@ -163,7 +163,7 @@ static void periodic_work(void)
 
 		list_for_each_entry(dq, &target->discovery_queue_list, node) {
 			if (!dq->connected && connect_ctrl(dq)) {
-				print_err("Could not connect to target %s",
+				print_err("could not connect to target %s",
 					  target->alias);
 				target->log_page_retry_count = LOG_PAGE_RETRY;
 				continue;
@@ -200,7 +200,7 @@ static int daemonize(void)
 
 	pid = fork();
 	if (pid < 0) {
-		print_err("fork failed %d", pid);
+		print_errno("fork failed", pid);
 		return pid;
 	}
 
@@ -211,7 +211,7 @@ static int daemonize(void)
 
 	sid = setsid();
 	if (sid < 0) {
-		print_err("setsid failed %d", sid);
+		print_errno("setsid failed", sid);
 		return sid;
 	}
 
@@ -348,7 +348,7 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *ssl_cert)
 
 	c = mg_bind_opt(mgr, s_http_port, ev_handler, bind_opts);
 	if (c == NULL) {
-		print_err("failed to start server on port %s: %s",
+		print_err("mongoose server - port %s: %s",
 			  s_http_port, *bind_opts.error_string);
 		return 1;
 	}

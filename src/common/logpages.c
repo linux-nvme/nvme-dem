@@ -56,7 +56,7 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 
 	ret = send_get_log_page(&dq->ep, log_size, &log);
 	if (ret) {
-		print_err("Failed to fetch number of discovery log entries");
+		print_err("failed to fetch number of discovery log entries");
 		return -ENODATA;
 	}
 
@@ -67,7 +67,7 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 
 	if (*numrec == 0) {
 #ifdef DEBUG_LOG_PAGES_VERBOSE
-		print_err("No discovery log on target %s", dq->target->alias);
+		print_err("no discovery log on target %s", dq->target->alias);
 #endif
 		*logp = NULL;
 		return 0;
@@ -82,7 +82,7 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 
 	ret = send_get_log_page(&dq->ep, log_size, &log);
 	if (ret) {
-		print_err("Failed to fetch discovery log entries");
+		print_err("failed to fetch discovery log entries");
 		return -ENODATA;
 	}
 

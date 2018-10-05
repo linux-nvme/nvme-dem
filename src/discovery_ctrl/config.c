@@ -993,7 +993,7 @@ static inline int get_inb_nsdevs(struct target *target)
 	}
 
 	if (!hdr->num_entries) {
-		print_err("No NS devices defined for %s", alias);
+		print_err("no NS devices defined for %s", alias);
 		goto out2;
 	}
 
@@ -1037,7 +1037,7 @@ found:
 
 	list_for_each_entry(nsdev, &target->device_list, node)
 		if (!nsdev->valid)
-			print_err("Removed %s %d:%d from %s '%s'",
+			print_err("removed %s %d:%d from %s '%s'",
 				  TAG_DEVID, entry->devid, entry->nsid,
 				  TAG_TARGET, alias);
 out2:
@@ -1068,7 +1068,7 @@ static inline int get_inb_xports(struct target *target)
 	}
 
 	if (!hdr->num_entries) {
-		print_err("No transports defined for %s", target->alias);
+		print_err("no transports defined for %s", target->alias);
 		goto out2;
 	}
 
@@ -1130,9 +1130,9 @@ found:
 
 	list_for_each_entry_safe(iface, next, &target->fabric_iface_list, node)
 		if (!iface->valid) {
-			print_err("Removed %s %s %s from %s '%s'",
-				  iface->type, iface->fam, iface->addr,
-				  TAG_TARGET, target->alias);
+			print_debug("Removed %s %s %s from %s '%s'",
+				    iface->type, iface->fam, iface->addr,
+				    TAG_TARGET, target->alias);
 
 			list_del(&iface->node);
 		}
@@ -1156,7 +1156,8 @@ static int get_inb_config(struct target *target)
 
 	ret = connect_ctrl(ctrl);
 	if (ret) {
-		print_err("connect_ctrl to %s returned %d", target->alias, ret);
+		print_err("failed to connect to %s", target->alias);
+		print_errno("connect_ctrl failed",  ret);
 
 		return ret;
 	}
@@ -2422,8 +2423,8 @@ static int config_target_inb(struct target *target)
 	if (!ctrl->connected) {
 		ret = connect_ctrl(ctrl);
 		if (ret) {
-			print_err("connect_ctrl to %s returned %d",
-				  target->alias, ret);
+			print_err("failed to connect to %s", target->alias);
+			print_errno("connect_ctrl failed",  ret);
 			goto out1;
 		}
 	}
@@ -2691,7 +2692,7 @@ int add_target(char *alias, char *resp)
 
 	ret = add_json_target(alias, resp);
 	if (ret) {
-		print_err("Target %s already exists", alias);
+		print_err("target %s already exists", alias);
 		return -EEXIST;
 	}
 

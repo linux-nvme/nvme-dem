@@ -555,9 +555,9 @@ static void route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 
 	ret = _rdma_create_ep(ep);
 	if (ret)
-		print_err("_rdma_create_ep failed %d", ret);
+		print_errno("_rdma_create_ep failed", ret);
 	else if (rdma_connect(id, &params))
-		print_err("rdma_connect failed %d", errno);
+		print_errno("rdma_connect failed", errno);
 }
 
 static void addr_resolved(struct rdma_cm_id *id)
@@ -566,7 +566,7 @@ static void addr_resolved(struct rdma_cm_id *id)
 
 	ret = rdma_resolve_route(id, RESOLVE_TIMEOUT);
 	if (ret)
-		print_err("rdma_resolve_route failed %d", errno);
+		print_errno("rdma_resolve_route failed", errno);
 }
 
 static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
@@ -828,7 +828,7 @@ static int rdma_alloc_key(struct xp_ep *_ep, void *buf, int len,
 
 	mr = ibv_reg_mr(ep->pd, buf, len, flags);
 	if (!mr) {
-		print_err("ibv_reg_mr failed %d", errno);
+		print_errno("ibv_reg_mr failed", errno);
 		return -errno;
 	}
 

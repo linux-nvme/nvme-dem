@@ -410,7 +410,7 @@ void store_json_config_file(void)
 
 	ret = json_dump_file(root, filename, 2);
 	if (ret)
-		fprintf(stderr, "json_dump_file failed %d\n", ret);
+		print_errno("json_dump_file failed", ret);
 }
 
 struct json_context *get_json_context(void)
@@ -1421,9 +1421,9 @@ found:
 
 	list_for_each_entry_safe(nsdev, next, &target->device_list, node)
 		if (!nsdev->valid) {
-			print_err("Removing %s %d:%d from %s '%s'",
-				  TAG_DEVID, nsdev->nsdev, nsdev->nsid,
-				  TAG_TARGET, alias);
+			print_debug("Removing %s %d:%d from %s '%s'",
+				    TAG_DEVID, nsdev->nsdev, nsdev->nsid,
+				    TAG_TARGET, alias);
 
 			list_del(&nsdev->node);
 		}
@@ -1536,9 +1536,9 @@ found:
 
 	list_for_each_entry_safe(iface, next, &target->fabric_iface_list, node)
 		if (!iface->valid) {
-			print_err("Removing %s %s %s from %s '%s'",
-				  iface->type, iface->fam, iface->addr,
-				  TAG_TARGET, alias);
+			print_debug("Removing %s %s %s from %s '%s'",
+				    iface->type, iface->fam, iface->addr,
+				    TAG_TARGET, alias);
 
 			list_del(&iface->node);
 		}

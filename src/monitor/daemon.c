@@ -530,7 +530,7 @@ int main(int argc, char *argv[])
 				if (stopped)
 					break;
 				if (ret) {
-					print_err("Lost connection to %s",
+					print_err("lost connection to %s",
 						  dc_str);
 					cleanup_dq(dq);
 				}

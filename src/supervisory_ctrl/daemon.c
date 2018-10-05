@@ -112,7 +112,7 @@ static int daemonize(void)
 
 	pid = fork();
 	if (pid < 0) {
-		print_err("fork failed %d", pid);
+		print_errno("fork failed", pid);
 		return pid;
 	}
 
@@ -123,7 +123,7 @@ static int daemonize(void)
 
 	sid = setsid();
 	if (sid < 0) {
-		print_err("setsid failed %d", sid);
+		print_errno("setsid failed", sid);
 		return sid;
 	}
 
@@ -349,7 +349,7 @@ static int init_mg_mgr(struct mg_mgr *mgr, char *ssl_cert)
 
 	c = mg_bind_opt(mgr, s_http_port, ev_handler, bind_opts);
 	if (c == NULL) {
-		print_err("failed to start server on port %s: %s",
+		print_err("mongoose server - port %s: %s",
 			  s_http_port, *bind_opts.error_string);
 		return 1;
 	}
@@ -389,8 +389,10 @@ static int init_inb_thread(pthread_t *listen_thread)
 
 	ret = pthread_create(listen_thread, &pthread_attr, interface_thread,
 			     &host_iface);
-	if (ret)
+	if (ret) {
 		print_err("failed to start thread for supervisory controller");
+		print_errno("pthread_create failed", ret);
+	}
 
 	pthread_attr_destroy(&pthread_attr);
 
