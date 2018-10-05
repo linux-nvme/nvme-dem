@@ -169,7 +169,8 @@ static inline int list_empty(const struct linked_list *list)
 		fprintf(stderr, "Error: " f "\n", ##x); \
 		fflush(stderr); \
 	} while (0)
-#define print_errno(s, e) print_err("%s - %s (%d)", s, strerror(e), e)
+#define print_errno(s, e)\
+	print_err("%s - %s (%d)", s, strerror(((e) < 0) ? -(e) : (e)), e)
 
 #define UNUSED(x) ((void) x)
 
