@@ -641,8 +641,8 @@ int main(int argc, char *argv[])
 
 	set_signature();
 
-	num_interfaces = init_interfaces();
-	if (num_interfaces <= 0)
+	ret = init_interfaces();
+	if (ret < 0)
 		goto out2;
 
 	build_lists();

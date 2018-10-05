@@ -953,11 +953,12 @@ static int read_dem_config_files(struct host_iface *iface)
 	FILE			*fid;
 	char			 config_file[FILENAME_MAX + 1];
 	int			 count = 0;
-	int			 ret;
 
 	dir = opendir(PATH_NVMF_DEM_DISC);
-	if (!dir)
+	if (!dir) {
+		print_errno("opendir failed", errno);
 		return -errno;
+	}
 
 	for_each_dir(entry, dir) {
 		if ((strcmp(entry->d_name, CONFIG_FILENAME) == 0) ||
@@ -977,52 +978,53 @@ static int read_dem_config_files(struct host_iface *iface)
 			if ((!strcmp(iface[count].type, "")) ||
 			    (!strcmp(iface[count].family, "")) ||
 			    (!strcmp(iface[count].address, "")))
-				print_err("%s: %s.",
-					"bad config file. Ignoring interface",
-					config_file);
+				print_err("incomplete config, %s: %s",
+					  "ignoring interface", entry->d_name);
+			else if (!valid_trtype(iface[count].type))
+				print_err("trtype %s not supported, %s: %s",
+					  iface[count].type,
+					  "ignoring interface", entry->d_name);
 			else {
 				translate_addr_to_array(&iface[count]);
 				count++;
 			}
-		} else {
-			print_err("failed to open config file %s", config_file);
-			ret = -ENOENT;
-			goto out;
-		}
+		} else
+			print_err("failed to open config, %s: %s",
+				  "ignoring interface", entry->d_name);
 	}
 
-	if (count == 0) {
-		print_err("no viable interfaces. Exiting");
-		ret = -ENODATA;
-	}
-
-	ret = 0;
-out:
 	closedir(dir);
-	return ret;
+	return count;
 }
 
 int init_interfaces(void)
 {
 	struct host_iface	*table;
 	int			 count;
-	int			 ret;
 
 	/* Could avoid this if we move to a list */
 	count = count_dem_config_files();
 	if (count < 0)
 		return count;
 
+	if (count == 0) {
+		print_err("no interface files");
+		return -EINVAL;
+	}
+
 	table = calloc(count, sizeof(struct host_iface));
-	if (!table)
+	if (!table) {
+		print_err("no memory");
 		return -ENOMEM;
+	}
 
 	memset(table, 0, count * sizeof(struct host_iface));
 
-	ret = read_dem_config_files(table);
-	if (ret) {
+	num_interfaces = read_dem_config_files(table);
+	if (!num_interfaces) {
 		free(table);
-		return -1;
+		print_err("No viable interfaces. Exiting");
+		return -ENODATA;
 	}
 
 	interfaces = table;
