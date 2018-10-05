@@ -526,10 +526,10 @@ static int rdma_wait_for_connection(struct xp_pep *_pep, void **_id)
 
 	rdma_ack_cm_event(event);
 
-	if (ev == RDMA_CM_EVENT_ESTABLISHED)
-		return -EISCONN;
-	if (ev == RDMA_CM_EVENT_DISCONNECTED)
-		return -ECONNRESET;
+	if (ev == RDMA_CM_EVENT_ESTABLISHED ||
+	    ev == RDMA_CM_EVENT_DISCONNECTED)
+		return -EAGAIN;
+
 	if (ev != RDMA_CM_EVENT_CONNECT_REQUEST)
 		return -ENOTCONN;
 
