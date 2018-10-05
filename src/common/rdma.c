@@ -128,7 +128,7 @@ static void *alloc_buffer(struct rdma_ep *ep, int size, struct ibv_mr **_mr)
 					 IBV_ACCESS_REMOTE_WRITE;
 
 	if (posix_memalign(&buf, PAGE_SIZE, size)) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		goto err1;
 	}
 	memset(buf, 0, size);
@@ -868,7 +868,7 @@ static int rdma_build_connect_data(void **req, char *hostnqn)
 	int			bytes = sizeof(*priv) + sizeof(*data);
 
 	if (posix_memalign((void **) &priv, PAGE_SIZE, bytes)) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return -errno;
 	}
 

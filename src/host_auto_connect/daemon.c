@@ -130,13 +130,13 @@ static int init_dq(struct ctrl_queue *dq)
 
 	portid = malloc(sizeof(struct portid));
 	if (!portid) {
-		print_info("No memory to init");
+		print_err("no memory");
 		return 1;
 	}
 
 	target = malloc(sizeof(*target));
 	if (!target) {
-		print_info("No memory to init");
+		print_err("no memory");
 		free(portid);
 		return 1;
 	}

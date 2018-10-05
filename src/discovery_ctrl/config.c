@@ -692,7 +692,7 @@ static int build_set_port_config_inb(struct portid *portid,
 	struct nvmf_port_config_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -714,7 +714,7 @@ static int build_subsys_config_inb(struct subsystem *subsys,
 	struct nvmf_subsys_config_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -732,7 +732,7 @@ static int build_link_host_inb(struct subsystem *subsys, struct host *host,
 	struct nvmf_link_host_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -750,7 +750,7 @@ static int build_host_config_inb(char *hostnqn,
 	struct nvmf_host_config_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -767,7 +767,7 @@ static int build_host_delete_inb(char *hostnqn,
 	struct nvmf_host_delete_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -784,7 +784,7 @@ static int build_link_port_inb(struct subsystem *subsys, struct portid *portid,
 	struct nvmf_link_port_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -802,7 +802,7 @@ static int build_port_delete_inb(struct portid *portid,
 	struct nvmf_port_delete_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -819,7 +819,7 @@ static int build_subsys_delete_inb(struct subsystem *subsys,
 	struct nvmf_subsys_delete_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -836,7 +836,7 @@ static int build_ns_config_inb(struct subsystem *subsys, struct ns *ns,
 	struct nvmf_ns_config_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 
@@ -861,7 +861,7 @@ static int build_ns_delete_inb(struct subsystem *subsys, struct ns *ns,
 	struct nvmf_ns_delete_entry *entry;
 
 	if (posix_memalign((void **) &entry, PAGE_SIZE, sizeof(*entry))) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return 0;
 	}
 

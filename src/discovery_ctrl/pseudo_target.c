@@ -589,7 +589,7 @@ static int add_host_to_queue(void *id, struct xp_ops *ops, struct host_queue *q)
 
 	ep = malloc(sizeof(*ep));
 	if (!ep) {
-		print_err("malloc failed");
+		print_err("no memory");
 		return -ENOMEM;
 	}
 

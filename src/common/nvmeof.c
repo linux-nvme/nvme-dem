@@ -346,7 +346,7 @@ int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 	bytes = sizeof(*cmd);
 
 	if (posix_memalign((void **) &data, PAGE_SIZE, len)) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return errno;
 	}
 
@@ -523,7 +523,7 @@ int send_get_log_page(struct endpoint *ep, int log_size,
 	bytes = sizeof(*cmd);
 
 	if (posix_memalign((void **) &data, PAGE_SIZE, log_size)) {
-		print_err("no memory for buffer, errno %d", errno);
+		print_errno("posix_memalign failed", errno);
 		return errno;
 	}
 

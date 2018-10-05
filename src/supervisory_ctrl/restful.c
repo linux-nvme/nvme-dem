@@ -205,7 +205,7 @@ static int post_portid(char *port, struct mg_str *body, char *resp)
 
 	data = malloc(body->len + 1);
 	if (!data) {
-		sprintf(resp, "no memory");
+		strcpy(resp, "No memory!");
 		return http_error(-ENOMEM);
 	}
 	strncpy(data, body->p, body->len);
@@ -272,7 +272,7 @@ static int post_subsys(char *subsys, struct mg_str *body, char *resp)
 
 	data = malloc(body->len + 1);
 	if (!data) {
-		sprintf(resp, "no memory");
+		strcpy(resp, "No memory!");
 		return http_error(-ENOMEM);
 	}
 	strncpy(data, body->p, body->len);
@@ -323,7 +323,7 @@ static int post_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 
 	data = malloc(body->len + 1);
 	if (!data) {
-		sprintf(resp, "no memory");
+		strcpy(resp, "No memory!");
 		return http_error(-ENOMEM);
 	}
 	strncpy(data, body->p, body->len);
@@ -383,7 +383,7 @@ static int post_host(char *host, struct mg_str *body, char *resp)
 	if (!host) {
 		data = malloc(body->len + 1);
 		if (!data) {
-			sprintf(resp, "no memory");
+			strcpy(resp, "No memory!");
 			return http_error(-ENOMEM);
 		}
 		strncpy(data, body->p, body->len);
@@ -431,7 +431,7 @@ static int link_host(char *subsys, struct mg_str *body, char *resp)
 
 	data = malloc(body->len + 1);
 	if (!data) {
-		sprintf(resp, "no memory");
+		strcpy(resp, "No memory!");
 		return http_error(-ENOMEM);
 	}
 	strncpy(data, body->p, body->len);
@@ -477,7 +477,7 @@ static int link_portid(char *subsys, struct mg_str *body, char *resp)
 
 	data = malloc(body->len + 1);
 	if (!data) {
-		sprintf(resp, "no memory");
+		strcpy(resp, "No memory!");
 		return http_error(-ENOMEM);
 	}
 	strncpy(data, body->p, body->len);
