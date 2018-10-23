@@ -1057,7 +1057,7 @@ static inline int get_inb_xports(struct target *target)
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 fam[CONFIG_FAMILY_SIZE + 1];
 	char			 addr[CONFIG_ADDRESS_SIZE + 1];
-	int			 i, rdma_found;
+	int			 i;
 	int			 ret;
 
 	ret = send_get_config(ep, nvmf_get_xport_config, PAGE_SIZE,
@@ -1078,32 +1078,16 @@ static inline int get_inb_xports(struct target *target)
 		iface->valid = 0;
 
 	for (i = hdr->num_entries; i > 0; i--, entry++) {
-		rdma_found = 0;
 		memset(addr, 0, sizeof(addr));
 		strcpy(type, trtype_str(entry->trtype));
 		strcpy(fam, adrfam_str(entry->adrfam));
 		strncpy(addr, entry->traddr, CONFIG_ADDRESS_SIZE);
 
 		list_for_each_entry(iface, &target->fabric_iface_list, node) {
-			if (strcmp(addr, iface->addr) ||
-			    strcmp(fam, iface->fam))
-				continue;
-			if (strcmp(type, iface->type) == 0) {
-				iface->valid = 1;
-				if (entry->trtype == NVMF_TRTYPE_RDMA)
-					rdma_found = 1;
-				else
-					goto found;
-			}
-			// TODO revisit once TCP transport is supported
-			if ((entry->trtype == NVMF_TRTYPE_RDMA) &&
-			    (strcmp(iface->type, TRTYPE_STR_TCP) == 0)) {
-				iface->valid = 1;
-				if (!rdma_found)
-					rdma_found = 1;
-				else
-					goto found;
-			}
+			if ((strcmp(addr, iface->addr) == 0) &&
+			    (strcmp(fam, iface->fam) == 0) &&
+			    (strcmp(type, iface->type) == 0))
+				goto found;
 		}
 
 		iface = malloc(sizeof(*iface));
@@ -1113,7 +1097,6 @@ static inline int get_inb_xports(struct target *target)
 			goto out2;
 		}
 
-		iface->valid = 1;
 		strcpy(iface->type, type);
 		strcpy(iface->fam, fam);
 		strncpy(iface->addr, addr, CONFIG_ADDRESS_SIZE);
@@ -1125,7 +1108,7 @@ static inline int get_inb_xports(struct target *target)
 		print_debug("Added %s %s %s to %s '%s'",
 			    type, fam, addr, TAG_TARGET, target->alias);
 found:
-		continue;
+		iface->valid = 1;
 	}
 
 	list_for_each_entry_safe(iface, next, &target->fabric_iface_list, node)
@@ -1431,7 +1414,7 @@ static inline int _del_host(struct target *target, char *hostnqn)
 static inline int _update_host(struct subsystem *subsys, struct host *host,
 			       char *hostnqn, char *resp)
 {
-	struct target		*target = subsys->target;;
+	struct target		*target = subsys->target;
 	char			 oldnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
