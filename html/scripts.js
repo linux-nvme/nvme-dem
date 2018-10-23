@@ -1,7 +1,60 @@
+window.onpopstate = function(e) {
+  var x = location.hash;
+  var i = x.indexOf("#");
+  var typ = "";
+  var val = "";
+  var filter = "";
+  if ((i == 0) && e.state) {
+    var j = e.state.html.indexOf("/");
+    if (j > 0) {
+      typ = e.state.html.substr(0, j);
+      val = e.state.html.substr(j + 1);
+    } else {
+      typ = e.state.html;
+    }
+
+    j = typ.indexOf("?");
+    if (j > 0) {
+      filter = typ.substr(j);
+      typ = typ.substr(0, j);
+    }
+
+    i = 0;
+
+    if (val == "")
+      page = typ;
+    else {
+      page = val;
+      i = val.indexOf("/");
+      if (i > 0)
+        val = val.substr(0, i);
+    }
+
+    $("#objectType").html(typ);
+    $("#objectValue").html(val);
+    $("#filter").html(filter);
+
+    document.title = e.state.title;
+
+    if (i > 0)
+      showLogPage();
+    else
+      loadDoc(page);
+  } else {
+    window.location.reload();
+  }
+  return event.preventDefault();
+};
+
 function make_basic_auth(user, password) {
   var tok = user + ':' + password;
   var hash = Base64.encode(tok);
   return "Basic " + hash;
+}
+
+function onBack() {
+  $(".ui-tooltip").remove();
+  window.history.back();
 }
 
 function clearLogin() {
@@ -107,7 +160,7 @@ function showLogPage() {
     str += "Host";
   str += ": " + obj + " &nbsp;";
   str += '<img src="back.png" alt="back" title="back" class="icon"';
-  str += ' onclick="showDetails(' + "'" + obj + "'" + ')">';
+  str += ' onclick="onBack()">';
   str += '</h1><h3>Log Pages'
   if (typ == "target") {
     str += ' &nbsp;<img src="refresh.png" alt="refresh" title="refresh"';
@@ -1300,13 +1353,16 @@ function parseName(obj, itemA) {
   var str = "";
   var typ = $("#objectType").html();
   str += "<h1>" + itemA + ": " + obj[itemA] + " &nbsp;";
-  str += '<img src="pencil.png" alt="edit" title="edit" class="icon" onclick="loadEdit()">';
+  str += '<img src="pencil.png" alt="edit" title="edit" class="icon"';
+  str += ' onclick="loadEdit()">';
   if (itemA == "Alias") {
     str += ' &nbsp; ';
-    str += '<img src="page.png" alt="log" title="view log pages" class="icon" onclick="showLogPage()">';
+    str += '<img src="page.png" alt="log" title="view log pages"';
+    str += ' class="icon" onclick="showLogPage()">';
   }
   str += ' &nbsp; ';
-  str += '<img src="back.png" alt="back" title="back" class="icon" onclick="showList()">';
+  str += '<img src="back.png" alt="back" title="back" class="icon"';
+  str += ' onclick="onBack()">';
   str += "</h1>";
   return str;
 }
@@ -1410,6 +1466,7 @@ function loadDoc(page) {
   var typ = $("#objectType").html();
   var obj = $("#objectValue").html();
   var filter = $("#filter").html();
+  var cur_page;
 
   xhttp.onreadystatechange = function() {
     var cur_page;
@@ -1434,6 +1491,17 @@ function loadDoc(page) {
       } else if (cur_page == document.getElementById("contentPage")) {
         $("#contentPage").show();
         $("#menu").show();
+      } else {
+        $("#contentPage").hide();
+        $("#listPage").hide();
+        $("#detailPage").hide();
+        $("#menu").show();
+        if (typ == "dem")
+          $("#contentPage").show();
+        else if (obj == "")
+          $("#listPage").show();
+        else
+          $("#detailPage").show();
       }
 
       if (this.responseText[0] == '{')
@@ -1468,20 +1536,28 @@ function loadDoc(page) {
   $("#parentUri").html(page);
   $("#renamedUri").html("");
 
-  if (typ == "dem")
-      page = url + page;
-  else {
+  if (typ != "dem") {
     if (obj == "")
-      page = url + typ + filter;
+      page = typ + filter;
     else
-      page = url + typ + "/" + page;
+      page = typ + "/" + page;
   }
 
-  xhttp.open("GET", page, true);
+  xhttp.open("GET", url + page, true);
   xhttp.setRequestHeader("Content-type", "text/plain; charset=UTF-8");
   xhttp.setRequestHeader("Access-Control-Allow-Origin", "*");
   xhttp.setRequestHeader('Authorization', auth);
   xhttp.send();
+
+  if (location.hash != "#" + page) {
+    document.title = "NVMe-oF DEM - " + page;
+    // cache the html in the state
+    var state = {
+      'title': document.title,
+      'html': page,
+    };
+    window.history.pushState(state, typ, "#" + page);
+  }
 }
 
 function checkAddress() {
