@@ -358,12 +358,12 @@ function formTargetAlias(obj) {
 
   visible = (mode == "InBandMgmt") ? "" : hidden;
   str += "<div id='inb_note'" + visible +
-         "><p><b>Supervisory Controller Configuration</b>" +
+         "><p><b>Endpoint Manager configuration</b>" +
          "<font style='font-size:smaller'> using NVMe-of primatives to " +
 	 "configure target</font></p></div>";
   visible = (mode == "OutOfBandMgmt") ? "" : hidden;
   str += "<div id='oob_note'" + visible +
-         "><p><b>Supervisory Controller Configuration</b>" +
+         "><p><b>Endpoint Manager configuration</b>" +
          "<font style='font-size:smaller'> using RESTful interface to " +
          "configure target</font></p></div>";
   visible = (mode == "LocalMgmt") ? "" : hidden;
@@ -1253,7 +1253,7 @@ function parseObject(obj, itemA) {
     str += "<h1>About</h1>";
     str += '<div class="comments">';
     str += "<p>Use the menus to the right to view the defined objects ";
-    str += "managed by this <b>DEM Discovery Controller</b>.</p>";
+    str += "managed by this <b>Distributed Endpoint Manager (DEM)</b>.</p>";
     str += "<p>Currently active fabric interfaces for NVMe-oF Hosts ";
     str += "to query are listed below.</p></div>";
   }
@@ -1516,7 +1516,8 @@ function loadDoc(page) {
       $("#form input[name=pswd]").val("");
       message.innerHTML = "<p><b>Please Login.</b></p>";
     } else if (this.status == 0)
-      showError(message, "The DEM Discovery Controller is not responding.");
+      showError(message,
+                "The Distributed Endpoint Manager (DEM) is not responding.");
     else if (this.status == 403)
       showError(message, "Invalid user id and/or password.");
     else
