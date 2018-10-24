@@ -464,8 +464,7 @@ static int rdma_accept_connection(struct xp_ep *_ep)
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 	struct rdma_conn_param	 params = { NULL };
 
-	params.initiator_depth	= RDMA_MAX_INIT_DEPTH;
-	params.responder_resources = RDMA_MAX_RESP_RES;
+	params.initiator_depth	= ep->depth;
 	params.flow_control	= 1;
 	params.retry_count	= 15;
 	params.rnr_retry_count	= 7;
@@ -544,10 +543,9 @@ static void route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 	struct rdma_conn_param	 params = { NULL };
 	int			 ret;
 
-	params.initiator_depth	= RDMA_MAX_INIT_DEPTH;
-	params.responder_resources = 1;
+	params.responder_resources = ep->depth + 1;
 	params.flow_control	= 1;
-	params.retry_count	= 15;
+	params.retry_count	= 7;
 	params.rnr_retry_count	= 7;
 
 	params.private_data	= data;
