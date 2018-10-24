@@ -97,7 +97,7 @@ static int init_dq(struct ctrl_queue *dq)
 		return 1;
 	}
 
-	strcpy(target->alias, "dem-hac");
+	strcpy(target->alias, "dem-ac");
 
 	target->mgmt_mode = DISCOVERY_CTRL;
 	INIT_LINKED_LIST(&target->subsys_list);

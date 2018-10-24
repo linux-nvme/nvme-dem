@@ -704,7 +704,7 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 	if (ret)
 		goto out;
 
-	usleep(100); /* in case dem-dc running of an in-band dem-sc */
+	usleep(100); /* in case dem running of an in-band dem-em */
 
 	return send_set_property(ep, NVME_REG_CC, NVME_CTRL_ENABLE);
 out:

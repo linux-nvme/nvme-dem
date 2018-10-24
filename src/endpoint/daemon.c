@@ -167,7 +167,7 @@ static void show_help(char *app)
 	print_info("  -r - http root (default %s)", DEFAULT_HTTP_ROOT);
 	print_info("  -c - SSL cert file (default no SSL)");
 
-	print_info("  In-Band (Supervisory Controller) interface:");
+	print_info("  In-Band (NVMe-oF) interface:");
 	print_info("  -t - transport type [ %s ]", valid_trtype_str);
 	print_info("  -f - address family [ %s ]", valid_adrfam_str);
 	print_info("  -a - transport address (e.g. 192.168.1.1)");
@@ -390,7 +390,7 @@ static int init_inb_thread(pthread_t *listen_thread)
 	ret = pthread_create(listen_thread, &pthread_attr, interface_thread,
 			     &host_iface);
 	if (ret) {
-		print_err("failed to start thread for supervisory controller");
+		print_err("failed to start thread for Endpoint Manager");
 		print_errno("pthread_create failed", ret);
 	}
 

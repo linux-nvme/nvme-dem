@@ -1314,7 +1314,7 @@ static void show_help(char *prog, char *msg, char *opt)
 			target = p->target;
 			printf("%s commands:\n", groups[target]);
 		}
-		printf("  dem %s", p->verb);
+		printf("  dem-cli %s", p->verb);
 		if (p->object)
 			printf(" %s", p->object);
 		if (p->args)
@@ -1462,8 +1462,7 @@ int main(int argc, char *argv[])
 	ret = p->function(url, argc, opts);
 	if (ret < 0) {
 		if (ret == -ECONNREFUSED)
-			printf("Error: %s is not running\n",
-			       "DEM Discovery controller");
+			printf("Error: DEM is not running\n");
 		else {
 			n = 3;
 			if ((strcmp(p->verb, _RENA) == 0 && ret == -EEXIST))

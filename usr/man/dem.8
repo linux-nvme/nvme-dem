@@ -1,16 +1,18 @@
-.\" dem-dc.8 --
+.\" dem.8 --
 .\" Copyright 2018 Intel Corporation, Inc.
 .\" May be distributed under the GNU General Public License
-.TH DEM-DC 8 "March 2018" "nvmeof-dem" "System Administration"
+.TH DEM 8 "March 2018" "nvmeof-dem" "System Administration"
 .SH NAME
-dem-dc \-
-Distributed Endpoint Management - Discovery Controller
+dem \-
+Distributed Endpoint Management
 .SH SYNOPSIS
-.B dem-dc
-is the Discovery controller used to manage and configure NVMe-oF networks
-using Distributed Endpoint Management
+.B dem
+is the core component of the Distributed Endpoint Management suite of tools.
+The
+.B dem
+is used to manage and configure NVMe-oF networks.
 .SH DESCRIPTION
-.B dem-dc
+.B dem
 is a program that can run as a daemon or standalone to interact with NVMe-oF
 Hosts and Endpoints to configure Enpoint Subsystems and Port IDs; collect log
 pages; and diseminate them to Hosts.
@@ -68,15 +70,15 @@ and the schema for this file can be found in the gitlab repository.
 When running as a daemon, log files are stored in the
 .B /var/log
 directory.  Error messages are logged in
-.B dem-dc_debug.log
+.B dem_debug.log
 file and debug messages are logged in
-.B dem-dc.log
+.B dem.log
 file.
 
 .SH SEE ALSO
-.BR dem (1),
-.BR dem-hac (8),
-.BR dem-sc (8),
+.BR dem_cli (1),
+.BR dem-ac (8),
+.BR dem-em (8),
 .SH AVAILABILITY
-The dem-dc command is part of the nvmeof-dem package and is available from
+The dem command is part of the nvmeof-dem package and is available from
 http://github.com/linux-nvme/dem.

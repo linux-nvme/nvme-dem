@@ -88,8 +88,8 @@ static int daemonize(void)
 		return -1;
 	}
 
-	freopen("/var/log/dem-hac_debug.log", "a", stdout);
-	freopen("/var/log/dem-hac.log", "a", stderr);
+	freopen("/var/log/dem-ac_debug.log", "a", stdout);
+	freopen("/var/log/dem-ac.log", "a", stderr);
 
 	return 0;
 }
@@ -141,7 +141,7 @@ static int init_dq(struct ctrl_queue *dq)
 		return 1;
 	}
 
-	strcpy(target->alias, "dem-hac");
+	strcpy(target->alias, "dem-ac");
 
 	target->mgmt_mode = DISCOVERY_CTRL;
 	INIT_LINKED_LIST(&target->subsys_list);

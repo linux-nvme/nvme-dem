@@ -1,242 +1,244 @@
-NVMe DEM Project Table of Contents:
+NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
   Project Components
-  Discovery Controller Management Modes
+  Endpoint Management Modes
   System Configuration
   Build and Installation
   Service Configuration
   Starting NVMe-oF Drivers
-  Manually Starting - DEM Supervisory Controller
-  Manually Starting - DEM Discovery Controller
-  Manually Starting - DEM Host Auto Connect
-  Manually Starting - DEM Monitor Utility
+  Manually Starting - Endpoint Manger
+  Manually Starting - DEM
+  Manually Starting - Auto Connect
+  Manually Starting - Discovery Monitor
   Configuration Methods
 
-1. NVMe DEM Project Components
+1. Project Components
 
-	Discovery Controller (DEM-DC)
+   Distrubited Endpoint Manager (DEM)
 
-	   Primary component of DEM.
-	   May be used standalone or in concert with other DEM components.
-	   Purposes:
-		1.	Collect and distribute discovery log pages
-		2.	Configure remote NVMe resources via in-band or
-			out-of-band interfaces
+      Primary component of DEM providing both a centralized Discovery
+      controller and a management capabilities to configure Targets,
+      May be used standalone or in concert with other DEM components.
+      Purposes:
+         1.  Collect and distribute discovery log pages
+         2.  Configure remote NVMe resources via in-band or
+             out-of-band interfaces
 
-	Supervisory Controller (DEM-SC)
-	   Optional mechanism for In-band or out-of-band configuration of each Target
-	   Used in concert with DEM-DC
+   Endpoint Manager (DEM-EM)
+      Optional mechanism for In-band or out-of-band configuration of each
+      Target used in concert with DEM
 
-	Host Auto Connect (DEM-HAC)
-	   Optional component to enable Hosts to connect to DEM-DC and automatically
-	   connect to provisioned NVMe resources as defined by Discovery Log Pages
+   Auto Connect (DEM-AC)
+      Optional component to enable Hosts to connect to DEM and automatically
+      connect to provisioned NVMe resources as defined by Discovery Log Pages
 
-	Monitor (DEM-MON)
-	   Optional component to enable Hosts to monitor provisioned NVMe
-	   resources via DEM -DC
+   Discovery Monitor (DEM-DM)
+      Optional component to enable Hosts to monitor provisioned NVMe
+      resources via DEM
 
-	Command Line Interface (DEM)
-	   Mechanism to interface the DEM-DC via console command line
+   Command Line Interface (DEM-CLI)
+      Mechanism to interface the DEM via console command line
 
-	Web interface
-	   Mechanism to interface the DEM-DC via HTML web interface
+   Web interface
+      Mechanism to interface the DEM via HTML web interface
 
-2. NVMe DEM Discovery Controller Management Modes
+2. Endpoint Management Modes
 
-	Local:
-	   The Discovery Controller (DC) does not configure individual
-	   Targets/Subsystems. Individual Targets must be locally configured.
-	   The DC must be informed about Target Interfaces to connect to in
-	   order to query log-pages.  Subsystems must be defined to associate
-	   log-pages for distribution.
+   Local:
+      The DEM does not configure individual Targets/Subsystems. Individual
+      Targets must be locally configured.  The DEM must be informed about
+      Target Interfaces to connect to in order to query log-pages.
+      Subsystems must be defined to associate log-pages for distribution.
 
-	In-band:
-	   The DC uses a designated NVMe-oF fabric interface to talk with Targets.
-	   The DC is configured with all Individual Target Supervisory Controller (SC)
-	   interfaces to connect to. The DC will then query Individual SC for physical
-	   fabric interface and NVMe device resources. The DC Administrator has the
-	   ability to assign individual Target resources to NVMe-oF Port ID and
-	   Subsystems/Namespaces.
+   In-band:
+      The DEM uses a designated NVMe-oF fabric interface to talk with Targets.
+      The DEM is configured with all Individual Target Endpoint Manager (EM)
+      interfaces to connect to. The DEM will then query Individual EM for
+      physical fabric interface and NVMe device resources. The DEM
+      Administrator has the ability to assign individual Target resources
+      to NVMe-oF Port ID and Subsystems/Namespaces.
 
-	Out-of-Band:
-	   The Out-of-Band management mode operates the same as In-band management mode
-	   however uses a RESTful interface to communicate with the SC.
+   Out-of-Band:
+      The Out-of-Band management mode operates the same as In-band management
+      mode however uses a RESTful interface to communicate with the EM.
 
-3. NVMe DEM System Configuration
+3. System Configuration
 
-	Kernel requirement:
-	   Minimum of 4.15 or Linux Distribution supporting NVMe-oF
-	   (e.g., RHEL 7.5, SUSE12 SP3)
+   Kernel requirement:
+      Minimum of 4.15 or Linux Distribution supporting NVMe-oF
+      (e.g., RHEL 7.5, SUSE12 SP3)
 
-	Download the kernel:
-	   $ git clone https://github.com/linux-nvme/nvme-dem.git
+   Download the kernel:
+      $ git clone https://github.com/linux-nvme/nvme-dem.git
 
-	Copy the existing /lib/modules/`uname -r`/source/.config to the downloaded
-	kernel directory.
+   Copy the existing /lib/modules/`uname -r`/source/.config to the downloaded
+   kernel directory.
 
-	Install the kernel
+   Install the kernel
 
-	Verify openssl-devel package present and installed.
-	If not present, download and install
+   Verify openssl-devel package present and installed.
+   If not present, download and install
 
-	   Make
-	   Edit config file:
-		ensure CONFIG_NVME_RDMA, CONFIG_NVME_FC, CONFIG_NVME_TARGET enabled.
+      Make
+      Edit config file:
+         ensure CONFIG_NVME_RDMA, CONFIG_NVME_FC, CONFIG_NVME_TARGET enabled.
 
-	   make and answer module questions for NVMe Target sub-modules
-		$ make
-		$ make modules_install
-		$ Sudo make install
-	   Ensure the system will boot to the new kernel
-		#grep "^menuentry" /boot/grub2/grub.cfg | cut -d "'" -f2
-		#grub2-set-default <zero-based index of the new kernel>
+      make and answer module questions for NVMe Target sub-modules
+         $ make
+         $ make modules_install
+         $ Sudo make install
+      Ensure the system will boot to the new kernel
+         #grep "^menuentry" /boot/grub2/grub.cfg | cut -d "'" -f2
+         #grub2-set-default <zero-based index of the new kernel>
 
-	Boot the new kernel
+   Boot the new kernel
 
-4. NVMe DEM Build and Installation
+4. Build and Installation
 
-	Repository
-	$ git clone https://gitlab.com/nvme-over-fabrics/nvme-dem.git
+   Repository
+   $ git clone https://gitlab.com/nvme-over-fabrics/nvme-dem.git
 
-	Pulled as part of make (if not copied to mongoose/.git and jansson/.git)
-		https://github.com/cesanta/mongoose.git
-		https://github.com/akheron/jansson.git
+   Pulled as part of make (if not copied to mongoose/.git and jansson/.git)
+         https://github.com/cesanta/mongoose.git
+         https://github.com/akheron/jansson.git
 
-	If target system is behind a head node and does not have access to the
-	internet clone on a system with access, then build without installing then
-	tar and copy tar file to remote system
+   If target system is behind a head node and does not have access to the
+   internet clone on a system with access, then build without installing then
+   tar and copy tar file to remote system
 
-	Libraries Required
-		libcurl-devel	librdmacm-devel	libpthread-devel
-		libuuid-devel	libibverbs-devel
+   Libraries Required
+       libcurl-devel    librdmacm-devel    libpthread-devel
+       libuuid-devel    libibverbs-devel
 
-	Build and install
-		$ ./autoconf.sh
-		$ ./configure (optional flag: --enable-debug)
-		$ make
+   Build and install
+         $ ./autoconf.sh
+         $ ./configure (optional flag: --enable-debug)
+         $ make
 
-	As root, run the following
-		$ make install
+   As root, run the following
+         $ make install
 
-	Man pages for dem-hac, dem-sc, dem-dc, and dem are available after install
+   Man pages for dem, dem-em, dem-ac, and dem-cli are available after install
 
-5. NVMe DEM Service Configuration
+5. Service Configuration
 
-	Edit /etc/nvme/nvmeof.conf to enable appropriate component.
-	Following is example for system as both RDMA Host and Target and using
-	nullb0 for device and manually starting DEM
+   Edit /etc/nvme/nvmeof.conf to enable appropriate component.
+   Following is example for system as both RDMA Host and Target and using
+   nullb0 for device and manually starting DEM
 
-		PCI_HOST_LOAD=no
-		NVMEOF_HOST_LOAD=yes
-		  RDMA_HOST_LOAD=yes
-		  FC_HOST_LOAD=no
-		  TCP_HOST_LOAD=no
-		NVMEOF_TARGET_LOAD=yes
-		  RDMA_TARGET_LOAD=yes
-		  FC_TARGET_LOAD=no
-		  TCP_TARGET_LOAD=no
-		  NULL_BLK_TARGET_LOAD=yes
-		START_DEM_HAC=no
-		START_DEM_DC=no
-		START_DEM_SC=no
-		#DEM_HAC_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 4422"
-		#DEM_SC_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 22334"
-		#DEM_SC_OPTS="-p 22345"
+         PCI_HOST_LOAD=no
+         NVMEOF_HOST_LOAD=yes
+           RDMA_HOST_LOAD=yes
+           FC_HOST_LOAD=no
+           TCP_HOST_LOAD=no
+         NVMEOF_TARGET_LOAD=yes
+           RDMA_TARGET_LOAD=yes
+           FC_TARGET_LOAD=no
+           TCP_TARGET_LOAD=no
+           NULL_BLK_TARGET_LOAD=yes
+         START_DEM=no
+         START_DEM_AC=no
+         START_DEM_EM=no
+         #DEM_AC_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 4422"
+         #DEM_EM_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 22334"
+         #DEM_EM_OPTS="-p 22345"
 
-6. NVMe DEM Starting NVMe-oF Drivers
+6. Starting NVMe-oF Drivers
 
-	1.	Manually Start using nvmeof service
-			$ systemctl start nvmeof
+   1. Manually Start using nvmeof service
+         $ systemctl start nvmeof
 
-	2.	Configure the system to start DEM on boot
-			$ chkconfig nvmeof on
-			$ reboot
-		or
-			$ systemctl start nvmeof
+   2. Configure the system to start DEM on boot
+         $ chkconfig nvmeof on
+         $ reboot
+       or
+         $ systemctl start nvmeof
 
-	3.	If not running nvmeof service, load individual DEM drivers
-			$ modprobe configfs
-			$ modprobe nvme-rdma
-			$ modprobe nvmet-rdma
-			$ modprobe null-blk
+   3. If not running nvmeof service, load individual DEM drivers
+         $ modprobe configfs
+         $ modprobe nvme-rdma
+         $ modprobe nvmet-rdma
+         $ modprobe null-blk
 
-7. NVMe DEM Manually Starting - DEM Supervisory Controller
+7. Manually Starting - Endpoint Manager
 
-	Optional mechanism for In-band or out-of-band configuration of each Target.
-		Only needed if a systems administrator will be remotely managing
-		remote NVMe resources.
+   Optional mechanism for In-band or out-of-band configuration of each Target.
+   Only needed if a systems administrator will be remotely managing remote
+   NVMe resources.
 
-	Configure fabric interface(s) the Supervisory Controller will report to
-		the Discovery Controller.  This is done via files like ifcfg files
-		under /etc/nvme/nvmeof-dem (file 'config' and 'signature' are reserved).
+   Configure fabric interface(s) the Endpoint Manager will report to the DEM.
+   This is done via files like ifcfg files under /etc/nvme/nvmeof-dem
+   (file 'config' and 'signature' are reserved).
 
-		Example RDMA interface on IP-Address 192.168.22.1.
-			Note: TRSVCID 4420 is the assigned NVMe-oF ID
+   Example RDMA interface on IP-Address 192.168.22.1.
+       Note: TRSVCID 4420 is the assigned NVMe-oF ID
 
-			#This is a comment
-			TRTYPE=rdma
-			ADRFAM=ipv4
-			TRADDR=192.168.22.1
-			TRSVCID=4420
+         #This is a comment
+         TRTYPE=rdma
+         ADRFAM=ipv4
+         TRADDR=192.168.22.1
+         TRSVCID=4420
 
-	Starting Target's Supervisory Controller on either out-of-band or in-band
-		A.	Out-of-Band specifying RESTful interfaces on port 22334
-				$ dem-sc -p 22334
-		B.	In-Band on local rdma ipv4 address 192.168.22.1
-			The service ID is definable, but cannot be 4420
-				$ dem-sc -t rdma -f ipv4 -a 192.168.22.1 -s 4423
+   Starting Target's Endpoint Manager on either out-of-band or in-band
+       A. Out-of-Band specifying RESTful interfaces on port 22334
+              $ dem-em -p 22334
+       B. In-Band on local rdma ipv4 address 192.168.22.1, the service ID
+          is definable, but cannot be 4420
+              $ dem-em -t rdma -f ipv4 -a 192.168.22.1 -s 4423
 
-	Starting either in-band or out-of-band DEM-SC in debug mode should report
-	enumerated devices and interfaces
+   Starting either in-band or out-of-band DEM-EM in debug mode should report
+   enumerated devices and interfaces
 
-8. NVMe DEM Manually Starting - DEM Discovery Controller
+8. Manually Starting - DEM
 
-	Configure fabric interface(s) for Host communication to Discovery Controller.
-		This is done via files like ifcfg files under /etc/nvme/nvmeof-dem
-		(file 'config' and 'signature' are reserved).
+   Configure fabric interface(s) for Host communication to DEM.
+   This is done via files like ifcfg files under /etc/nvme/nvmeof-dem
+   (file 'config' and 'signature' are reserved).
 
-		Example RDMA interface on IP-Address 192.168.22.2.
-			Note: TRSVCID 4420 is the pre-assigned NVMe-oF ID:
+   Example RDMA interface on IP-Address 192.168.22.2.
+       Note: TRSVCID 4420 is the pre-assigned NVMe-oF ID:
 
-			#This is a comment
-			TRTYPE=rdma
-			ADRFAM=ipv4
-			TRADDR=192.168.22.2
-			TRSVCID=4422
+         #This is a comment
+         TRTYPE=rdma
+         ADRFAM=ipv4
+         TRADDR=192.168.22.2
+         TRSVCID=4422
 
-	Starting DEM Discovery Controller specifying RESTful interfaces on a port.
-		Default HTTP port is 22345
-			$ dem-dc p <HTTP port id>
+   Starting DEM specifying RESTful interfaces on a port.
+   Default HTTP port is 22345
+            $ dem p <HTTP port id>
 
-9. NVMe DEM Manually Starting - DEM Host Auto Connect
+9. Manually Starting - Auto Connect
 
-	Optional component to enable Hosts to connect to DEM-DC and automatically
-	connect to provisioned NVMe resources as defined by Discovery Log Pages
+   Optional component to enable Hosts to connect to DEM and automatically
+   connect to provisioned NVMe resources as defined by Discovery Log Pages
 
-	Starting Host Auto Connect to address of the Discovery Controller
-		$ dem-hac -t rdma -f ipv4 -a 192.168.22.2 -s 4422
+   Starting Host Auto Connect to address of the DEM
+         $ dem-ac -t rdma -f ipv4 -a 192.168.22.2 -s 4422
 
-10. NVMe DEM Manually Starting - DEM Monitor Utility
+10. Manually Starting - Discovery Monitor
 
-	Optional component to enable Hosts to monitor DEM-DC and report provisioned
-	NVMe resources as defined by Discovery Log Pages.
+   Optional component to enable Hosts to monitor DEM and report provisioned
+   NVMe resources as defined by Discovery Log Pages.
 
-	Starting Monitor to address of the Discovery Controller
-		$ dem-mon -t rdma -f ipv4 -a 192.168.22.2 -s 4422
+   Starting Monitor to address of the DEM or the Discovery controller of an
+   enabled Target
+         $ dem-dm -t rdma -f ipv4 -a 192.168.22.2 -s 4422
 
-11. NVMe DEM Configuration Methods
+11. Configuration Methods
 
-	Web interface: Mechanism to interface with the DEM-DC via HTTP web interface
-	   Default userid / password is 'dem' and 'nvmeof'
-	   Web site may be remote from dem-dc to allow bridge to lab networks
-	   Create subdirectory for DEM on the web hosting site and copy web files
-		$ mkdir /var/www/html/dem
-		$ cp html/* /var/www/html/dem
+   Web interface: Mechanism to interface with the DEM via HTTP web interface
+   Default userid / password is 'dem' and 'nvmeof'.  Web site may be remote
+   from dem to allow bridge to lab networks
 
-	Command Line Interface (DEM): Mechanism to interface with the DEM-DC via
-	console command line.
-	   dem command on system running dem-dc allows full configuration of targets
-	   and hosts Man page install and --help explains options
+   Create subdirectory for DEM on the web hosting site and copy web files
+         $ mkdir /var/www/html/dem
+         $ cp html/* /var/www/html/dem
 
-	cURL: Lowest-level mechanism to interface with the DEM-DC
-	   cURL may be used if you are willing to construct JSON objects
-	   Examples of cURL commands are in the Makefile
+   Command Line Interface (DEM-CLI): Mechanism to interface with the DEM via
+   console command line.  dem-cli command on system running dem allows full
+   configuration of targets and hosts Man page install and --help explains
+   options
+
+   cURL: Lowest-level mechanism to interface with the DEM.  cURL may be used
+   if you are willing to construct JSON objects Examples of cURL commands are
+   in the Makefile

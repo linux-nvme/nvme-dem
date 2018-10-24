@@ -1,28 +1,28 @@
-.\" dem.1 --
+.\" dem-cli.1 --
 .\" Copyright 2018 Intel Corporation, Inc.
 .\" May be distributed under the GNU General Public License
-.TH DEM 1 "March 2018" "nvmeof-dem" "System Administration"
+.TH DEM-CLI 1 "March 2018" "nvmeof-dem" "System Administration"
 .SH NAME
-dem \-
+dem-cli \-
 Distributed Endpoint Management - Command-line interface
 .SH SYNOPSIS
-.B dem
+.B dem-cli
 is the command-line interface used to manage and configure NVMe-oF networks
 using Distributed Endpoint Management
 .SH DESCRIPTION
-.B dem
-is a program that interacts with a Discovery controller to manage the
-configuration of the NVMe-oF network using Distributed Endpoint Management.
-The interface uses RESTful commands to communicate with the Discovery
+.B dem-cli
+is a program that interacts with a Distributed Endpoint Manager (DEM) to
+manage the configuration of the NVMe-oF network.  The interface uses RESTful
+commands to communicate with the Discovery
 controller.
 
 .SH PARAMETERS
 .TP
 .I -s <service>
-network address of the Discovery controller (defaulti: 127.0.0.1)
+network address of the DEM (defaulti: 127.0.0.1)
 .TP
 .I -p <port>
-port of the Discover controller (see help for default)
+port of the DEM (see help for default)
 .TP
 .I -f
 force deleted i.e. do not ask 'Are you sure'
@@ -38,9 +38,9 @@ display the results in raw (unmodified) format (used for debugging)
 show the curl commands (used for debugging)
 
 .SH SEE ALSO
-.BR dem-hac (8),
-.BR dem-dc (8),
-.BR dem-sc (8),
+.BR dem (8),
+.BR dem-ac (8),
+.BR dem-em
 .SH AVAILABILITY
-The dem command is part of the nvmeof-dem package and is available from
+The dem-cli command is part of the nvmeof-dem package and is available from
 http://github.com/linux-nvme/dem.

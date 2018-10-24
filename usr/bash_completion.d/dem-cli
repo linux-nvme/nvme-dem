@@ -1,8 +1,8 @@
-# dem bash completion script
+# dem-cli bash completion script
 # vim:ts=2:sw=2:et:
 
 # main complete function
-_dem()
+_dem-cli()
 {
   local cur="${COMP_WORDS[COMP_CWORD]}"
 
@@ -89,20 +89,20 @@ _dem()
   COMPREPLY=("")
 
   if [ $n -eq 1 ] ; then
-    lst=`${COMP_WORDS[0]} | grep "^  dem " | awk '{print $2}' | sort -u`
+    lst=`${COMP_WORDS[0]} | grep "^  dem-cli " | awk '{print $2}' | sort -u`
     if [ "${#lst}" -ne 0 ]; then
       COMPREPLY=($(compgen -W "$lst" -- "$cur"))
     fi
   elif [ $n -eq 2 ] ; then
     verb="${COMP_WORDS[$i]}"
-    lst=`${COMP_WORDS[0]} | grep "^  dem $verb " | awk '{print $3}' | sort -u`
+    lst=`${COMP_WORDS[0]} | grep "^  dem-cli $verb " | awk '{print $3}' | sort -u`
     if [ "${#lst}" -ne 0 ]; then
       COMPREPLY=($(compgen -W "$lst" -- "$cur"))
     fi
   elif [ $n -gt 2 ] ; then
     verb="${COMP_WORDS[$i]}"
     obj="${COMP_WORDS[$((i+1))]}"
-    lst=(`${COMP_WORDS[0]} | grep "^  dem $verb $obj " | sed -e "s/^..dem [a-z]* [a-z]* //;s/{.*//;s/</[/g;s/>/]/g"`)
+    lst=(`${COMP_WORDS[0]} | grep "^  dem-cli $verb $obj " | sed -e "s/^..dem-cli [a-z]* [a-z]* //;s/{.*//;s/</[/g;s/>/]/g"`)
     n=$((n-3))
     if [ ${#lst[$n]} -ne 0 ] ; then
       COMPREPLY=($(compgen -W "${lst[$n]}" -- "$cur"))
@@ -112,4 +112,4 @@ _dem()
   return 0
 }
 
-complete -F _dem -o default dem
+complete -F _dem-cli -o default dem-cli

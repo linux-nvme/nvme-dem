@@ -102,7 +102,7 @@ unload_modules()
 
 kill_daemon()
 {
-    PROC=`ps -ef | grep demd | grep -v grep | awk '{print $2}'`
+    PROC=`ps -ef | grep dem | grep -v grep | awk '{print $2}'`
     if [ ${#PROC} -ne 0 ] ; then
         kill -9 $PROC
     fi
@@ -113,29 +113,29 @@ start_service()
     load_modules $LOAD_NVMEOF_MODULES
     RC=$[ $RC + $? ]
 
-    if [ "${START_DEM_HAC}" == "yes" ]; then
-        if [ `/usr/bin/dem_hac --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_HAC_OPTS="$DEM_HAC_OPTS -d"
+    if [ "${START_DEM_AC}" == "yes" ]; then
+        if [ `/usr/bin/dem-ac --help | grep -c ^-d` -eq 1 ] ; then
+            DEM_HAC_OPTS="$DEM_AC_OPTS -d"
         fi
-        /usr/bin/dem_hac $DEM_HAC_OPTS
+        /usr/bin/dem-ac $DEM_AC_OPTS
         res=$?
         RC=$[ $RC + $res ]
     fi
 
-    if [ "${START_DEM_DC}" == "yes" ]; then
-        if [ `/usr/bin/dem_dc --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_DC_OPTS="$DEM_DC_OPTS -d"
+    if [ "${START_DEM}" == "yes" ]; then
+        if [ `/usr/bin/dem --help | grep -c ^-d` -eq 1 ] ; then
+            DEM_OPTS="$DEM_OPTS -d"
         fi
-        /usr/bin/dem_dc $DEM_DC_OPTS
+        /usr/bin/dem $DEM_OPTS
         res=$?
         RC=$[ $RC + $res ]
     fi
 
-    if [ "${START_DEM_SC}" == "yes" ]; then
-        if [ `/usr/bin/dem_sc --help | grep -c ^-d` -eq 1 ] ; then
-            DEM_SC_OPTS="$DEM_SC_OPTS -d"
+    if [ "${START_DEM_EM}" == "yes" ]; then
+        if [ `/usr/bin/dem-em, --help | grep -c ^-d` -eq 1 ] ; then
+            DEM_EM_OPTS="$DEM_EM_OPTS -d"
         fi
-        /usr/bin/dem_sc $DEM_SC_OPTS
+        /usr/bin/dem-em $DEM_EM_OPTS
         res=$?
         RC=$[ $RC + $res ]
     fi

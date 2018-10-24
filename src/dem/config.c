@@ -43,7 +43,7 @@
 #include "curl.h"
 
 static const char *CONFIG_ALERT	=
-	"ALERT - DEM config updated but failed to connect to SC on '%s'";
+	"ALERT - DEM config updated but failed to connect to '%s'";
 static const char *INTERNAL_ERR = " - unable to comply, internal error";
 static const char *TARGET_ERR   = " - target not found";
 static const char *NSDEV_ERR	= " - invalid ns device";
@@ -1009,10 +1009,8 @@ static inline int get_inb_nsdevs(struct target *target)
 
 		list_for_each_entry(nsdev, &target->device_list, node)
 			if (nsdev->nsdev == devid &&
-			    nsdev->nsid == entry->nsid) {
-				nsdev->valid = 1;
+			    nsdev->nsid == entry->nsid)
 				goto found;
-		}
 
 		nsdev = malloc(sizeof(*nsdev));
 		if (!nsdev) {
@@ -1021,7 +1019,6 @@ static inline int get_inb_nsdevs(struct target *target)
 			goto out2;
 		}
 
-		nsdev->valid = 1;
 		nsdev->nsdev = devid;
 		nsdev->nsid = entry->nsid;
 
@@ -1032,7 +1029,7 @@ static inline int get_inb_nsdevs(struct target *target)
 		print_debug("Added %s %d:%d to %s '%s'",
 			    TAG_DEVID, devid, entry->nsid, TAG_TARGET, alias);
 found:
-		continue;
+		nsdev->valid = 1;
 	}
 
 	list_for_each_entry(nsdev, &target->device_list, node)

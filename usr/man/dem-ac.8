@@ -1,17 +1,18 @@
-.\" dem-hac.8 --
+.\" dem-ac.8 --
 .\" Copyright 2018 Intel Corporation, Inc.
 .\" May be distributed under the GNU General Public License
-.TH DEM-HAC 8 "March 2018" "nvmeof-dem" "System Administration"
+.TH DEM-AC 8 "March 2018" "nvmeof-dem" "System Administration"
 .SH NAME
-dem-hac \-
-Distributed Endpoint Management - Host Auto Connect
+dem-ac \-
+Distributed Endpoint Management - Auto Connect
 .SH SYNOPSIS
-.B dem-hac
+.B dem-ac
 can be used on an NVMe-oF Host to use a Discovery controller to automatically
-connect to Subsystems within a NVMe-oF network using Distributed Endpoint
-Management
+connect to Subsystems within a NVMe-oF network. The Discovery controller may
+provided by the Distributed Endpoint Manager (DEM) or may be provided by a
+single Endpoint.
 .SH DESCRIPTION
-.B dem-hac
+.B dem-ac
 is a program that can run as a daemon or standalone on a NVMe-oF Host that
 will connect to a Discovery controller to retrieve the log pages of the
 Subsystems to which that Host has access.  The program with then attept to
@@ -27,7 +28,7 @@ enable debug prints in log files
 run as a standalone process (default is daemon)
 .TP
 .I -q <hostnqn>
-the Host NQN to use for connecting to be the Discovery controller and Endpoints
+the Host NQN to use for connecting to be the Discovery controller
 .TP
 .B Discovery controller info:
 .TP
@@ -45,9 +46,9 @@ transport address to use, must match address family definition of an address
 transport service id (a.k.a. Port Number) to use. (see help for default)
 
 .SH SEE ALSO
-.BR dem (1),
-.BR dem-dc (8),
-.BR dem-sc (8),
+.BR dem-cli (1),
+.BR dem (8),
+.BR dem-em (8),
 .SH AVAILABILITY
-The dem-hac command is part of the nvmeof-dem package and is available from
+The dem-ac command is part of the nvmeof-dem package and is available from
 http://github.com/linux-nvme/dem.
