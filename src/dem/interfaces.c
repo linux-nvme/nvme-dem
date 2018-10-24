@@ -224,36 +224,36 @@ static void format_logpage(char *buf, struct nvmf_disc_rsp_page_entry *e)
 	int			 n;
 	char			*p = buf;
 
-	n = sprintf(p, "<p>trtype <b>%s</b> ", trtype_str(e->trtype));
+	n = sprintf(p, "<p>subnqn=<b>\"%s\"</b> ", e->subnqn);
 	p += n;
-	n = sprintf(p, "adrfam <b>%s</b> ", adrfam_str(e->adrfam));
+	n = sprintf(p, "subtype=<b>\"%s\"</b> ", subtype_str(e->subtype));
 	p += n;
-	n = sprintf(p, "subtype <b>%s</b> ", subtype_str(e->subtype));
+	n = sprintf(p, "portid=<b>%d</b> ", e->portid);
 	p += n;
-	n = sprintf(p, "treq <b>%s</b> ", treq_str(e->treq));
+	n = sprintf(p, "trtype=<b>\"%s\"</b> ", trtype_str(e->trtype));
 	p += n;
-	n = sprintf(p, "portid <b>%d</b> ", e->portid);
+	n = sprintf(p, "adrfam=<b>\"%s\"</b> ", adrfam_str(e->adrfam));
 	p += n;
-	n = sprintf(p, "trsvcid <b>%s</b> ", e->trsvcid);
+	n = sprintf(p, "traddr=<b>%s</b> ", e->traddr);
 	p += n;
-	n = sprintf(p, "subnqn <b>%s</b> ", e->subnqn);
+	n = sprintf(p, "trsvcid=<b>%s</b> ", e->trsvcid);
 	p += n;
-	n = sprintf(p, "traddr <b>%s</b><br>", e->traddr);
+	n = sprintf(p, "treq=<b>\"%s\"</b><br>", treq_str(e->treq));
 	p += n;
 
 	switch (e->trtype) {
 	case NVMF_TRTYPE_RDMA:
 		n = sprintf(p, " &nbsp; rdma: ");
 		p += n;
-		n = sprintf(p, "prtype <b>%s</b> ",
+		n = sprintf(p, "prtype=<b>\"%s\"</b> ",
 			    prtype_str(e->tsas.rdma.prtype));
 		p += n;
-		n = sprintf(p, "qptype <b>%s</b> ",
+		n = sprintf(p, "qptype=<b>\"%s\"</b> ",
 			    qptype_str(e->tsas.rdma.qptype));
 		p += n;
-		n = sprintf(p, "cms <b>%s</b> ", cms_str(e->tsas.rdma.cms));
+		n = sprintf(p, "cms=<b>\"%s\"</b> ", cms_str(e->tsas.rdma.cms));
 		p += n;
-		n = sprintf(p, "pkey <b>0x%04x</b>", e->tsas.rdma.pkey);
+		n = sprintf(p, "pkey=<b>0x%04x</b>", e->tsas.rdma.pkey);
 		p += n;
 		break;
 	}
