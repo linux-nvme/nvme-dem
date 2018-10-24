@@ -2,14 +2,21 @@
 
 .SILENT:
 
-COMMON_DIR=src/common
-CLI_DIR=src/cli
-HAC_DIR=src/host_auto_connect
-MON_DIR=src/monitor
-DC_DIR=src/discovery_ctrl
-SC_DIR=src/supervisory_ctrl
-INCL_DIR=src/incl
+DEM_EXE=dem
+MON_EXE=dem-dm
+CLI_EXE=dem-cli
+AC_EXE=dem-ac
+EM_EXE=dem-em
+
 BIN_DIR=.bin
+COMMON_DIR=src/common
+INCL_DIR=src/incl
+
+DEM_DIR=src/dem
+MON_DIR=src/monitor
+CLI_DIR=src/cli
+EM_DIR=src/endpoint
+AC_DIR=src/auto_connect
 
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
@@ -42,16 +49,16 @@ endif
 # a modified version of mongoose.h can be created and stored in /files
 # for sparse testing but is not valid for executable
 ALT_CFLAGS = -W -Wall -Werror -Wno-unused-function
-ALT_CFLAGS += -Ifiles -Ijansson/src -I${INCL_DIR} -I${DC_DIR}
+ALT_CFLAGS += -Ifiles -Ijansson/src -I${INCL_DIR} -I${DEM_DIR}
 
 SPARSE_OPTS = ${DEM_CFLAGS} ${ALT_CFLAGS} -DCS_PLATFORM=0
 
 VALGRIND_OPTS = --leak-check=full --show-leak-kinds=all -v --track-origins=yes
 VALGRIND_OPTS += --suppressions=files/valgrind_suppress
 
-DC_LIBS = -lpthread -lrdmacm -libverbs -lcurl jansson/libjansson.a
-SC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
-HAC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
+DEM_LIBS = -lpthread -lrdmacm -libverbs -lcurl jansson/libjansson.a
+EM_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
+AC_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
 MON_LIBS = -lpthread -lrdmacm -libverbs jansson/libjansson.a
 
 CLI_LIBS = -lcurl jansson/libjansson.a
@@ -64,66 +71,68 @@ CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \
 
 MG_DIR ?= mongoose
 
-HAC_SRC = ${HAC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
+AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
 	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
-HAC_INC = ${INCL_DIR}/dem.h ${HAC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
+AC_INC = ${INCL_DIR}/dem.h ${AC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 
 MON_SRC = ${MON_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
 	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
 MON_INC = ${INCL_DIR}/dem.h ${MON_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 
-DC_SRC = ${DC_DIR}/daemon.c ${DC_DIR}/json.c ${DC_DIR}/restful.c \
-	 ${DC_DIR}/interfaces.c ${DC_DIR}/pseudo_target.c ${DC_DIR}/config.c \
+DEM_SRC = ${DEM_DIR}/daemon.c ${DEM_DIR}/json.c ${DEM_DIR}/restful.c \
+	 ${DEM_DIR}/interfaces.c ${DEM_DIR}/pseudo_target.c ${DEM_DIR}/config.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
 	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
-DC_INC = ${INCL_DIR}/dem.h ${DC_DIR}/json.h ${DC_DIR}/common.h \
+DEM_INC = ${INCL_DIR}/dem.h ${DEM_DIR}/json.h ${DEM_DIR}/common.h \
 	 ${INCL_DIR}/ops.h ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h \
 	 mongoose/mongoose.h ${LINUX_INCL}
 
-SC_SRC = ${SC_DIR}/daemon.c ${SC_DIR}/restful.c ${SC_DIR}/configfs.c \
-	 ${SC_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c \
+EM_SRC = ${EM_DIR}/daemon.c ${EM_DIR}/restful.c ${EM_DIR}/configfs.c \
+	 ${EM_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
-SC_INC = ${INCL_DIR}/dem.h ${SC_DIR}/common.h ${INCL_DIR}/tags.h \
+EM_INC = ${INCL_DIR}/dem.h ${EM_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
 all: ${BIN_DIR} mongoose/mongoose.h jansson/libjansson.a \
-     ${BIN_DIR}/dem ${BIN_DIR}/dem-hac ${BIN_DIR}/dem-dc ${BIN_DIR}/dem-sc \
-     ${BIN_DIR}/dem-mon
+     ${BIN_DIR}/${DEM_EXE} ${BIN_DIR}/${CLI_EXE} \
+      ${BIN_DIR}/${MON_EXE} ${BIN_DIR}/${AC_EXE} \
+      ${BIN_DIR}/${EM_EXE}
+
 	echo Done.
 
 ${BIN_DIR}:
 	mkdir ${BIN_DIR}
 
-dem: ${BIN_DIR}/dem
-dem-hac: ${BIN_DIR}/dem-hac
-dem-mon: ${BIN_DIR}/dem-mon
-dem-dc: ${BIN_DIR}/dem-dc
-dem-sc: ${BIN_DIR}/dem-sc
+${DEM_EXE}: ${BIN_DIR}/${DEM_EXE}
+${CLI_EXE}: ${BIN_DIR}/${CLI_EXE}
+${MON_EXE}: ${BIN_DIR}/${MON_EXE}
+${AC_EXE}: ${BIN_DIR}/${AC_EXE}
+${EM_EXE}: ${BIN_DIR}/${EM_EXE}
 
-${BIN_DIR}/dem: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
-	echo CC dem
+${BIN_DIR}/${CLI_EXE}: ${CLI_SRC} ${CLI_INC} Makefile jansson/libjansson.a
+	echo CC ${CLI_EXE}
 	${GCC} ${CLI_SRC} -o $@ ${CFLAGS} ${GDB_OPTS} ${CLI_LIBS} \
 		-I${CLI_DIR} -DDEM_CLI
 
-${BIN_DIR}/dem-hac: ${HAC_SRC} ${HAC_INC} Makefile
-	echo CC dem-hac
-	${GCC} ${HAC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
-		${HAC_LIBS} -I${HAC_DIR}
+${BIN_DIR}/${AC_EXE}: ${AC_SRC} ${AC_INC} Makefile
+	echo CC ${AC_EXE}
+	${GCC} ${AC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${AC_LIBS} -I${AC_DIR}
 
-${BIN_DIR}/dem-mon: ${MON_SRC} ${MON_INC} Makefile
-	echo CC dem-mon
+${BIN_DIR}/${MON_EXE}: ${MON_SRC} ${MON_INC} Makefile
+	echo CC ${MON_EXE}
 	${GCC} ${MON_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
 		${MON_LIBS} -I${MON_DIR} -DDEBUG_LOG_PAGES
 
-${BIN_DIR}/dem-dc: ${DC_SRC} ${DC_INC} Makefile jansson/libjansson.a
-	echo CC dem-dc
-	${GCC} ${DC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
-		${DC_LIBS} -I${DC_DIR}
+${BIN_DIR}/${DEM_EXE}: ${DEM_SRC} ${DEM_INC} Makefile jansson/libjansson.a
+	echo CC ${DEM_EXE}
+	${GCC} ${DEM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${DEM_LIBS} -I${DEM_DIR}
 
-${BIN_DIR}/dem-sc: ${SC_SRC} ${SC_INC} Makefile jansson/libjansson.a
-	echo CC dem-sc
-	${GCC} ${SC_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
-		${SC_LIBS} -I${SC_DIR}
+${BIN_DIR}/${EM_EXE}: ${EM_SRC} ${EM_INC} Makefile jansson/libjansson.a
+	echo CC ${EM_EXE}
+	${GCC} ${EM_SRC} -o $@ ${DEM_CFLAGS} ${CFLAGS} ${GDB_OPTS} \
+		${EM_LIBS} -I${EM_DIR}
 
 clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog .k* kw.cfg
@@ -145,14 +154,16 @@ install: must_be_root
 
 uninstall: must_be_root
 	[ `whoami` == "root" ]
-	rm -f /etc/bash_completion.d/dem
-	rm -f /bin/dem /bin/dem-dc /bin/dem-sc /bin/dem-hac /bin/dem-mon
+	rm -f /etc/bash_completion.d/${CLI_EXE}
+	rm -f /bin/${CLI_EXE} /bin/${AC_EXE} /bin/${MON_EXE}
+	rm -f /bin/${DEM_EXE} /bin/${EM_EXE}
 	rm -f /etc/nvme/nvmeof.conf
 	rm -rf /etc/nvme/nvmeof-dem
 	rm -f /usr/libexec/nvmeof
 	rm -f /usr/lib/systemd/system/nvmeof.service
-	rm -f /usr/share/man/man1/dem.1 /usr/share/man/man8/dem-dc.8
-	rm -f /usr/share/man/man1/dem-sc.8 /usr/share/man/man8/dem-hac.8
+	rm -f /usr/share/man/man1/${CLI_EXE}.1 /usr/share/man/man8/${MON_EXE}.1
+	rm -f /usr/share/man/man1/${EM_EXE}.8 /usr/share/man/man8/${AC_EXE}.8
+	rm -f /usr/share/man/man1/${DEM_EXE}.8
 	echo Done.
 
 mongoose/.git:
@@ -190,42 +201,42 @@ archive: clean
 	tar cz -f archive/`date +"%y%m%d_%H%M"`.tgz .gitignore .git/config \
 		files/ html/ Makefile src/ usr/
 
-test_cli: dem
-	./dem config
-	./dem list ctrl
-	./dem set ctrl ctrl1
-	./dem set portid 1 rdma ipv4 1.1.1.2 2332
-	./dem show ctrl ctrl1
-	./dem rename ctrl ctrl1 ctrl2
-	./dem add ss ctrl2 ss21 ss22
-	./dem delete ss ctrl2 ss21
-	./dem delete ctrl ctrl2
-	./dem list host
-	./dem set host host01
-	./dem rename host host01 host02
-	./dem add acl host01 ss11 ss21
-	./dem show host host01
-	./dem delete acl host02 ss21
-	./dem delete host host02
-	./dem shutdown
+test_cli: ${CLI_EXE}
+	${CLI_EXE} config
+	${CLI_EXE} list ctrl
+	${CLI_EXE} set ctrl ctrl1
+	${CLI_EXE} set portid 1 rdma ipv4 1.1.1.2 2332
+	${CLI_EXE} show ctrl ctrl1
+	${CLI_EXE} rename ctrl ctrl1 ctrl2
+	${CLI_EXE} add ss ctrl2 ss21 ss22
+	${CLI_EXE} delete ss ctrl2 ss21
+	${CLI_EXE} delete ctrl ctrl2
+	${CLI_EXE} list host
+	${CLI_EXE} set host host01
+	${CLI_EXE} rename host host01 host02
+	${CLI_EXE} add acl host01 ss11 ss21
+	${CLI_EXE} show host host01
+	${CLI_EXE} delete acl host02 ss21
+	${CLI_EXE} delete host host02
+	${CLI_EXE} shutdown
 
 # show format for raw: fmt=-r make show_hosts
 # show format for pretty json: fmt=-j make show_hosts
 show_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* defined"`; \
-		do ./dem $$fmt get h $$i ; done
+	for i in `${CLI_EXE} lis h|grep -v ^http:|grep -v "^No .* defined"`; \
+		do ${CLI_EXE} $$fmt get h $$i ; done
 
 show_targets:
-	for i in `./dem lis t |grep -v ^http: | grep -v "^No .* defined"`; \
-		do ./dem $$fmt get t $$i ; done
+	for i in `${CLI_EXE} lis t|grep -v ^http:|grep -v "^No .* defined"`; \
+		do ${CLI_EXE} $$fmt get t $$i ; done
 
 del_hosts:
-	for i in `./dem lis h |grep -v ^http: | grep -v "^No .* defined"`; \
-		do ./dem -f del h $$i ; done
+	for i in `${CLI_EXE} lis h|grep -v ^http:|grep -v "^No .* defined"`; \
+		do ${CLI_EXE} -f del h $$i ; done
 
 del_targets:
-	for i in `./dem lis t |grep -v ^http: | grep -v "^No .* defined"`; \
-		do ./dem -f del t $$i ; done
+	for i in `${CLI_EXE} lis t|grep -v ^http:|grep -v "^No .* defined"`; \
+		do ${CLI_EXE} -f del t $$i ; done
 
 put:
 	echo PUT Commands
@@ -279,10 +290,10 @@ get16:
 
 test: put get16 post get del
 
-memcheck: dem-dc
+memcheck: ${DEM_EXE}
 	reset
-	valgrind ${VALGRIND_OPTS} --log-file=dem-dc.vglog dem-dc
-	echo "valgrind output in 'dem-dc.vglog'"
+	valgrind ${VALGRIND_OPTS} --log-file=dem.vglog ${DEM_EXE}
+	echo "valgrind output in 'dem.vglog'"
 
 sparse:
 	echo running sparse of each .c file with options
