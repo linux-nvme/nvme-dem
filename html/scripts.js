@@ -1,22 +1,23 @@
-window.onpopstate = function(e) {
+window.onhashchange = function() {
   var x = location.hash;
   var i = x.indexOf("#");
   var typ = "";
   var val = "";
   var filter = "";
-  if ((i == 0) && e.state) {
-    var j = e.state.html.indexOf("/");
+  if (i == 0) {
+    var j = x.indexOf("/");
     if (j > 0) {
-      typ = e.state.html.substr(0, j);
-      val = e.state.html.substr(j + 1);
+      typ = x.substr(1, j - 1);
+      val = x.substr(j + 1);
     } else {
-      typ = e.state.html;
+      typ = x.substr(1);
     }
 
     j = typ.indexOf("?");
     if (j > 0) {
-      filter = typ.substr(j);
       typ = typ.substr(0, j);
+      if (typ == "target")
+        filter = typ.substr(j);
     }
 
     i = 0;
@@ -30,11 +31,12 @@ window.onpopstate = function(e) {
         val = val.substr(0, i);
     }
 
+    if (typ == "dem")
+      $("#listPage").hide();
+
     $("#objectType").html(typ);
     $("#objectValue").html(val);
     $("#filter").html(filter);
-
-    document.title = e.state.title;
 
     if (i > 0)
       showLogPage();
@@ -43,18 +45,17 @@ window.onpopstate = function(e) {
   } else {
     window.location.reload();
   }
-  return event.preventDefault();
 };
+
+function onBack() {
+  $(".ui-tooltip").remove();
+  window.history.back();
+}
 
 function make_basic_auth(user, password) {
   var tok = user + ':' + password;
   var hash = Base64.encode(tok);
   return "Basic " + hash;
-}
-
-function onBack() {
-  $(".ui-tooltip").remove();
-  window.history.back();
 }
 
 function clearLogin() {
@@ -357,12 +358,12 @@ function formTargetAlias(obj) {
 
   visible = (mode == "InBandMgmt") ? "" : hidden;
   str += "<div id='inb_note'" + visible +
-         "><p><b>Endpoint Manager configuration</b>" +
+         "><p><b>Supervisory Controller Configuration</b>" +
          "<font style='font-size:smaller'> using NVMe-of primatives to " +
 	 "configure target</font></p></div>";
   visible = (mode == "OutOfBandMgmt") ? "" : hidden;
   str += "<div id='oob_note'" + visible +
-         "><p><b>Endpoint Manager configuration</b>" +
+         "><p><b>Supervisory Controller Configuration</b>" +
          "<font style='font-size:smaller'> using RESTful interface to " +
          "configure target</font></p></div>";
   visible = (mode == "LocalMgmt") ? "" : hidden;
@@ -1252,7 +1253,7 @@ function parseObject(obj, itemA) {
     str += "<h1>About</h1>";
     str += '<div class="comments">';
     str += "<p>Use the menus to the right to view the defined objects ";
-    str += "managed by the <b>Distributed Endpoint Manager</b>.</p>";
+    str += "managed by this <b>DEM Discovery Controller</b>.</p>";
     str += "<p>Currently active fabric interfaces for NVMe-oF Hosts ";
     str += "to query are listed below.</p></div>";
   }
@@ -1515,7 +1516,7 @@ function loadDoc(page) {
       $("#form input[name=pswd]").val("");
       message.innerHTML = "<p><b>Please Login.</b></p>";
     } else if (this.status == 0)
-      showError(message, "The DEM is not responding.");
+      showError(message, "The DEM Discovery Controller is not responding.");
     else if (this.status == 403)
       showError(message, "Invalid user id and/or password.");
     else
