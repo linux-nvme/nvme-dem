@@ -426,13 +426,15 @@ int main(int argc, char *argv[])
 
 	signalled = stopped = 0;
 
-	if (enumerate_devices() <= 0) {
-		print_info("no nvme devices found");
+	if (enumerate_interfaces() <= 0) {
+		print_info("no interfaces found");
 		goto out1;
 	}
 
-	if (enumerate_interfaces() <= 0) {
-		print_info("no interfaces found");
+	start_targets();
+
+	if (enumerate_devices() <= 0) {
+		print_info("no nvme devices found");
 		goto out2;
 	}
 
@@ -451,9 +453,9 @@ int main(int argc, char *argv[])
 		cleanup_inb_thread(&inb_pthread);
 
 out3:
-	free_interfaces();
-out2:
 	free_devices();
+out2:
+	free_interfaces();
 out1:
 	return ret;
 }

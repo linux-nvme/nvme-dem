@@ -130,6 +130,7 @@ struct portid {
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
 	int			 treq;
+	void			*context;
 };
 
 struct subsystem {
@@ -160,6 +161,7 @@ void *interface_thread(void *arg);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
 
+void start_targets(void);
 void reset_config(void);
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);
@@ -174,6 +176,7 @@ int link_host_to_subsys(char *subsys, char *host);
 int unlink_host_from_subsys(char *subsys, char *host);
 int link_port_to_subsys(char *subsys, int portid);
 int unlink_port_from_subsys(char *subsys, int portid);
+
 int enumerate_devices(void);
 int enumerate_interfaces(void);
 void free_devices(void);
