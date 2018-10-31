@@ -1581,6 +1581,27 @@ int set_json_inb_nsdev(struct target *target, struct nsdev *nsdev)
 	return 0;
 }
 
+int init_json_inb_fabric_iface(struct target *target)
+{
+	json_t			*targets;
+	json_t			*ifaces;
+	json_t			*tgt;
+
+	targets = json_object_get(ctx->root, TAG_TARGETS);
+	find_array(targets, TAG_ALIAS, target->alias, &tgt);
+	if (!tgt)
+		return -ENOENT;
+
+	json_get_array(tgt, TAG_INTERFACES, ifaces);
+	if (!ifaces) {
+		ifaces = json_array();
+		json_object_set_new(tgt, TAG_INTERFACES, ifaces);
+	} else
+		json_array_clear(ifaces);
+
+	return 0;
+}
+
 int set_json_inb_fabric_iface(struct target *target, struct fabric_iface *iface)
 {
 	json_t			*iter;
@@ -1598,8 +1619,7 @@ int set_json_inb_fabric_iface(struct target *target, struct fabric_iface *iface)
 	if (!ifaces) {
 		ifaces = json_array();
 		json_object_set_new(tgt, TAG_INTERFACES, ifaces);
-	} else
-		json_array_clear(ifaces);
+	}
 
 	iter = json_object();
 	json_set_string(iter, TAG_TYPE, iface->type);

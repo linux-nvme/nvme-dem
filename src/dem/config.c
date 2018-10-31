@@ -1082,6 +1082,8 @@ static inline int get_inb_xports(struct target *target)
 	list_for_each_entry(iface, &target->fabric_iface_list, node)
 		iface->valid = 0;
 
+	init_json_inb_fabric_iface(target);
+
 	for (i = hdr->num_entries; i > 0; i--, entry++) {
 		memset(addr, 0, sizeof(addr));
 		strcpy(type, trtype_str(entry->trtype));

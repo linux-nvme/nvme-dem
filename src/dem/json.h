@@ -134,6 +134,7 @@ int set_json_oob_nsdevs(struct target *target, char *data);
 int set_json_oob_interfaces(struct target *target, char *data);
 
 int set_json_inb_nsdev(struct target *target, struct nsdev *nsdev);
+int init_json_inb_fabric_iface(struct target *target);
 int set_json_inb_fabric_iface(struct target *target,
 			      struct fabric_iface *iface);
 
