@@ -153,7 +153,6 @@ struct endpoint {
 	struct qe		*qe;
 	void			*data;
 	char			 nqn[MAX_NQN_SIZE + 1];
-	int			 depth;
 	int			 state;
 	int			 csts;
 };
