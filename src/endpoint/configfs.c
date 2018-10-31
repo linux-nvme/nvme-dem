@@ -541,7 +541,7 @@ int delete_portid(int portid)
 	if (ret)
 		return 0;
 
-	snprintf(path, sizeof(path) - 1, "%d/" CFS_SUBSYS, portid);
+	snprintf(path, sizeof(path) - 1, "%d" CFS_SUBSYS, portid);
 
 	subdir = opendir(path);
 	if (!subdir)
