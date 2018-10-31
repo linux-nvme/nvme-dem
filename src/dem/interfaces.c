@@ -175,8 +175,6 @@ void fetch_log_pages(struct ctrl_queue *dq)
 		return;
 	}
 
-	invalidate_log_pages(target);
-
 	save_log_pages(log, num_records, target, dq);
 
 	print_discovery_log(log, num_records);
@@ -184,10 +182,30 @@ void fetch_log_pages(struct ctrl_queue *dq)
 	free(log);
 }
 
+void refresh_log_pages(struct target *target)
+{
+	struct ctrl_queue	*dq;
+
+	invalidate_log_pages(target);
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (!dq->connected && connect_ctrl(dq)) {
+			print_err("could not connect to target %s",
+				  target->alias);
+			target->log_page_retry_count = LOG_PAGE_RETRY;
+			continue;
+		}
+
+		fetch_log_pages(dq);
+
+		if (dq->failed_kato)
+			disconnect_ctrl(dq, 0);
+	}
+}
+
 int target_refresh(char *alias)
 {
 	struct target		*target;
-	struct ctrl_queue	*dq;
 
 	list_for_each_entry(target, target_list, node)
 		if (!strcmp(target->alias, alias))
@@ -195,12 +213,7 @@ int target_refresh(char *alias)
 
 	return -ENOENT;
 found:
-	list_for_each_entry(dq, &target->discovery_queue_list, node) {
-		if (!connect_ctrl(dq)) {
-			fetch_log_pages(dq);
-			disconnect_ctrl(dq, 0);
-		}
-	}
+	refresh_log_pages(target);
 
 	return 0;
 }

@@ -144,7 +144,6 @@ static int keep_alive_work(struct target *target)
 static void periodic_work(void)
 {
 	struct target		*target;
-	struct ctrl_queue	*dq;
 
 	list_for_each_entry(target, target_list, node) {
 		if (keep_alive_work(target))
@@ -161,19 +160,7 @@ static void periodic_work(void)
 		if (target->mgmt_mode != LOCAL_MGMT)
 			get_config(target);
 
-		list_for_each_entry(dq, &target->discovery_queue_list, node) {
-			if (!dq->connected && connect_ctrl(dq)) {
-				print_err("could not connect to target %s",
-					  target->alias);
-				target->log_page_retry_count = LOG_PAGE_RETRY;
-				continue;
-			}
-
-			fetch_log_pages(dq);
-
-			if (dq->failed_kato)
-				disconnect_ctrl(dq, 0);
-		}
+		refresh_log_pages(target);
 
 		target->refresh_countdown =
 			target->refresh * MINUTES / IDLE_TIMEOUT;
