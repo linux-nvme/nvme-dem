@@ -49,6 +49,8 @@ static const char *TARGET_ERR   = " - target not found";
 static const char *NSDEV_ERR	= " - invalid ns device";
 static const char *MGT_MODE_ERR	= " - invalid mgmt mode for setting interface";
 
+static int _link_portid(struct subsystem *subsys, struct portid *portid);
+
 /* helper function(s) */
 
 int get_mgmt_mode(char *mode)
@@ -148,13 +150,21 @@ static inline int send_notifications(struct linked_list *list)
 	list_for_each_entry_safe(entry, next, list, node) {
 		ep = entry->ep;
 		resp = (void *) ep->cmd;
+		if (!resp)
+			goto cleanup;
 
 		memset(resp, 0, sizeof(*resp));
 
 		resp->result.U32 = NVME_AER_NOTICE_LOG_PAGE_CHANGE;
 
-		ep->ops->send_rsp(ep->ep, resp, sizeof(*resp), ep->mr);
+		if (ep->state == CONNECTED) {
+			print_err("sending AER_NOTICE to %p", ep);
+			ep->ops->send_rsp(ep->ep, resp, sizeof(*resp), ep->mr);
+		} else
+			print_err("cannot send AER_NOTICE to %p state %d", ep,
+				  ep->state);
 
+cleanup:
 		list_del(&entry->req->node);
 		free(entry->req);
 		list_del(&entry->node);
@@ -209,7 +219,7 @@ static inline int any_subsys_unrestricted(struct target *target)
 	struct subsystem	*subsys;
 
 	list_for_each_entry(subsys, &target->subsys_list, node)
-		if (subsys->access)
+		if (subsys->access == ALLOW_ANY)
 			return 1;
 	return 0;
 }
@@ -270,7 +280,7 @@ static inline void create_event_host_list_for_subsys(struct linked_list *list,
 	if (list_empty(list))
 		return;
 
-	if (subsys->access) {
+	if (subsys->access == ALLOW_ANY) {
 		enable_entire_list(list);
 		return;
 	}
@@ -348,10 +358,14 @@ static inline void _del_subsys_dq(struct subsystem *subsys)
 {
 	struct ctrl_queue	*dq;
 	struct target		*target = subsys->target;
+	struct linked_list	 list;
 
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
 		if (dq->subsys != subsys)
 			continue;
+
+		create_event_host_list_for_subsys(&list, subsys);
+		send_notifications(&list);
 
 		list_del(&dq->node);
 		free(dq);
@@ -1213,9 +1227,6 @@ static int config_subsys_inb(struct target *target, struct subsystem *subsys)
 		return -ENOMEM;
 	}
 
-	if (subsys->access == ALLOW_ANY)
-		_del_subsys_dq(subsys);
-
 	ret = _send_set_config(ctrl, nvmf_set_subsys_config, len, entry);
 	if (ret)
 		print_err("send set subsys INB failed for %s", target->alias);
@@ -1517,6 +1528,7 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 {
 	struct target		*target;
 	struct subsystem	*subsys;
+	struct portid		*portid;
 	struct host		*host;
 	struct linked_list	 list;
 	char			 newalias[MAX_ALIAS_SIZE + 1];
@@ -1565,6 +1577,10 @@ skip_unlink:
 		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	if (list_empty(&subsys->host_list)) {
+		if (subsys->access != ALLOW_ANY)
+			list_for_each_entry(portid, &target->portid_list, node)
+				_link_portid(subsys, portid);
+
 		list_add(&host->node, &subsys->host_list);
 		_reset_subsys_dq(subsys);
 	} else
@@ -1582,11 +1598,12 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 	struct subsystem	*subsys;
 	struct host		*host;
 	struct linked_list	 list;
+	char			 hostnqn[MAX_NQN_SIZE + 1];
 	int			 ret;
 
 	ret = del_json_acl(tgt, subnqn, alias, resp);
 	if (ret)
-		goto out;
+		return ret;
 
 	target = find_target(tgt);
 	if (!target)
@@ -1597,14 +1614,18 @@ int unlink_host(char *tgt, char *subnqn, char *alias, char *resp)
 		goto out;
 
 	list_for_each_entry(host, &subsys->host_list, node)
-		if (!strcmp(host->alias, alias)) {
-			_unlink_host(subsys, host);
-			list_del(&host->node);
-			_reset_subsys_dq_nqn(subsys, host->nqn);
+		if (!strcmp(host->alias, alias))
 			goto found;
-		}
+
 	goto out;
 found:
+	strcpy(hostnqn, host->nqn);
+
+	_unlink_host(subsys, host);
+	list_del(&host->node);
+
+	_reset_subsys_dq_nqn(subsys, host->nqn);
+
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		list_for_each_entry(host, &subsys->host_list, node)
 			if (!strcmp(host->alias, alias))
@@ -1614,10 +1635,10 @@ found:
 	if (ret)
 		sprintf(resp, CONFIG_ALERT, target->alias);
 
-	create_event_host_list_for_host(&list, host->nqn);
+	create_event_host_list_for_host(&list, hostnqn);
 	send_notifications(&list);
 out:
-	return ret;
+	return 0;
 }
 
 static int send_link_portid_inb(struct subsystem *subsys, struct portid *portid)
@@ -1659,9 +1680,12 @@ static int send_link_portid_oob(struct subsystem *subsys, struct portid *portid)
 	return ret;
 }
 
-static inline int _link_portid(struct subsystem *subsys, struct portid *portid)
+static int _link_portid(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
+
+	if ((subsys->access != ALLOW_ANY) && list_empty(&subsys->host_list))
+		return 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		return send_link_portid_inb(subsys, portid);
@@ -1784,7 +1808,6 @@ int del_subsys(char *alias, char *nqn, char *resp)
 {
 	struct subsystem	*subsys;
 	struct target		*target;
-	struct linked_list	 list;
 	int			 ret;
 
 	ret = del_json_subsys(alias, nqn, resp);
@@ -1806,9 +1829,6 @@ int del_subsys(char *alias, char *nqn, char *resp)
 	_del_subsys_dq(subsys);
 
 	list_del(&subsys->node);
-
-	create_event_host_list_for_subsys(&list, subsys);
-	send_notifications(&list);
 
 	free(subsys);
 out:
@@ -1857,6 +1877,9 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 		}
 	}
 
+	if ((subsys->access != ALLOW_ANY) && list_empty(&subsys->host_list))
+		return 0;
+
 	list_for_each_entry(portid, &target->portid_list, node) {
 		ret = send_link_portid_oob(subsys, portid);
 		if (ret)
@@ -1871,6 +1894,7 @@ static inline int _config_subsys(struct target *target,
 				 struct subsystem *subsys)
 {
 	struct host		*host, *next_host;
+	struct linked_list	 list;
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
@@ -1878,8 +1902,13 @@ static inline int _config_subsys(struct target *target,
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
 
-	if (subsys->access != ALLOW_ANY)
+	if (subsys->access != ALLOW_ANY) {
+		create_event_host_list_for_subsys(&list, subsys);
+		send_notifications(&list);
 		return ret;
+	}
+
+	_del_subsys_dq(subsys);
 
 	list_for_each_entry_safe(host, next_host, &subsys->host_list, node) {
 		_unlink_host(subsys, host);
@@ -2420,7 +2449,7 @@ static int config_target_inb(struct target *target)
 		if (ret)
 			goto out2;
 
-		if (!subsys->access)
+		if (subsys->access == RESTRICTED)
 			list_for_each_entry(host, &subsys->host_list, node) {
 				ret = send_host_config_inb(target, host);
 				if (ret)
@@ -2437,6 +2466,10 @@ static int config_target_inb(struct target *target)
 				goto out2;
 		}
 
+		if ((subsys->access != ALLOW_ANY) &&
+		    list_empty(&subsys->host_list))
+			continue;
+
 		list_for_each_entry(portid, &target->portid_list, node) {
 			ret = send_link_portid_inb(subsys, portid);
 			if (ret)
@@ -2444,11 +2477,12 @@ static int config_target_inb(struct target *target)
 		}
 	}
 
-	ret = target_refresh(target->alias);
+	target_refresh(target->alias);
 
 	return 0;
 out2:
-	disconnect_ctrl(ctrl, 0);
+	if (ctrl->failed_kato)
+		disconnect_ctrl(ctrl, 0);
 out1:
 	return ret;
 }
@@ -2471,7 +2505,7 @@ static int config_target_oob(struct target *target)
 			break;
 	}
 
-	ret = target_refresh(target->alias);
+	target_refresh(target->alias);
 out:
 	return ret;
 }
