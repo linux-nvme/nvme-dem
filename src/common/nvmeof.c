@@ -246,7 +246,8 @@ int process_nvme_rsp(struct endpoint *ep, int ignore_status, u64 *result)
 	if (!ret && result)
 		*result = rsp->result.U64;
 
-	if (ret && ret != ignore_status)
+	if (ret && ret != ignore_status &&
+	    ret != (NVME_SC_DNR | NVME_SC_CONNECT_INVALID_HOST))
 		print_err("status %s (0x%x)", nvme_str_status(ret), ret);
 
 	ep->ops->repost_recv(ep->ep, qe);

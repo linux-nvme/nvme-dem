@@ -88,6 +88,8 @@ extern struct linked_list	*host_list;
 enum {RESTRICTED = 0, ALLOW_ANY = 1, UNDEFINED_ACCESS = -1};
 enum {GROUP_EVENT = 0, PORT_EVENT, SUBSYS_EVENT, ACL_EVENT};
 
+#define is_restricted(subsys) (subsys->access == RESTRICTED)
+
 struct target;
 
 struct portid {
@@ -249,8 +251,6 @@ void add_target_to_group(struct group *group, char *alias);
 bool shared_group(struct target *target, char *nqn);
 bool indirect_shared_group(struct target *target, char *alias);
 struct target *find_target(char *alias);
-
-void get_host_nqn(void *context, void *haddr, char *nqn);
 
 struct subsystem *new_subsys(struct target *target, char *nqn);
 

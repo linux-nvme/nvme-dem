@@ -401,14 +401,22 @@ static int init_interface_threads(pthread_t **listen_threads)
 	return 0;
 }
 
-static inline int check_logpage_portid(struct subsystem *subsys,
-				       struct portid *portid)
+static int dq_exists(struct target *target, struct subsystem *subsys,
+	       struct portid *portid)
 {
-	struct logpage		*logpage;
+	struct ctrl_queue	*dq;
+	struct host		*host;
 
-	list_for_each_entry(logpage, &subsys->logpage_list, node)
-		if (logpage->portid == portid)
-			return 1;
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (!dq->subsys)
+			continue;
+		if (dq->portid == portid)
+			continue;
+		list_for_each_entry(host, &subsys->host_list, node)
+			if (!strcmp(host->nqn, dq->hostnqn))
+				return 1;
+	}
+
 	return 0;
 }
 
@@ -418,7 +426,9 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 	struct ctrl_queue	*dq;
 	struct host		*host;
 
-	if (subsys && subsys->access == ALLOW_ANY)
+	if (subsys &&
+	    (!is_restricted(subsys) || list_empty(&subsys->host_list) ||
+	     dq_exists(target, subsys, portid)))
 		return;
 
 	dq = malloc(sizeof(*dq));
@@ -464,8 +474,7 @@ static void init_discovery_queue(struct target *target, struct portid *portid)
 	create_discovery_queue(target, NULL, portid);
 
 	list_for_each_entry(subsys, &target->subsys_list, node)
-		if (!check_logpage_portid(subsys, portid))
-			create_discovery_queue(target, subsys, portid);
+		create_discovery_queue(target, subsys, portid);
 }
 
 static void init_targets(void)

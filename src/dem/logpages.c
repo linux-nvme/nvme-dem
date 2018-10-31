@@ -162,6 +162,25 @@ void fetch_log_pages(struct ctrl_queue *dq)
 	free(log);
 }
 
+static int target_with_allow_any_subsys(struct target *target)
+{
+	struct subsystem		*subsys;
+
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		if (!is_restricted(subsys))
+			return 1;
+
+	return 0;
+}
+
+static int avilable_dq(struct ctrl_queue *dq)
+{
+	if (!dq->subsys)
+		return target_with_allow_any_subsys(dq->target);
+
+	return !list_empty(&dq->subsys->host_list);
+}
+
 void refresh_log_pages(struct target *target)
 {
 	struct ctrl_queue	*dq;
@@ -169,11 +188,13 @@ void refresh_log_pages(struct target *target)
 	invalidate_log_pages(target);
 
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
-		if (!dq->connected && connect_ctrl(dq)) {
-			print_err("could not connect to target %s",
-				  target->alias);
-			target->log_page_retry_count = LOG_PAGE_RETRY;
-			continue;
+		if (!dq->connected) {
+			if (!avilable_dq(dq))
+				continue;
+			if (connect_ctrl(dq)) {
+				target->log_page_retry_count = LOG_PAGE_RETRY;
+				continue;
+			}
 		}
 
 		fetch_log_pages(dq);
@@ -320,7 +341,7 @@ int host_logpage(char *alias, char **resp)
 			continue;
 
 		list_for_each_entry(subsys, &target->subsys_list, node) {
-			if (subsys->access == ALLOW_ANY)
+			if (!is_restricted(subsys))
 				goto found;
 
 			list_for_each_entry(host, &subsys->host_list, node)

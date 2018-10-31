@@ -1282,7 +1282,7 @@ int set_json_subsys(char *alias, char *subnqn, char *data, char *resp,
 
 	json_update_int_ex(iter, new, TAG_ALLOW_ANY, value, subsys->access);
 
-	if (subsys->access == ALLOW_ANY)
+	if (!is_restricted(subsys))
 		json_object_del(iter, TAG_HOSTS);
 
 	sprintf(resp, "%s '%s' %s in %s '%s'", TAG_SUBSYSTEM, nqn,

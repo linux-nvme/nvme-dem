@@ -219,7 +219,7 @@ static inline int any_subsys_unrestricted(struct target *target)
 	struct subsystem	*subsys;
 
 	list_for_each_entry(subsys, &target->subsys_list, node)
-		if (subsys->access == ALLOW_ANY)
+		if (!is_restricted(subsys))
 			return 1;
 	return 0;
 }
@@ -280,7 +280,7 @@ static inline void create_event_host_list_for_subsys(struct linked_list *list,
 	if (list_empty(list))
 		return;
 
-	if (subsys->access == ALLOW_ANY) {
+	if (!is_restricted(subsys)) {
 		enable_entire_list(list);
 		return;
 	}
@@ -354,7 +354,7 @@ static inline void create_event_host_list_for_host(struct linked_list *list,
 		}
 }
 
-static inline void _del_subsys_dq(struct subsystem *subsys)
+static void _del_subsys_dq(struct subsystem *subsys)
 {
 	struct ctrl_queue	*dq;
 	struct target		*target = subsys->target;
@@ -376,28 +376,28 @@ static inline void _del_subsys_dq(struct subsystem *subsys)
 	}
 }
 
-static inline void _reset_subsys_dq(struct subsystem *subsys)
+static void _reset_subsys_dq(struct subsystem *subsys, char *nqn)
 {
 	struct ctrl_queue	*dq;
-	struct host		*host;
 	struct target		*target = subsys->target;
+	struct portid		*portid;
 
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
 		if (dq->subsys != subsys)
 			continue;
 
-		host = list_first_entry(&subsys->host_list, struct host,
-					node);
-
-		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
+		strncpy(dq->hostnqn, nqn, MAX_NQN_SIZE);
 
 		target_refresh(target->alias);
 
-		break;
+		return;
 	}
+
+	list_for_each_entry(portid, &target->portid_list, node)
+		create_discovery_queue(target, subsys, portid);
 }
 
-static inline void _update_subsys_dq(struct subsystem *subsys, char *old_nqn,
+static void _update_subsys_dq(struct subsystem *subsys, char *old_nqn,
 				     char *new_nqn)
 {
 	struct ctrl_queue	*dq;
@@ -413,12 +413,8 @@ static inline void _update_subsys_dq(struct subsystem *subsys, char *old_nqn,
 		if (dq->connected)
 			disconnect_ctrl(dq, 0);
 
-		if (list_empty(&subsys->host_list)) {
-			target_refresh(target->alias);
-			break;
-		}
-
-		strncpy(dq->hostnqn, new_nqn, MAX_NQN_SIZE);
+		if (!list_empty(&subsys->host_list))
+			strncpy(dq->hostnqn, new_nqn, MAX_NQN_SIZE);
 
 		target_refresh(target->alias);
 
@@ -442,15 +438,13 @@ static inline void _reset_subsys_dq_nqn(struct subsystem *subsys, char *nqn)
 		if (dq->connected)
 			disconnect_ctrl(dq, 0);
 
-		if (list_empty(&subsys->host_list)) {
-			target_refresh(target->alias);
-			break;
+		if (list_empty(&subsys->host_list))
+			list_del(&dq->node);
+		else {
+			host = list_first_entry(&subsys->host_list,
+						struct host, node);
+			strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
 		}
-
-		host = list_first_entry(&subsys->host_list, struct host,
-					node);
-
-		strncpy(dq->hostnqn, host->nqn, MAX_NQN_SIZE);
 
 		target_refresh(target->alias);
 
@@ -1496,7 +1490,7 @@ int del_host(char *alias, char *resp)
 	list_for_each_entry(target, target_list, node) {
 		dirty = 0;
 		list_for_each_entry(subsys, &target->subsys_list, node) {
-			if (subsys->access == ALLOW_ANY)
+			if (!is_restricted(subsys))
 				continue;
 			dirty = 1;
 			list_for_each_entry(host, &subsys->host_list, node)
@@ -1577,12 +1571,12 @@ skip_unlink:
 		sprintf(resp, CONFIG_ALERT, target->alias);
 
 	if (list_empty(&subsys->host_list)) {
-		if (subsys->access != ALLOW_ANY)
-			list_for_each_entry(portid, &target->portid_list, node)
-				_link_portid(subsys, portid);
+		list_for_each_entry(portid, &target->portid_list, node)
+			_link_portid(subsys, portid);
 
 		list_add(&host->node, &subsys->host_list);
-		_reset_subsys_dq(subsys);
+
+		_reset_subsys_dq(subsys, hostnqn);
 	} else
 		list_add_tail(&host->node, &subsys->host_list);
 
@@ -1684,7 +1678,7 @@ static int _link_portid(struct subsystem *subsys, struct portid *portid)
 {
 	struct target		*target = subsys->target;
 
-	if ((subsys->access != ALLOW_ANY) && list_empty(&subsys->host_list))
+	if (is_restricted(subsys) && list_empty(&subsys->host_list))
 		return 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
@@ -1877,7 +1871,7 @@ static int config_subsys_oob(struct target *target, struct subsystem *subsys)
 		}
 	}
 
-	if ((subsys->access != ALLOW_ANY) && list_empty(&subsys->host_list))
+	if (is_restricted(subsys) && list_empty(&subsys->host_list))
 		return 0;
 
 	list_for_each_entry(portid, &target->portid_list, node) {
@@ -1902,7 +1896,7 @@ static inline int _config_subsys(struct target *target,
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
 
-	if (subsys->access != ALLOW_ANY) {
+	if (is_restricted(subsys)) {
 		create_event_host_list_for_subsys(&list, subsys);
 		send_notifications(&list);
 		return ret;
@@ -1968,7 +1962,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 			if (new_ss.access != UNDEFINED_ACCESS)
 				subsys->access = new_ss.access;
 
-			if (subsys->access == ALLOW_ANY)
+			if (!is_restricted(subsys))
 				list_for_each_entry(host, &subsys->host_list,
 						    node)
 					_del_host(target, host->alias);
@@ -2449,7 +2443,7 @@ static int config_target_inb(struct target *target)
 		if (ret)
 			goto out2;
 
-		if (subsys->access == RESTRICTED)
+		if (is_restricted(subsys))
 			list_for_each_entry(host, &subsys->host_list, node) {
 				ret = send_host_config_inb(target, host);
 				if (ret)
@@ -2466,8 +2460,7 @@ static int config_target_inb(struct target *target)
 				goto out2;
 		}
 
-		if ((subsys->access != ALLOW_ANY) &&
-		    list_empty(&subsys->host_list))
+		if (is_restricted(subsys) && list_empty(&subsys->host_list))
 			continue;
 
 		list_for_each_entry(portid, &target->portid_list, node) {
