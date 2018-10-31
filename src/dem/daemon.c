@@ -466,7 +466,8 @@ void create_discovery_queue(struct target *target, struct subsystem *subsys,
 
 	fetch_log_pages(dq);
 
-	disconnect_ctrl(dq, 0);
+	if (dq->failed_kato)
+		disconnect_ctrl(dq, 0);
 }
 
 static void init_discovery_queue(struct target *target, struct portid *portid)
@@ -531,7 +532,7 @@ static void cleanup_target_list(void)
 		list_for_each_entry_safe(dq, next_dq,
 					 &target->discovery_queue_list, node) {
 			if (dq->connected)
-				disconnect_ctrl(dq, 0);
+				disconnect_ctrl(dq, 1);
 
 			free(dq);
 		}

@@ -186,7 +186,7 @@ static void cleanup_dq(struct ctrl_queue *dq)
 	struct logpage		*logpage, *next_logpage;
 
 	if (dq->connected)
-		disconnect_ctrl(dq, 0);
+		disconnect_ctrl(dq, 1);
 
 	list_for_each_entry_safe(subsys, next_subsys,
 				 &dq->target->subsys_list, node) {
@@ -449,8 +449,12 @@ static int enable_aens(struct ctrl_queue *dq)
 
 static inline void report_updates(struct ctrl_queue *dq)
 {
+	usleep(100);
+
 	fetch_log_pages(dq);
+
 	print_log_pages(dq);
+
 	cleanup_log_pages(dq);
 
 	if (!dq->failed_kato)
@@ -460,7 +464,7 @@ static inline void report_updates(struct ctrl_queue *dq)
 static inline int complete_connection(struct ctrl_queue *dq)
 {
 	dq->connected = CONNECTED;
-	usleep(100);
+
 	if (stopped)
 		return -ESHUTDOWN;
 

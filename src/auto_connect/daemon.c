@@ -252,7 +252,7 @@ static void cleanup_dq(struct ctrl_queue *dq)
 	struct logpage		*log, *l;
 
 	if (dq->connected)
-		disconnect_ctrl(dq, 0);
+		disconnect_ctrl(dq, 1);
 
 	list_for_each_entry_safe(subsys, s, &dq->target->subsys_list, node) {
 		list_for_each_entry_safe(log, l, &subsys->logpage_list, node) {
