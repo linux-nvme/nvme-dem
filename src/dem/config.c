@@ -1739,7 +1739,7 @@ static inline int _unlink_portid(struct subsystem *subsys,
 	if (target->mgmt_mode == IN_BAND_MGMT)
 		return send_unlink_portid_inb(subsys, portid);
 
-	if (target->mgmt_mode == IN_BAND_MGMT)
+	if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		return send_unlink_portid_oob(subsys, portid);
 
 	return 0;
@@ -2112,53 +2112,78 @@ static inline int _config_portid(struct target *target, struct portid *portid)
 	return 0;
 }
 
+static void _del_portid_dq(struct target *target, struct portid *portid)
+{
+	struct ctrl_queue	*dq;
+
+	list_for_each_entry(dq, &target->discovery_queue_list, node) {
+		if (dq->portid != portid)
+			continue;
+
+		list_del(&dq->node);
+		free(dq);
+
+		break;
+	}
+}
+
 int set_portid(char *alias, int id, char *data, char *resp)
 {
 	int			 ret;
 	struct portid		*portid;
-	struct portid		 delportid;
+	struct portid		 _portid;
 	struct target		*target;
 	struct subsystem	*subsys;
 
-	portid = malloc(sizeof(*portid));
-	if (!portid)
-		return -ENOMEM;
-
-	memset(portid, 0, sizeof(*portid));
-
-	ret = set_json_portid(alias, id, data, resp, portid);
-	if (ret) {
-		free(portid);
+	ret = set_json_portid(alias, id, data, resp, &_portid);
+	if (ret)
 		goto out;
-	}
 
 	target = find_target(alias);
 	if (!target) {
-		free(portid);
 		ret = -ENOENT;
 		strcpy(resp, TARGET_ERR);
 		goto out;
 	}
 
-	list_add_tail(&portid->node, &target->portid_list);
+	portid = find_portid(target, id);
+	if (!portid) {
+		portid = malloc(sizeof(*portid));
+		if (!portid)
+			return -ENOMEM;
+
+		memset(portid, 0, sizeof(*portid));
+
+		list_add_tail(&portid->node, &target->portid_list);
+	}
+
+	portid->portid = _portid.portid;
+	portid->port_num = _portid.port_num;
+
+	strcpy(portid->type, _portid.type);
+	strcpy(portid->address, _portid.address);
+	strcpy(portid->family, _portid.family);
 
 	if (target->mgmt_mode == LOCAL_MGMT) {
 		create_discovery_queue(target, NULL, portid);
 		return 0;
 	}
 
-	delportid.portid = id;
-	list_for_each_entry(subsys, &target->subsys_list, node)
-		_unlink_portid(subsys, &delportid);
+	_portid.portid = id;
 
-	if ((portid->portid != id) && id)
-		_del_portid(target, &delportid);
+	list_for_each_entry(subsys, &target->subsys_list, node)
+		_unlink_portid(subsys, &_portid);
+
+	if (portid->portid != id)
+		_del_portid(target, &_portid);
 
 	ret = _config_portid(target, portid);
 	if (ret) {
 		sprintf(resp, CONFIG_ALERT, target->alias);
 		goto out;
 	}
+
+	_del_portid_dq(target, portid);
 
 	create_discovery_queue(target, NULL, portid);
 
