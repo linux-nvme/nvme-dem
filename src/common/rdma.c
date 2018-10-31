@@ -359,6 +359,8 @@ static void rdma_destroy_endpoint(struct xp_ep *_ep)
 {
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 
+	ep->state = DISCONNECTED;
+
 	_rdma_destroy_ep(ep);
 }
 

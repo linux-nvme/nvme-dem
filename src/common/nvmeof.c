@@ -283,22 +283,29 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
-		return ret;
+		goto out;
 
 	ignore_status = NVME_SC_DNR | NVME_SC_INVALID_FIELD;
 
 	ret = process_nvme_rsp(ep, ignore_status, NULL);
 	if (ret != ignore_status)
-		return ret;
+		goto out;
 
 	cmd->connect.kato = 0;
 	ctrl->failed_kato = 1;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)
-		return ret;
+		goto out;
 
-	return process_nvme_rsp(ep, 0, NULL);
+	ret = process_nvme_rsp(ep, 0, NULL);
+	if (ret)
+		goto out;
+
+	ep->state = CONNECTED;
+
+out:
+	return ret;
 }
 
 static inline int send_admin_cmd(struct endpoint *ep, u8 opcode)
@@ -617,6 +624,8 @@ void disconnect_endpoint(struct endpoint *ep, int shutdown)
 
 	if (ep->cmd)
 		free(ep->cmd);
+
+	ep->state = DISCONNECTED;
 }
 
 void disconnect_ctrl(struct ctrl_queue *ctrl, int shutdown)
@@ -655,8 +664,6 @@ int connect_ctrl(struct ctrl_queue *ctrl)
 		return -EINVAL;
 	if (ret < 0)
 		return errno;
-
-	ep->depth = NVMF_DQ_DEPTH;
 
 	ret = ep->ops->init_endpoint(&ep->ep, NVMF_DQ_DEPTH);
 	if (ret)
@@ -780,6 +787,8 @@ int run_pseudo_target(struct endpoint *ep, void *id)
 
 	ep->cmd = cmd;
 	ep->data = data;
+
+	ep->state = CONNECTED;
 
 	return 0;
 
