@@ -256,6 +256,8 @@ struct subsystem *new_subsys(struct target *target, char *nqn);
 
 void refresh_log_pages(struct target *target);
 void fetch_log_pages(struct ctrl_queue *dq);
+void del_unattached_logpage_list(struct target *target);
+
 void create_discovery_queue(struct target *target, struct subsystem *subsys,
 			    struct portid *portid);
 int target_reconfig(char *alias);
