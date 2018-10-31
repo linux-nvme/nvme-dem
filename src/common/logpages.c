@@ -115,24 +115,24 @@ void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 #ifdef DEBUG_LOG_PAGES_VERBOSE
 		print_info("=====Discovery Log Entry %d======", i);
 #endif
+		print_info("subnqn:  %s", e->subnqn);
+		print_info("portid:  %d", e->portid);
 		print_info("trtype:  %s", trtype_str(e->trtype));
 		print_info("adrfam:  %s", adrfam_str(e->adrfam));
-		print_info("subtype: %s", subtype_str(e->subtype));
-		print_info("treq:    %s", treq_str(e->treq));
-		print_info("portid:  %d", e->portid);
-		print_info("trsvcid: %s", e->trsvcid);
-		print_info("subnqn:  %s", e->subnqn);
 		print_info("traddr:  %s", e->traddr);
+		print_info("trsvcid: %s", e->trsvcid);
+		print_info("treq:    %s", treq_str(e->treq));
+		print_info("subtype: %s", subtype_str(e->subtype));
 
 		switch (e->trtype) {
 		case NVMF_TRTYPE_RDMA:
-			print_info("rdma_prtype: %s",
+			print_info(" rdma_prtype: %s",
 				   prtype_str(e->tsas.rdma.prtype));
-			print_info("rdma_qptype: %s",
+			print_info(" rdma_qptype: %s",
 				   qptype_str(e->tsas.rdma.qptype));
-			print_info("rdma_cms:    %s",
+			print_info(" rdma_cms:    %s",
 				   cms_str(e->tsas.rdma.cms));
-			print_info("rdma_pkey: 0x%04x",
+			print_info(" rdma_pkey:   0x%04x",
 				   e->tsas.rdma.pkey);
 			break;
 		}
