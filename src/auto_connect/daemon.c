@@ -638,7 +638,7 @@ static void process_updates(struct ctrl_queue *dq)
 	cleanup_log_pages(dq);
 
 	if (!dq->failed_kato)
-		enable_aens(dq);
+		send_async_event_request(&dq->ep);
 }
 
 static inline int complete_connection(struct ctrl_queue *dq)
@@ -713,7 +713,6 @@ int main(int argc, char *argv[])
 		if (dq->connected) {
 			if (!process_nvme_rsp(&dq->ep, 0, NULL)) {
 				print_info("Received AEN");
-				send_async_event_request(&dq->ep);
 				process_updates(dq);
 				cnt = 0;
 			} else if (++cnt > KEEP_ALIVE_COUNTER) {

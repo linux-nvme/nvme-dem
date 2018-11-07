@@ -157,13 +157,11 @@ static inline int send_notifications(struct linked_list *list)
 
 		resp->result.U32 = NVME_AER_NOTICE_LOG_PAGE_CHANGE;
 
-		if (ep->state == CONNECTED) {
-			print_err("sending AER_NOTICE to %p", ep);
+		if (ep->state == CONNECTED)
 			ep->ops->send_rsp(ep->ep, resp, sizeof(*resp), ep->mr);
-		} else
+		else
 			print_err("cannot send AER_NOTICE to %p state %d", ep,
 				  ep->state);
-
 cleanup:
 		list_del(&entry->req->node);
 		free(entry->req);
@@ -358,14 +356,10 @@ static void _del_subsys_dq(struct subsystem *subsys)
 {
 	struct ctrl_queue	*dq;
 	struct target		*target = subsys->target;
-	struct linked_list	 list;
 
 	list_for_each_entry(dq, &target->discovery_queue_list, node) {
 		if (dq->subsys != subsys)
 			continue;
-
-		create_event_host_list_for_subsys(&list, subsys);
-		send_notifications(&list);
 
 		list_del(&dq->node);
 		free(dq);
@@ -1558,10 +1552,9 @@ int link_host(char *tgt, char *subnqn, char *alias, char *data, char *resp)
 	goto skip_unlink;
 found:
 	ret = _unlink_host(subsys, host);
-	if (ret) {
+	if (ret)
 		sprintf(resp, CONFIG_ALERT, target->alias);
-		goto out;
-	}
+
 	_reset_subsys_dq_nqn(subsys, host->nqn);
 
 skip_unlink:
@@ -1625,12 +1618,12 @@ found:
 	list_for_each_entry(subsys, &target->subsys_list, node)
 		list_for_each_entry(host, &subsys->host_list, node)
 			if (!strcmp(host->alias, alias))
-				goto out;
+				goto send_aen;
 
 	ret = _del_host(target, alias);
 	if (ret)
 		sprintf(resp, CONFIG_ALERT, target->alias);
-
+send_aen:
 	create_event_host_list_for_host(&list, hostnqn);
 	send_notifications(&list);
 out:
@@ -1804,6 +1797,7 @@ int del_subsys(char *alias, char *nqn, char *resp)
 {
 	struct subsystem	*subsys;
 	struct target		*target;
+	struct linked_list	 list;
 	int			 ret;
 
 	ret = del_json_subsys(alias, nqn, resp);
@@ -1821,6 +1815,9 @@ int del_subsys(char *alias, char *nqn, char *resp)
 	ret = _del_subsys(subsys);
 	if (ret)
 		sprintf(resp, CONFIG_ALERT, target->alias);
+
+	create_event_host_list_for_subsys(&list, subsys);
+	send_notifications(&list);
 
 	_del_subsys_dq(subsys);
 
@@ -1890,7 +1887,6 @@ static inline int _config_subsys(struct target *target,
 				 struct subsystem *subsys)
 {
 	struct host		*host, *next_host;
-	struct linked_list	 list;
 	int			 ret = 0;
 
 	if (target->mgmt_mode == IN_BAND_MGMT)
@@ -1898,11 +1894,8 @@ static inline int _config_subsys(struct target *target,
 	else if (target->mgmt_mode == OUT_OF_BAND_MGMT)
 		ret = config_subsys_oob(target, subsys);
 
-	if (is_restricted(subsys)) {
-		create_event_host_list_for_subsys(&list, subsys);
-		send_notifications(&list);
+	if (is_restricted(subsys))
 		return ret;
-	}
 
 	_del_subsys_dq(subsys);
 
@@ -1974,7 +1967,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	ret = _config_subsys(target, subsys);
 	if (ret) {
 		sprintf(resp, CONFIG_ALERT, target->alias);
-		goto out;
+		goto send_aen;
 	}
 
 	list_for_each_entry(portid, &target->portid_list, node) {
@@ -1983,7 +1976,7 @@ int set_subsys(char *alias, char *nqn, char *data, char *resp)
 	}
 
 	target_refresh(alias);
-
+send_aen:
 	create_event_host_list_for_subsys(&list, subsys);
 	send_notifications(&list);
 out:
@@ -2046,6 +2039,7 @@ int del_portid(char *alias, int id, char *resp)
 	struct portid		*portid;
 	struct ctrl_queue	*dq, *next_dq;
 	struct logpage		*logpage, *next_log;
+	struct linked_list	 list;
 	int			 ret;
 
 	ret = del_json_portid(alias, id, resp);
@@ -2085,6 +2079,9 @@ int del_portid(char *alias, int id, char *resp)
 
 	list_del(&portid->node);
 	free(portid);
+
+	create_event_host_list_for_target(&list, target);
+	send_notifications(&list);
 out:
 	return ret;
 }
@@ -2136,6 +2133,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	struct portid		 _portid;
 	struct target		*target;
 	struct subsystem	*subsys;
+	struct linked_list	 list;
 
 	ret = set_json_portid(alias, id, data, resp, &_portid);
 	if (ret)
@@ -2168,7 +2166,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 
 	if (target->mgmt_mode == LOCAL_MGMT) {
 		create_discovery_queue(target, NULL, portid);
-		return 0;
+		goto send_aen;
 	}
 
 	_portid.portid = id;
@@ -2182,7 +2180,7 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	ret = _config_portid(target, portid);
 	if (ret) {
 		sprintf(resp, CONFIG_ALERT, target->alias);
-		goto out;
+		goto send_aen;
 	}
 
 	_del_portid_dq(target, portid);
@@ -2195,6 +2193,9 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	}
 
 	target_refresh(target->alias);
+send_aen:
+	create_event_host_list_for_target(&list, target);
+	send_notifications(&list);
 out:
 	return ret;
 }

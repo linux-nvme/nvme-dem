@@ -168,7 +168,7 @@ static int handle_async_event(struct host_conn *host)
 	strcpy(entry->nqn, host->ep->nqn);
 	entry->ep = host->ep;
 
-	list_add_tail(&entry->node, aen_req_list);
+	list_add(&entry->node, aen_req_list);
 
 	return ret;
 }

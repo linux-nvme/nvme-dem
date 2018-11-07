@@ -458,7 +458,7 @@ static inline void report_updates(struct ctrl_queue *dq)
 	cleanup_log_pages(dq);
 
 	if (!dq->failed_kato)
-		enable_aens(dq);
+		send_async_event_request(&dq->ep);
 }
 
 static inline int complete_connection(struct ctrl_queue *dq)
