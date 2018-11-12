@@ -649,6 +649,8 @@ static inline int complete_connection(struct ctrl_queue *dq)
 	if (stopped)
 		return -ESHUTDOWN;
 
+	enable_aens(dq);
+
 	process_updates(dq);
 
 	if (dq->failed_kato) {
