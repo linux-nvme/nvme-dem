@@ -180,7 +180,7 @@ static inline int list_empty(const struct linked_list *list)
 #define round_up(x, y) ((((x) - 1) | __round_mask(x, y)) + 1)
 
 #define valid_delim	 ", "
-#define valid_trtype_str TRTYPE_STR_RDMA
+#define valid_trtype_str "TRTYPE_STR_RDMA TRTYPE_STR_TCP"
 #define valid_adrfam_str ADRFAM_STR_IPV4 valid_delim \
 			 ADRFAM_STR_IPV6
 
@@ -197,7 +197,8 @@ static inline int set_adrfam(char *family)
 
 static inline int valid_trtype(char *type)
 {
-	return !strcmp(type, TRTYPE_STR_RDMA);
+	return (!strcmp(type, TRTYPE_STR_RDMA) ||
+		!strcmp(type, TRTYPE_STR_TCP));
 }
 
 #endif

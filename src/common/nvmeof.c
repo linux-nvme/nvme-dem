@@ -743,8 +743,10 @@ int start_pseudo_target(struct host_iface *iface)
 		return -EINVAL;
 
 	ret = iface->ops->init_listener(&iface->listener, iface->port);
-	if (ret)
+	if (ret) {
+		printf("start_pseudo_target init_listener failed\n");
 		return ret;
+	}
 
 	return 0;
 }

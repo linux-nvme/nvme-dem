@@ -74,17 +74,17 @@ MG_DIR ?= mongoose
 EM_CFG=${EM_DIR}/configfs.c
 
 AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
-	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
+	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c ${COMMON_DIR}/tcp.c
 AC_INC = ${INCL_DIR}/dem.h ${AC_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 
 MON_SRC = ${MON_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
-	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c
+	  ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c ${COMMON_DIR}/tcp.c
 MON_INC = ${INCL_DIR}/dem.h ${MON_DIR}/common.h ${INCL_DIR}/ops.h ${LINUX_INCL}
 
 DEM_SRC = ${DEM_DIR}/daemon.c ${DEM_DIR}/config.c ${DEM_DIR}/restful.c \
 	  ${DEM_DIR}/interfaces.c ${DEM_DIR}/pseudo_target.c \
 	  ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/curl.c ${COMMON_DIR}/rdma.c \
-	  ${COMMON_DIR}/logpages.c ${DEM_DIR}/logpages.c \
+	  ${COMMON_DIR}/logpages.c ${DEM_DIR}/logpages.c ${COMMON_DIR}/tcp.c \
 	  ${DEM_DIR}/json.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
 DEM_INC = ${INCL_DIR}/dem.h ${DEM_DIR}/json.h ${DEM_DIR}/common.h \
 	  ${INCL_DIR}/ops.h ${INCL_DIR}/curl.h ${INCL_DIR}/tags.h \
@@ -92,7 +92,8 @@ DEM_INC = ${INCL_DIR}/dem.h ${DEM_DIR}/json.h ${DEM_DIR}/common.h \
 
 EM_SRC = ${EM_DIR}/daemon.c ${EM_DIR}/restful.c ${EM_DIR}/etc_config.c \
 	 ${EM_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c ${EM_CFG} \
-	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c
+	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c \
+	 ${COMMON_DIR}/tcp.c
 EM_INC = ${INCL_DIR}/dem.h ${EM_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 

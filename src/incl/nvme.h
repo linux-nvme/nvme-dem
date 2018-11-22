@@ -45,7 +45,12 @@
 #define NVMF_DEV_PATH_SIZE		256
 #define NVME_DISC_SUBSYS_NAME		"nqn.2014-08.org.nvmexpress.discovery"
 #define NVME_RDMA_IP_PORT		4420
+#define NVME_TCP_IP_PORT		4430
 #define NVME_CNTLID_DYNAMIC		0xFFFF
+
+#define NVME_OPCODE_MASK                0x3
+#define NVME_OPCODE_C2H                 0x1
+#define NVME_OPCODE_H2C                 0x2
 
 enum {
 	nvme_admin_get_log_page		= 0x02,
@@ -202,6 +207,13 @@ enum {
 	NVME_SGL_FMT_LAST_SEG_DESC	= 3,
 	NVME_KEY_SGL_FMT_DATA_DESC	= 4,
 	NVME_TRANSPORT_SGL_DATA_DESC	= 5,
+};
+
+enum {
+	NVME_SGL_FMT_ADDRESS            = 0x00,
+	NVME_SGL_FMT_OFFSET             = 0x01,
+	NVME_SGL_FMT_TRANSPORT_A        = 0x0A,
+	NVME_SGL_FMT_INVALIDATE         = 0x0f,
 };
 
 enum {

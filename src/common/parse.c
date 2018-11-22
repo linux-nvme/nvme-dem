@@ -252,6 +252,7 @@ static const char * const trtypes[] = {
 	[NVMF_TRTYPE_RDMA]		 = "rdma",
 	[NVMF_TRTYPE_FC]		 = "fc",
 	[NVMF_TRTYPE_LOOP]		 = "loop",
+	[NVMF_TRTYPE_TCP]		 = "tcp",
 };
 
 const char *trtype_str(u8 trtype)

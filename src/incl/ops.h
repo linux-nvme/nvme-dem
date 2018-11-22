@@ -78,6 +78,7 @@ struct xp_ops {
 };
 
 struct xp_ops *rdma_register_ops(void);
+struct xp_ops *tcp_register_ops(void);
 
 static inline struct xp_ops *register_ops(char *type)
 {
@@ -86,6 +87,9 @@ static inline struct xp_ops *register_ops(char *type)
 
 	if (strcmp(type, TRTYPE_STR_RDMA) == 0)
 		return rdma_register_ops();
+
+	if (strcmp(type, TRTYPE_STR_TCP) == 0)
+		return tcp_register_ops();
 
 	return NULL;
 }
