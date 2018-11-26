@@ -234,7 +234,7 @@ static void show_help(char *app)
 		   DEFAULT_HTTP_PORT);
 	print_info("  -r - HTTP interface: root (default %s)",
 		   DEFAULT_HTTP_ROOT);
-	print_info("  -c - HTTP interface: SSL cert file (defaut no SSL)");
+	print_info("  -c - HTTP interface: SSL cert file (default no SSL)");
 }
 
 static int init_dem(int argc, char *argv[], char **ssl_cert)
