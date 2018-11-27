@@ -56,7 +56,7 @@ static char				*s_http_port;
 struct linked_list			*devices = &device_linked_list;
 struct linked_list			*interfaces = &interface_linked_list;
 static struct host_iface		 host_iface;
-
+static char				*g_default_oob_port = "22334";
 void shutdown_dem(void)
 {
 	stopped = 1;
@@ -311,10 +311,8 @@ help:
 		return 1;
 	}
 
-	if (!inb_test && !s_http_port) {
-		print_err("neither in-band not out-of-band info provided");
-		return 1;
-	}
+	if (!inb_test && !s_http_port)
+		s_http_port = g_default_oob_port;
 
 	if (inb_test && !validate_host_iface()) {
 		print_err("invalid in-band address info");
@@ -399,6 +397,19 @@ static int init_inb_thread(pthread_t *listen_thread)
 	return ret;
 }
 
+void free_devices(void)
+{
+	struct linked_list	*p;
+	struct linked_list	*n;
+	struct nsdev		*dev;
+
+	list_for_each_safe(p, n, devices) {
+		list_del(p);
+		dev = container_of(p, struct nsdev, node);
+		free(dev);
+	}
+}
+
 int main(int argc, char *argv[])
 {
 	struct mg_mgr		 mgr;
@@ -431,16 +442,17 @@ int main(int argc, char *argv[])
 		goto out1;
 	}
 
-	start_targets();
+	if (start_targets())
+		goto out2;
 
 	if (enumerate_devices() <= 0) {
 		print_info("no nvme devices found");
-		goto out2;
+		goto out3;
 	}
 
 	if (host_iface.type[0])
 		if (init_inb_thread(&inb_pthread))
-			goto out3;
+			goto out4;
 
 	if (s_http_port)
 		poll_loop(&mgr);
@@ -452,8 +464,10 @@ int main(int argc, char *argv[])
 	if (host_iface.type[0])
 		cleanup_inb_thread(&inb_pthread);
 
-out3:
+out4:
 	free_devices();
+out3:
+	stop_targets();
 out2:
 	free_interfaces();
 out1:

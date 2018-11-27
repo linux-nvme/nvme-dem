@@ -109,7 +109,11 @@
 		}					\
 	} while (0)
 
-void start_targets(void)
+void stop_targets(void)
+{
+}
+
+int start_targets(void)
 {
 	struct portid		*xport;
 	char			 cmd[32];
@@ -127,6 +131,8 @@ void start_targets(void)
 		if (ret)
 			print_info("modprobe nvmet-%s failed: %d", cmd, ret);
 	}
+
+	return 0;
 }
 
 /* replace ~ with * in bash
@@ -664,19 +670,6 @@ int unlink_port_from_subsys(char *subsys, int portid)
 
 	chdir(dir);
 	return ret;
-}
-
-void free_devices(void)
-{
-	struct linked_list	*p;
-	struct linked_list	*n;
-	struct nsdev		*dev;
-
-	list_for_each_safe(p, n, devices) {
-		list_del(p);
-		dev = container_of(p, struct nsdev, node);
-		free(dev);
-	}
 }
 
 int create_device(char *name)

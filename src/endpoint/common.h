@@ -123,6 +123,8 @@ struct interface {
 
 struct portid {
 	struct linked_list	 node;
+	struct linked_list	 subsys_node;
+	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
@@ -161,7 +163,8 @@ void *interface_thread(void *arg);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
 
-void start_targets(void);
+void stop_targets(void);
+int start_targets(void);
 void reset_config(void);
 int create_subsys(char *subsys, int allowany);
 int delete_subsys(char *subsys);
