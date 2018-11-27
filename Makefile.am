@@ -71,7 +71,12 @@ CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \
 
 MG_DIR ?= mongoose
 
-EM_CFG=${EM_DIR}/configfs.c
+if SPDK
+EM_CFG = ${EM_DIR}/spdk_config.c
+EM_LIBS += -lspdk -lspdk_env_dpdk -ldpdk -ldl -lnuma -lpciaccess
+else
+EM_CFG = ${EM_DIR}/configfs.c
+endif
 
 AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
 	 ${COMMON_DIR}/logpages.c ${COMMON_DIR}/parse.c ${COMMON_DIR}/tcp.c

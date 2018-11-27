@@ -123,23 +123,24 @@ struct interface {
 
 struct portid {
 	struct linked_list	 node;
-	struct linked_list	 subsys_node;
 	int			 portid;
 	char			 type[CONFIG_TYPE_SIZE + 1];
 	char			 family[CONFIG_FAMILY_SIZE + 1];
 	char			 address[CONFIG_ADDRESS_SIZE + 1];
-	int			 addr[ADDR_LEN];
 	char			 port[CONFIG_PORT_SIZE + 1];
 	int			 port_num;
-	int			 treq;
-	void			*context;
+	int			 addr[ADDR_LEN];
+};
+
+struct _portid {
+	struct linked_list	 node;
+	struct portid		*portid;
 };
 
 struct subsystem {
 	struct linked_list	 node;
 	struct linked_list	 host_list;
 	struct linked_list	 portid_list;
-	struct linked_list	 ns_list;
 	char			 nqn[MAX_NQN_SIZE + 1];
 	int			 allowany;
 };

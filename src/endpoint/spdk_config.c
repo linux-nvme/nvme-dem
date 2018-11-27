@@ -60,6 +60,9 @@
 
 #define MAXSTRLEN		64
 
+#define SPDK_NQN_MIN_SIZE	15
+#define SPDK_NQN_FMT		"%3s.%4d-%2d.%s"
+
 #define PCI_CLASS_STORAGE_NVME	0x010802
 
 #define NULL_BLK_SIZE		512
@@ -85,6 +88,31 @@ static struct spdk_jsonrpc_client *client;
 static struct linked_list	portid_list;
 static struct linked_list	subsys_list;
 
+static inline bool valid_nqn(char *nqn)
+{
+	int			 len = strlen(nqn);
+	int			 cnt;
+	char			 part1[4];
+	int			 part2;
+	int			 part3;
+	char			 part4[MAX_NQN_SIZE];
+
+	if (len < SPDK_NQN_MIN_SIZE || len > MAX_NQN_SIZE)
+		return false;
+
+	cnt = sscanf(nqn, SPDK_NQN_FMT, part1, &part2, &part3, part4);
+	if (cnt != 4)
+		return false;
+
+	if (strcmp(part1, "nqn"))
+		return false;
+
+	if (part2 == 0 || part3 == 0 || part3 > 12)
+		return false;
+
+	return index(part4, ':') != NULL;
+}
+
 static inline struct subsystem *find_subsys(char *nqn)
 {
 	struct subsystem	*subsys;
@@ -95,13 +123,34 @@ static inline struct subsystem *find_subsys(char *nqn)
 	return NULL;
 }
 
-static inline struct portid *find_portid(struct linked_list *list, int id)
+static inline struct host *find_host(struct subsystem *subsys, char *nqn)
+{
+	struct host		*host;
+
+	list_for_each_entry(host, &subsys->host_list, node)
+		if (!strcmp(host->nqn, nqn))
+			return host;
+	return NULL;
+}
+
+static inline struct portid *find_portid(int id)
 {
 	struct portid		*portid;
 
-	list_for_each_entry(portid, list, node)
+	list_for_each_entry(portid, &portid_list, node)
 		if (portid->portid == id)
 			return portid;
+	return NULL;
+}
+
+static inline struct _portid *find_portid_link(struct subsystem *subsys,
+					       struct portid *portid)
+{
+	struct _portid		*_portid;
+
+	list_for_each_entry(_portid, &subsys->portid_list, node)
+		if (_portid->portid == portid)
+			return _portid;
 	return NULL;
 }
 
@@ -118,8 +167,6 @@ static int resp_parser(void *parser_ctx, const struct spdk_json_val *result)
 		snprintf(res, MAXSTRLEN, "%*s",
 			 result->len, (char *) result->start);
 		*(int *) parser_ctx = atoi(res);
-	} else if (result->type == SPDK_JSON_VAL_OBJECT_BEGIN) {
-	/* TODO: Revisit - is this needed */
 	}
 
 	return 0;
@@ -224,37 +271,7 @@ static int parse_err_resp(void)
 	return rc;
 }
 
-int _create_subsys(char *nqn)
-{
-	struct subsystem	*subsys;
-
-	if (find_subsys(nqn))
-		return -EEXIST;
-
-	subsys = malloc(sizeof(*subsys));
-
-	strcpy(subsys->nqn, nqn);
-
-	list_add(&subsys->node, &subsys_list);
-
-	return 0;
-}
-
-int _delete_subsystem(char *nqn)
-{
-	struct subsystem	*subsys;
-
-	subsys = find_subsys(nqn);
-	if (!subsys)
-		return -ENOENT;
-
-	list_del(&subsys->node);
-	free(subsys);
-
-	return 0;
-}
-
-int delete_subsys(char *subsys)
+static int _delete_subsys(struct subsystem *subsys)
 {
 	int			 rc;
 	bool			 resp;
@@ -268,7 +285,7 @@ int delete_subsys(char *subsys)
 	w = spdk_jsonrpc_begin_request(req, "delete_nvmf_subsystem", 1);
 
 	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", subsys);
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_request(req, w);
@@ -280,10 +297,10 @@ int delete_subsys(char *subsys)
 	if (rc)
 		return parse_err_resp();
 
-	return _delete_subsystem(subsys);
+	return resp ? 0 : -ENOENT;
 }
 
-int create_subsys(char *subsys, int allowany)
+static int _create_subsys(struct subsystem *subsys)
 {
 	int			 rc;
 	bool			 resp;
@@ -297,8 +314,8 @@ int create_subsys(char *subsys, int allowany)
 	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_create", 1);
 
 	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", subsys);
-	spdk_json_write_named_bool(w, "allow_any_host", !!allowany);
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
+	spdk_json_write_named_bool(w, "allow_any_host", subsys->allowany);
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_request(req, w);
@@ -310,19 +327,71 @@ int create_subsys(char *subsys, int allowany)
 	if (rc)
 		return parse_err_resp();
 
-	if (!resp)
+	return resp ? 0 : -ENOENT;
+}
+
+int delete_subsys(char *nqn)
+{
+	struct subsystem	*subsys;
+	struct host		*host, *h;
+	struct _portid		*portid, *p;
+
+	subsys = find_subsys(nqn);
+	if (!subsys)
 		return -ENOENT;
+
+	_delete_subsys(subsys);
+
+	list_del(&subsys->node);
+
+	list_for_each_entry_safe(portid, p, &subsys->portid_list, node)
+		free(portid);
+
+	list_for_each_entry_safe(host, h, &subsys->host_list, node)
+		free(host);
+
+	free(subsys);
+
+	return 0;
+}
+
+int create_subsys(char *subnqn, int allowany)
+{
+	struct subsystem	*subsys;
+
+	if (!valid_nqn(subnqn))
+		return -EINVAL;
+
+	if (find_subsys(subnqn))
+		return -EEXIST;
+
+	subsys = malloc(sizeof(*subsys));
+	if (!subsys)
+		return -ENOMEM;
+
+	memset(subsys, 0, sizeof(*subsys));
+
+	INIT_LINKED_LIST(&subsys->portid_list);
+	INIT_LINKED_LIST(&subsys->host_list);
+
+	strcpy(subsys->nqn, subnqn);
+	subsys->allowany = !!allowany;
+
+	list_add(&subsys->node, &subsys_list);
 
 	return _create_subsys(subsys);
 }
 
-int create_ns(char *subsys, int nsid, int devid, int devnsid)
+int create_ns(char *subnqn, int nsid, int devid, int devnsid)
 {
 	int			 rc;
 	int			 resp;
 	char			 bdev_name[MAXSTRLEN];
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
+
+	if (!find_subsys(subnqn))
+		return -ENOENT;
 
 	req = spdk_jsonrpc_client_create_request();
 	if (req == NULL)
@@ -337,7 +406,7 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 
 	spdk_json_write_named_object_begin(w, "params");
 
-	spdk_json_write_named_string(w, "nqn", subsys);
+	spdk_json_write_named_string(w, "nqn", subnqn);
 
 	spdk_json_write_named_object_begin(w, "namespace");
 	spdk_json_write_named_uint32(w, "nsid", nsid);
@@ -351,25 +420,22 @@ int create_ns(char *subsys, int nsid, int devid, int devnsid)
 
 	spdk_jsonrpc_client_free_request(req);
 
-	/* TODO: NOTE: When adding NSID _tgt_ responds with
-	 * "bdev Nvme0n1 cannot be opened, error=-1"
-	 */
 	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
 	if (rc)
 		return parse_err_resp();
 
-	if (resp != nsid)
-		return -EINVAL;
-
-	return 0;
+	return (resp == nsid) ? 0 : -EINVAL;
 }
 
-int delete_ns(char *subsys, int nsid)
+int delete_ns(char *subnqn, int nsid)
 {
 	int			 rc;
 	bool			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
+
+	if (!find_subsys(subnqn))
+		return -ENOENT;
 
 	req = spdk_jsonrpc_client_create_request();
 	if (req == NULL)
@@ -378,7 +444,7 @@ int delete_ns(char *subsys, int nsid)
 	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_remove_ns", 1);
 
 	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", subsys);
+	spdk_json_write_named_string(w, "nqn", subnqn);
 	spdk_json_write_named_uint32(w, "nsid", nsid);
 	spdk_json_write_object_end(w);
 
@@ -391,7 +457,7 @@ int delete_ns(char *subsys, int nsid)
 	if (rc)
 		return parse_err_resp();
 
-	return resp ? -ENOENT : 0;
+	return resp ? 0 : -ENOENT;
 }
 
 int create_host(char *host)
@@ -417,15 +483,23 @@ int create_portid(int id, char *fam, char *typ, int req, char *addr,
 
 	UNUSED(req);
 
-	if (find_portid(&portid_list, id))
+	/* SPDK does not support independent port ids */
+
+	if (find_portid(id))
 		return -EEXIST;
 
 	portid = malloc(sizeof(*portid));
+	if (!portid)
+		return -ENOMEM;
+
+	memset(portid, 0, sizeof(*portid));
 
 	portid->portid = id;
+
 	strcpy(portid->family, fam);
 	strcpy(portid->type, typ);
 	strcpy(portid->address, addr);
+
 	sprintf(portid->port, "%d", trsvcid);
 
 	list_add(&portid->node, &portid_list);
@@ -433,7 +507,7 @@ int create_portid(int id, char *fam, char *typ, int req, char *addr,
 	return 0;
 }
 
-void _delete_portid(struct portid *portid)
+static void _delete_portid(struct portid *portid)
 {
 	struct subsystem	*subsys;
 
@@ -448,17 +522,17 @@ int delete_portid(int id)
 {
 	struct portid		*portid;
 
-	portid = find_portid(&portid_list, id);
+	portid = find_portid(id);
 	if (portid)
 		_delete_portid(portid);
 
 	return 0;
 }
 
-int link_host_to_subsys(char *subsys, char *host)
+static int add_listener(struct subsystem *subsys, struct portid *portid)
 {
-	int			rc;
-	bool			resp;
+	int			 rc;
+	bool			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -466,11 +540,19 @@ int link_host_to_subsys(char *subsys, char *host)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_host", 1);
+	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_listener", 1);
 
 	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", subsys);
-	spdk_json_write_named_string(w, "host", host);
+
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
+
+	spdk_json_write_named_object_begin(w, "listen_address");
+	spdk_json_write_named_string(w, "trtype", portid->type);
+	spdk_json_write_named_string(w, "adrfam", portid->family);
+	spdk_json_write_named_string(w, "traddr", portid->address);
+	spdk_json_write_named_string(w, "trsvcid", portid->port);
+	spdk_json_write_object_end(w);
+
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_request(req, w);
@@ -482,10 +564,78 @@ int link_host_to_subsys(char *subsys, char *host)
 	if (rc)
 		return parse_err_resp();
 
-	return resp ? -ENOENT : 0;
+	return resp ? 0 : -ENOENT;
 }
 
-int unlink_host_from_subsys(char *subsys, char *host)
+static int remove_listener(struct subsystem *subsys, struct portid *portid)
+{
+	int			 rc;
+	bool			 resp;
+	struct spdk_json_write_ctx *w;
+	struct spdk_jsonrpc_client_request *req;
+
+	req = spdk_jsonrpc_client_create_request();
+	if (req == NULL)
+		return -ENOMEM;
+
+	w = spdk_jsonrpc_begin_request(req,
+				       "nvmf_subsystem_remove_listener", 1);
+
+	spdk_json_write_named_object_begin(w, "params");
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
+
+	spdk_json_write_named_object_begin(w, "listen_address");
+	spdk_json_write_named_string(w, "trtype", portid->type);
+	spdk_json_write_named_string(w, "traddr", portid->address);
+	spdk_json_write_named_string(w, "adrfam", portid->family);
+	spdk_json_write_named_string(w, "trsvcid", portid->port);
+	spdk_json_write_object_end(w);
+
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_request(req, w);
+	spdk_jsonrpc_client_send_request(client, req);
+
+	spdk_jsonrpc_client_free_request(req);
+
+	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	if (rc)
+		return parse_err_resp();
+
+	return resp ? 0 : -ENOENT;
+}
+
+static int add_host(struct subsystem *subsys, struct host *host)
+{
+	int			 rc;
+	bool			 resp;
+	struct spdk_json_write_ctx *w;
+	struct spdk_jsonrpc_client_request *req;
+
+	req = spdk_jsonrpc_client_create_request();
+	if (req == NULL)
+		return -ENOMEM;
+
+	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_host", 1);
+
+	spdk_json_write_named_object_begin(w, "params");
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
+	spdk_json_write_named_string(w, "host", host->nqn);
+	spdk_json_write_object_end(w);
+
+	spdk_jsonrpc_end_request(req, w);
+	spdk_jsonrpc_client_send_request(client, req);
+
+	spdk_jsonrpc_client_free_request(req);
+
+	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	if (rc)
+		return parse_err_resp();
+
+	return resp ? 0 : -ENOENT;
+}
+
+static int remove_host(struct subsystem *subsys, struct host *host)
 {
 	int			rc;
 	bool			resp;
@@ -499,8 +649,8 @@ int unlink_host_from_subsys(char *subsys, char *host)
 	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_remove_host", 1);
 
 	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", subsys);
-	spdk_json_write_named_string(w, "host", host);
+	spdk_json_write_named_string(w, "nqn", subsys->nqn);
+	spdk_json_write_named_string(w, "host", host->nqn);
 	spdk_json_write_object_end(w);
 
 	spdk_jsonrpc_end_request(req, w);
@@ -512,19 +662,88 @@ int unlink_host_from_subsys(char *subsys, char *host)
 	if (rc)
 		return parse_err_resp();
 
-	return resp ? -ENOENT : 0;
+	return resp ? 0 : -ENOENT;
+}
+
+int link_host_to_subsys(char *subnqn, char *hostnqn)
+{
+	int			 rc;
+	bool			 reconnect;
+	struct subsystem	*subsys;
+	struct host		*host;
+	struct _portid		*_portid;
+
+	if (!valid_nqn(hostnqn))
+		return -EINVAL;
+
+	subsys = find_subsys(subnqn);
+	if (!subsys)
+		return -ENOENT;
+
+	host = find_host(subsys, hostnqn);
+	if (host)
+		return 0;
+
+	host = malloc(sizeof(*host));
+	if (!host)
+		return -ENOMEM;
+
+	memset(host, 0, sizeof(*host));
+
+	strncpy(host->nqn, hostnqn, MAX_NQN_SIZE);
+
+	reconnect = list_empty(&subsys->host_list);
+	if (reconnect)
+		list_for_each_entry(_portid, &subsys->portid_list, node)
+			remove_listener(subsys, _portid->portid);
+
+	rc = add_host(subsys, host);
+	if (rc) {
+		free(host);
+		return rc;
+	}
+
+	list_add_tail(&host->node, &subsys->host_list);
+
+	if (reconnect) {
+		list_for_each_entry(_portid, &subsys->portid_list, node)
+			add_listener(subsys, _portid->portid);
+		usleep(100);	/* allow spdk to finish starting the listeners */
+	}
+
+	return 0;
+}
+
+int unlink_host_from_subsys(char *subnqn, char *hostnqn)
+{
+	int			 rc;
+	struct subsystem	*subsys;
+	struct host		*host;
+
+	subsys = find_subsys(subnqn);
+	if (!subsys)
+		return -ENOENT;
+
+	host = find_host(subsys, hostnqn);
+	if (!host)
+		return 0;
+
+	rc = remove_host(subsys, host);
+
+	list_del(&host->node);
+	free(host);
+
+	return rc;
 }
 
 int link_port_to_subsys(char *nqn, int id)
 {
 	int			 rc;
-	bool			 resp;
 	struct portid		*portid;
-	struct subsystem *subsys;
-	struct spdk_json_write_ctx *w;
-	struct spdk_jsonrpc_client_request *req;
+	struct _portid		*_portid;
+	struct subsystem	*subsys;
 
-	portid = find_portid(&portid_list, id);
+	portid = find_portid(id);
 	if (!portid)
 		return -EINVAL;
 
@@ -532,39 +751,22 @@ int link_port_to_subsys(char *nqn, int id)
 	if (!subsys)
 		return -EINVAL;
 
-	req = spdk_jsonrpc_client_create_request();
-	if (req == NULL)
+	if (find_portid_link(subsys, portid))
+		return 0;
+
+	_portid = malloc(sizeof(*_portid));
+	if (!_portid)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_listener", 1);
+	rc = add_listener(subsys, portid);
+	if (rc) {
+		free(_portid);
+		return rc;
+	}
 
-	spdk_json_write_named_object_begin(w, "params");
+	_portid->portid = portid;
 
-	spdk_json_write_named_string(w, "nqn", nqn);
-
-	spdk_json_write_named_object_begin(w, "listen_address");
-	spdk_json_write_named_string(w, "trtype", portid->type);
-	spdk_json_write_named_string(w, "adrfam", portid->family);
-	spdk_json_write_named_string(w, "traddr", portid->address);
-	spdk_json_write_named_string(w, "trsvcid", portid->port);
-	spdk_json_write_object_end(w);
-
-	spdk_json_write_object_end(w);
-
-	spdk_jsonrpc_end_request(req, w);
-	spdk_jsonrpc_client_send_request(client, req);
-
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
-	if (rc)
-		return parse_err_resp();
-
-	if (!resp)
-		return -ENOENT;
-
-	if (!find_portid(&subsys->portid_list, id))
-		list_add(&portid->subsys_node, &subsys->portid_list);
+	list_add(&_portid->node, &subsys->portid_list);
 
 	return 0;
 }
@@ -572,13 +774,11 @@ int link_port_to_subsys(char *nqn, int id)
 int unlink_port_from_subsys(char *nqn, int id)
 {
 	int			 rc;
-	bool			 resp;
 	struct portid		*portid;
+	struct _portid		*_portid;
 	struct subsystem	*subsys;
-	struct spdk_json_write_ctx *w;
-	struct spdk_jsonrpc_client_request *req;
 
-	portid = find_portid(&portid_list, id);
+	portid = find_portid(id);
 	if (!portid)
 		return -ENOENT;
 
@@ -586,35 +786,15 @@ int unlink_port_from_subsys(char *nqn, int id)
 	if (!subsys)
 		return -ENOENT;
 
-	req = spdk_jsonrpc_client_create_request();
-	if (req == NULL)
-		return -ENOMEM;
-
-	w = spdk_jsonrpc_begin_request(req,
-				       "nvmf_subsystem_remove_listener", 1);
-
-	spdk_json_write_named_object_begin(w, "params");
-	spdk_json_write_named_string(w, "nqn", nqn);
-
-	spdk_json_write_named_object_begin(w, "listen_address");
-	spdk_json_write_named_string(w, "trtype", portid->type);
-	spdk_json_write_named_string(w, "traddr", portid->address);
-	spdk_json_write_named_string(w, "adrfam", portid->family);
-	spdk_json_write_named_string(w, "trsvcid", portid->port);
-	spdk_json_write_object_end(w);
-
-	spdk_jsonrpc_end_request(req, w);
-	spdk_jsonrpc_client_send_request(client, req);
-
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = remove_listener(subsys, portid);
 	if (rc)
-		return parse_err_resp();
+		return rc;
 
-	portid = find_portid(&subsys->portid_list, id);
-	if (portid)
-		list_del(&portid->subsys_node);
+	_portid = find_portid_link(subsys, portid);
+	if (_portid) {
+		list_del(&_portid->node);
+		free(_portid);
+	}
 
 	return 0;
 }
@@ -1047,18 +1227,6 @@ static void clear_subsystems(void)
 
 void reset_config(void)
 {
-}
-
-void reset_spdk_server(void)
-{
-	clear_subsystems();
-
-	clear_devices();
-}
-
-/* TODO: Delete all subsystems, portids. Free all list entries */
-void stop_targets(void)
-{
 	struct portid		*portid, *p;
 	struct subsystem	*subsys, *s;
 
@@ -1067,6 +1235,18 @@ void stop_targets(void)
 
 	list_for_each_entry_safe(subsys, s, &subsys_list, node)
 		delete_subsys(subsys->nqn);
+}
+
+static void reset_spdk_server(void)
+{
+	clear_subsystems();
+
+	clear_devices();
+}
+
+void stop_targets(void)
+{
+	reset_config();
 
 	del_null_device();
 	while (nvme_count)
