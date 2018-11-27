@@ -973,8 +973,7 @@ function parseMgmtMode(obj, itemA) {
 
   str += "</p>";
 
-  args = $("#parentargs").html();
-  $("#parentargs").html(args + "," + mode);
+  $("#parentargs").html("," + mode);
 
   return str;
 }
