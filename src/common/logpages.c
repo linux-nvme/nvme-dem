@@ -41,29 +41,41 @@
 
 #include "common.h"
 
+static inline void trim(char *p, int len)
+{
+	int			 i;
+	for (i = 0; i < len && *p; i++, p++)
+		if (*p == ' ') {
+			*p = 0;
+			break;
+		}
+}
+
 int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 		 u32 *numrec)
 {
-	struct nvmf_disc_rsp_page_hdr	*log;
-	unsigned int			 log_size = 0;
-	unsigned long			 genctr;
-	int				 ret;
-	size_t				 offset;
+	struct nvmf_disc_rsp_page_hdr *hdr;
+	struct nvmf_disc_rsp_page_entry *log;
+	unsigned int		 log_size = 0;
+	unsigned long		 genctr;
+	size_t			 offset;
+	u32			 i;
+	int			 ret;
 
 	offset = offsetof(struct nvmf_disc_rsp_page_hdr, numrec);
-	log_size = offset + sizeof(log->numrec);
+	log_size = offset + sizeof(hdr->numrec);
 	log_size = round_up(log_size, sizeof(u32));
 
-	ret = send_get_log_page(&dq->ep, log_size, &log);
+	ret = send_get_log_page(&dq->ep, log_size, &hdr);
 	if (ret) {
 		print_err("failed to fetch number of discovery log entries");
 		return -ENODATA;
 	}
 
-	genctr = le64toh(log->genctr);
-	*numrec = le32toh(log->numrec);
+	genctr = le64toh(hdr->genctr);
+	*numrec = le32toh(hdr->numrec);
 
-	free(log);
+	free(hdr);
 
 	if (*numrec == 0) {
 #ifdef DEBUG_LOG_PAGES_VERBOSE
@@ -80,19 +92,25 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 	log_size = sizeof(struct nvmf_disc_rsp_page_hdr) +
 		   sizeof(struct nvmf_disc_rsp_page_entry) * *numrec;
 
-	ret = send_get_log_page(&dq->ep, log_size, &log);
+	ret = send_get_log_page(&dq->ep, log_size, &hdr);
 	if (ret) {
 		print_err("failed to fetch discovery log entries");
 		return -ENODATA;
 	}
 
-	if ((*numrec != le32toh(log->numrec)) ||
-	    (genctr != le64toh(log->genctr))) {
+	if ((*numrec != le32toh(hdr->numrec)) ||
+	    (genctr != le64toh(hdr->genctr))) {
 		print_err("# records for last two get log pages not equal");
 		return -EINVAL;
 	}
 
-	*logp = log;
+	for (i = 0, log = hdr->entries; i < *numrec; i++, log++) {
+		trim(log->traddr, NVMF_TRADDR_SIZE);
+		trim(log->subnqn, NVMF_NQN_FIELD_LEN);
+		trim(log->trsvcid, NVMF_TRSVCID_SIZE);
+	}
+
+	*logp = hdr;
 
 	return 0;
 }
@@ -100,7 +118,7 @@ int get_logpages(struct ctrl_queue *dq, struct nvmf_disc_rsp_page_hdr **logp,
 void print_discovery_log(struct nvmf_disc_rsp_page_hdr *log, int numrec)
 {
 #ifdef DEBUG_LOG_PAGES
-	int				 i;
+	int			 i;
 	struct nvmf_disc_rsp_page_entry *e;
 
 #ifdef DEBUG_LOG_PAGES_VERBOSE
