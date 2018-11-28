@@ -194,9 +194,9 @@ static int my_decode_string(const struct spdk_json_val *val, void *out)
 /* TODO Modified from spdk - feedback suggestion:
  *   - remove "found" for forward compatability
  */
-int my_decode_object(const struct spdk_json_val *values,
-		     const struct spdk_json_object_decoder *decoders,
-		     size_t num_decoders, void *out)
+static int my_decode_object(const struct spdk_json_val *values,
+			    const struct spdk_json_object_decoder *decoders,
+			    size_t num_decoders, void *out)
 {
 	uint32_t		 i;
 	bool			 invalid = false;
@@ -330,7 +330,7 @@ static int _create_subsys(struct subsystem *subsys)
 	return resp ? 0 : -ENOENT;
 }
 
-int delete_subsys(char *nqn)
+static int spdk_delete_subsys(char *nqn)
 {
 	struct subsystem	*subsys;
 	struct host		*host, *h;
@@ -355,7 +355,7 @@ int delete_subsys(char *nqn)
 	return 0;
 }
 
-int create_subsys(char *subnqn, int allowany)
+static int spdk_create_subsys(char *subnqn, int allowany)
 {
 	struct subsystem	*subsys;
 
@@ -382,7 +382,7 @@ int create_subsys(char *subnqn, int allowany)
 	return _create_subsys(subsys);
 }
 
-int create_ns(char *subnqn, int nsid, int devid, int devnsid)
+static int spdk_create_ns(char *subnqn, int nsid, int devid, int devnsid)
 {
 	int			 rc;
 	int			 resp;
@@ -427,7 +427,7 @@ int create_ns(char *subnqn, int nsid, int devid, int devnsid)
 	return (resp == nsid) ? 0 : -EINVAL;
 }
 
-int delete_ns(char *subnqn, int nsid)
+static int spdk_delete_ns(char *subnqn, int nsid)
 {
 	int			 rc;
 	bool			 resp;
@@ -460,7 +460,7 @@ int delete_ns(char *subnqn, int nsid)
 	return resp ? 0 : -ENOENT;
 }
 
-int create_host(char *host)
+static int spdk_create_host(char *host)
 {
 	UNUSED(host);
 
@@ -468,7 +468,7 @@ int create_host(char *host)
 	return 0;
 }
 
-int delete_host(char *host)
+static int spdk_delete_host(char *host)
 {
 	UNUSED(host);
 
@@ -476,8 +476,8 @@ int delete_host(char *host)
 	return 0;
 }
 
-int create_portid(int id, char *fam, char *typ, int req, char *addr,
-		  int trsvcid)
+static int spdk_create_portid(int id, char *fam, char *typ, int req,
+			      char *addr, int trsvcid)
 {
 	struct portid		*portid;
 
@@ -503,28 +503,6 @@ int create_portid(int id, char *fam, char *typ, int req, char *addr,
 	sprintf(portid->port, "%d", trsvcid);
 
 	list_add(&portid->node, &portid_list);
-
-	return 0;
-}
-
-static void _delete_portid(struct portid *portid)
-{
-	struct subsystem	*subsys;
-
-	list_for_each_entry(subsys, &subsys_list, node)
-		unlink_port_from_subsys(subsys->nqn, portid->portid);
-
-	list_del(&portid->node);
-	free(portid);
-}
-
-int delete_portid(int id)
-{
-	struct portid		*portid;
-
-	portid = find_portid(id);
-	if (portid)
-		_delete_portid(portid);
 
 	return 0;
 }
@@ -665,7 +643,7 @@ static int remove_host(struct subsystem *subsys, struct host *host)
 	return resp ? 0 : -ENOENT;
 }
 
-int link_host_to_subsys(char *subnqn, char *hostnqn)
+static int spdk_link_host_to_subsys(char *subnqn, char *hostnqn)
 {
 	int			 rc;
 	bool			 reconnect;
@@ -714,7 +692,7 @@ int link_host_to_subsys(char *subnqn, char *hostnqn)
 	return 0;
 }
 
-int unlink_host_from_subsys(char *subnqn, char *hostnqn)
+static int spdk_unlink_host_from_subsys(char *subnqn, char *hostnqn)
 {
 	int			 rc;
 	struct subsystem	*subsys;
@@ -736,7 +714,7 @@ int unlink_host_from_subsys(char *subnqn, char *hostnqn)
 	return rc;
 }
 
-int link_port_to_subsys(char *nqn, int id)
+static int spdk_link_port_to_subsys(char *nqn, int id)
 {
 	int			 rc;
 	struct portid		*portid;
@@ -771,7 +749,7 @@ int link_port_to_subsys(char *nqn, int id)
 	return 0;
 }
 
-int unlink_port_from_subsys(char *nqn, int id)
+static int spdk_unlink_port_from_subsys(char *nqn, int id)
 {
 	int			 rc;
 	struct portid		*portid;
@@ -799,7 +777,29 @@ int unlink_port_from_subsys(char *nqn, int id)
 	return 0;
 }
 
-int create_device(char *bdev_name, const char *traddr)
+static void _delete_portid(struct portid *portid)
+{
+	struct subsystem	*subsys;
+
+	list_for_each_entry(subsys, &subsys_list, node)
+		spdk_unlink_port_from_subsys(subsys->nqn, portid->portid);
+
+	list_del(&portid->node);
+	free(portid);
+}
+
+static int spdk_delete_portid(int id)
+{
+	struct portid		*portid;
+
+	portid = find_portid(id);
+	if (portid)
+		_delete_portid(portid);
+
+	return 0;
+}
+
+static int create_device(char *bdev_name, const char *traddr)
 {
 	int			 cnt;
 	struct nsdev		*device;
@@ -840,7 +840,7 @@ const struct spdk_json_object_decoder bdev_decoders[] = {
 	{"name", offsetof(struct bdev, name), my_decode_string, false},
 };
 
-int bdev_parse(const struct spdk_json_val *val, void *out)
+static int bdev_parse(const struct spdk_json_val *val, void *out)
 {
 	return my_decode_object(val, bdev_decoders,
 				NUM_ENTRIES(bdev_decoders), out);
@@ -875,7 +875,7 @@ out:
 	return rc;
 }
 
-int enumerate_devices(void)
+static int spdk_enumerate_devices(void)
 {
 	int			 rc;
 	int			 num_bdevs;
@@ -1153,7 +1153,7 @@ static int ns_parse(const struct spdk_json_val *val, void *out)
 	subsys = container_of(out, struct subsys, nsid);
 
 	for (i = 0; i < cnt; i++)
-		delete_ns(subsys->nqn, array[i].nsid);
+		spdk_delete_ns(subsys->nqn, array[i].nsid);
 out:
 	free(array);
 	return rc;
@@ -1165,7 +1165,7 @@ const struct spdk_json_object_decoder subsys_decoders[] = {
 	{"namespaces", offsetof(struct subsys, nsid), ns_parse, true},
 };
 
-int subsys_parse(const struct spdk_json_val *val, void *out)
+static int subsys_parse(const struct spdk_json_val *val, void *out)
 {
 	return my_decode_object(val, subsys_decoders,
 				NUM_ENTRIES(subsys_decoders), out);
@@ -1193,7 +1193,7 @@ static int _clear_subsys(void *out, const struct spdk_json_val *val)
 
 	for (i = 0; i < cnt; i++) {
 		if (!strcmp(array[i].subtype, "NVMe"))
-			delete_subsys(array[i].nqn);
+			spdk_delete_subsys(array[i].nqn);
 		free(array[i].nqn);
 		free(array[i].subtype);
 	}
@@ -1225,7 +1225,7 @@ static void clear_subsystems(void)
 		parse_err_resp();
 }
 
-void reset_config(void)
+static void spdk_reset_config(void)
 {
 	struct portid		*portid, *p;
 	struct subsystem	*subsys, *s;
@@ -1234,7 +1234,7 @@ void reset_config(void)
 		_delete_portid(portid);
 
 	list_for_each_entry_safe(subsys, s, &subsys_list, node)
-		delete_subsys(subsys->nqn);
+		spdk_delete_subsys(subsys->nqn);
 }
 
 static void reset_spdk_server(void)
@@ -1244,9 +1244,9 @@ static void reset_spdk_server(void)
 	clear_devices();
 }
 
-void stop_targets(void)
+static void spdk_stop_targets(void)
 {
-	reset_config();
+	spdk_reset_config();
 
 	del_null_device();
 	while (nvme_count)
@@ -1255,7 +1255,7 @@ void stop_targets(void)
 	spdk_jsonrpc_client_close(client);
 }
 
-int start_targets(void)
+static int spdk_start_targets(void)
 {
 	INIT_LINKED_LIST(&portid_list);
 	INIT_LINKED_LIST(&subsys_list);
@@ -1271,4 +1271,28 @@ int start_targets(void)
 	enumerate_nvme_devices();
 
 	return 0;
+}
+
+static struct ops spdk_ops = {
+	.delete_subsys			= spdk_delete_subsys,
+	.create_subsys			= spdk_create_subsys,
+	.create_ns			= spdk_create_ns,
+	.delete_ns			= spdk_delete_ns,
+	.create_host			= spdk_create_host,
+	.delete_host			= spdk_delete_host,
+	.create_portid			= spdk_create_portid,
+	.delete_portid			= spdk_delete_portid,
+	.link_host_to_subsys		= spdk_link_host_to_subsys,
+	.unlink_host_from_subsys	= spdk_unlink_host_from_subsys,
+	.link_port_to_subsys		= spdk_link_port_to_subsys,
+	.unlink_port_from_subsys	= spdk_unlink_port_from_subsys,
+	.enumerate_devices		= spdk_enumerate_devices,
+	.reset_config			= spdk_reset_config,
+	.start_targets			= spdk_start_targets,
+	.stop_targets			= spdk_stop_targets,
+};
+
+struct ops *spdk_register_ops(void)
+{
+	return &spdk_ops;
 }

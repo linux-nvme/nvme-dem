@@ -252,9 +252,11 @@ static inline int set_portid(void *data)
 
 	entry = (struct nvmf_port_config_entry *) data;
 
-	return create_portid(entry->portid, (char *) adrfam_str(entry->adrfam),
-			     (char *) trtype_str(entry->trtype), entry->treq,
-			     entry->traddr, atoi(entry->trsvcid));
+	return ops->create_portid(entry->portid,
+				  (char *) adrfam_str(entry->adrfam),
+				  (char *) trtype_str(entry->trtype),
+				  entry->treq, entry->traddr,
+				  atoi(entry->trsvcid));
 }
 
 static inline int del_portid(void *data)
@@ -267,7 +269,7 @@ static inline int del_portid(void *data)
 
 	entry = (struct nvmf_port_delete_entry *) data;
 
-	return delete_portid(entry->portid);
+	return ops->delete_portid(entry->portid);
 }
 
 static inline int set_subsys(void *data)
@@ -280,7 +282,7 @@ static inline int set_subsys(void *data)
 
 	entry = (struct nvmf_subsys_config_entry *) data;
 
-	return create_subsys(entry->subnqn, entry->allowanyhost);
+	return ops->create_subsys(entry->subnqn, entry->allowanyhost);
 }
 
 static inline int del_subsys(void *data)
@@ -293,7 +295,7 @@ static inline int del_subsys(void *data)
 
 	entry = (struct nvmf_subsys_delete_entry *) data;
 
-	return delete_subsys(entry->subnqn);
+	return ops->delete_subsys(entry->subnqn);
 }
 
 static inline int set_ns(void *data)
@@ -312,7 +314,8 @@ static inline int set_ns(void *data)
 	else
 		devid = entry->deviceid;
 
-	return create_ns(entry->subnqn, entry->nsid, devid, entry->devicensid);
+	return ops->create_ns(entry->subnqn, entry->nsid, devid,
+			      entry->devicensid);
 }
 
 static inline int del_ns(void *data)
@@ -325,7 +328,7 @@ static inline int del_ns(void *data)
 
 	entry = (struct nvmf_ns_delete_entry *) data;
 
-	return delete_ns(entry->subnqn, entry->nsid);
+	return ops->delete_ns(entry->subnqn, entry->nsid);
 }
 
 static inline int set_host(void *data)
@@ -338,7 +341,7 @@ static inline int set_host(void *data)
 
 	entry = (struct nvmf_host_config_entry *) data;
 
-	return create_host(entry->hostnqn);
+	return ops->create_host(entry->hostnqn);
 }
 
 static inline int del_host(void *data)
@@ -351,7 +354,7 @@ static inline int del_host(void *data)
 
 	entry = (struct nvmf_host_delete_entry *) data;
 
-	return delete_host(entry->hostnqn);
+	return ops->delete_host(entry->hostnqn);
 }
 
 static inline int link_portid(void *data)
@@ -364,7 +367,7 @@ static inline int link_portid(void *data)
 
 	entry = (struct nvmf_link_port_entry *) data;
 
-	return link_port_to_subsys(entry->subnqn, entry->portid);
+	return ops->link_port_to_subsys(entry->subnqn, entry->portid);
 }
 
 static inline int unlink_portid(void *data)
@@ -377,7 +380,7 @@ static inline int unlink_portid(void *data)
 
 	entry = (struct nvmf_link_port_entry *) data;
 
-	return unlink_port_from_subsys(entry->subnqn, entry->portid);
+	return ops->unlink_port_from_subsys(entry->subnqn, entry->portid);
 }
 
 static inline int link_host(void *data)
@@ -390,7 +393,7 @@ static inline int link_host(void *data)
 
 	entry = (struct nvmf_link_host_entry *) data;
 
-	return link_host_to_subsys(entry->subnqn, entry->hostnqn);
+	return ops->link_host_to_subsys(entry->subnqn, entry->hostnqn);
 }
 
 static inline int unlink_host(void *data)
@@ -403,7 +406,7 @@ static inline int unlink_host(void *data)
 
 	entry = (struct nvmf_link_host_entry *) data;
 
-	return unlink_host_from_subsys(entry->subnqn, entry->hostnqn);
+	return ops->unlink_host_from_subsys(entry->subnqn, entry->hostnqn);
 }
 
 static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
@@ -440,7 +443,7 @@ static int handle_reset_config(struct nvme_command *cmd)
 
 	switch (c->command_id) {
 	case nvmf_reset_config:
-		reset_config();
+		ops->reset_config();
 		ret = 0;
 		break;
 	default:

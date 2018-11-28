@@ -72,10 +72,14 @@ CLI_INC = ${INCL_DIR}/dem.h ${INCL_DIR}/curl.h ${CLI_DIR}/show.h \
 MG_DIR ?= mongoose
 
 if SPDK
-EM_CFG = ${EM_DIR}/spdk_config.c
+CFLAGS += -DCONFIG_SPDK
 EM_LIBS += -lspdk -lspdk_env_dpdk -ldpdk -ldl -lnuma -lpciaccess
-else
-EM_CFG = ${EM_DIR}/configfs.c
+EM_SPDK_CFG = ${EM_DIR}/spdk_config.c
+endif
+
+if CONFIGFS
+CFLAGS += -DCONFIG_CONFIGFS
+EM_CFGFS_CFG = ${EM_DIR}/configfs.c
 endif
 
 AC_SRC = ${AC_DIR}/daemon.c ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/rdma.c \
@@ -96,16 +100,16 @@ DEM_INC = ${INCL_DIR}/dem.h ${DEM_DIR}/json.h ${DEM_DIR}/common.h \
 	  mongoose/mongoose.h ${LINUX_INCL}
 
 EM_SRC = ${EM_DIR}/daemon.c ${EM_DIR}/restful.c ${EM_DIR}/etc_config.c \
-	 ${EM_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c ${EM_CFG} \
+	 ${EM_DIR}/pseudo_target.c ${COMMON_DIR}/rdma.c ${COMMON_DIR}/tcp.c \
 	 ${COMMON_DIR}/nvmeof.c ${COMMON_DIR}/parse.c ${MG_DIR}/mongoose.c \
-	 ${COMMON_DIR}/tcp.c
+	 ${EM_CFGFS_CFG} ${EM_SPDK_CFG}
+
 EM_INC = ${INCL_DIR}/dem.h ${EM_DIR}/common.h ${INCL_DIR}/tags.h \
 	 ${INCL_DIR}/ops.h mongoose/mongoose.h ${LINUX_INCL}
 
 all: ${BIN_DIR} mongoose/mongoose.h jansson/libjansson.a \
-     ${BIN_DIR}/${DEM_EXE} ${BIN_DIR}/${CLI_EXE} \
-      ${BIN_DIR}/${MON_EXE} ${BIN_DIR}/${AC_EXE} \
-      ${BIN_DIR}/${EM_EXE}
+     ${BIN_DIR}/${DEM_EXE} ${BIN_DIR}/${CLI_EXE} ${BIN_DIR}/${EM_EXE} \
+     ${BIN_DIR}/${MON_EXE} ${BIN_DIR}/${AC_EXE}
 
 	echo Done.
 

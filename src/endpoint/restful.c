@@ -246,7 +246,7 @@ static int post_portid(char *port, struct mg_str *body, char *resp)
 
 	svcid = json_integer_value(obj);
 
-	if (create_portid(portid, fam, typ, treq, addr, svcid))
+	if (ops->create_portid(portid, fam, typ, treq, addr, svcid))
 		goto err;
 
 	sprintf(resp, "Configured portid %d", portid);
@@ -295,7 +295,7 @@ static int post_subsys(char *subsys, struct mg_str *body, char *resp)
 	if (obj)
 		allowany = json_integer_value(obj) ? 1 : 0;
 
-	if (create_subsys(subsys, allowany))
+	if (ops->create_subsys(subsys, allowany))
 		goto err;
 
 	sprintf(resp, "Configured subsys %s", subsys);
@@ -357,7 +357,7 @@ static int post_ns(char *subsys, char *ns, struct mg_str *body, char *resp)
 	else
 		devnsid = 0;
 
-	if (create_ns(subsys, nsid, devid, devnsid))
+	if (ops->create_ns(subsys, nsid, devid, devnsid))
 		goto err;
 
 	sprintf(resp, "Configured nsid %d", nsid);
@@ -403,7 +403,7 @@ static int post_host(char *host, struct mg_str *body, char *resp)
 		host = (char *) json_string_value(obj);
 	}
 
-	if (create_host(host))
+	if (ops->create_host(host))
 		goto err;
 
 	sprintf(resp, "Configured host %s", host);
@@ -450,7 +450,7 @@ static int link_host(char *subsys, struct mg_str *body, char *resp)
 
 	host = (char *) json_string_value(obj);
 
-	ret = link_host_to_subsys(subsys, host);
+	ret = ops->link_host_to_subsys(subsys, host);
 	if (ret)
 		goto err;
 
@@ -496,7 +496,7 @@ static int link_portid(char *subsys, struct mg_str *body, char *resp)
 
 	portid = json_integer_value(obj);
 
-	ret = link_port_to_subsys(subsys, portid);
+	ret = ops->link_port_to_subsys(subsys, portid);
 	if (ret)
 		goto err;
 
@@ -569,7 +569,7 @@ static int del_portid(char *port, char *resp)
 {
 	int			 ret = 0;
 
-	ret = delete_portid(atoi(port));
+	ret = ops->delete_portid(atoi(port));
 	if (ret)
 		sprintf(resp, "Unable to delete portid %s", port);
 	else
@@ -582,7 +582,7 @@ static int del_subsys(char *subsys, char *resp)
 {
 	int			 ret = 0;
 
-	ret = delete_subsys(subsys);
+	ret = ops->delete_subsys(subsys);
 	if (ret)
 		sprintf(resp, "Unable to delete subsys %s", subsys);
 	else
@@ -595,7 +595,7 @@ static int del_ns(char *subsys, char *ns, char *resp)
 {
 	int			 ret = 0;
 
-	ret = delete_ns(subsys, atoi(ns));
+	ret = ops->delete_ns(subsys, atoi(ns));
 	if (ret)
 		sprintf(resp, "Unable to delete ns %s from subsys %s",
 			ns, subsys);
@@ -609,7 +609,7 @@ static int del_host(char *host, char *resp)
 {
 	int			 ret = 0;
 
-	ret = delete_host(host);
+	ret = ops->delete_host(host);
 	if (ret)
 		sprintf(resp, "Unable to delete host %s", host);
 	else
@@ -622,7 +622,7 @@ static int unlink_host(char *subsys, char *host, char *resp)
 {
 	int			 ret = 0;
 
-	ret = unlink_host_from_subsys(subsys, host);
+	ret = ops->unlink_host_from_subsys(subsys, host);
 	if (ret)
 		sprintf(resp, "Unable to delete host %s from subsys %s",
 			host, subsys);
@@ -637,7 +637,7 @@ static int unlink_portid(char *subsys, char *portid, char *resp)
 {
 	int			 ret = 0;
 
-	ret = unlink_port_from_subsys(subsys, atoi(portid));
+	ret = ops->unlink_port_from_subsys(subsys, atoi(portid));
 	if (ret)
 		sprintf(resp, "Unable to delete port %s from subsys %s",
 			portid, subsys);
@@ -652,7 +652,7 @@ static int delete_request(char *p[], int n, char *resp)
 	int			 ret = 0;
 
 	if (n == 1 && strcmp(p[0], URI_CONFIG) == 0) {
-		reset_config();
+		ops->reset_config();
 		strcpy(resp, "Target configuration deleted");
 	} else if (n == 2) {
 		if (strcmp(p[0], URI_SUBSYSTEM) == 0)

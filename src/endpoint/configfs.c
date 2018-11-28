@@ -109,11 +109,11 @@
 		}					\
 	} while (0)
 
-void stop_targets(void)
+static void cfgfs_stop_targets(void)
 {
 }
 
-int start_targets(void)
+static int cfgfs_start_targets(void)
 {
 	struct portid		*xport;
 	char			 cmd[32];
@@ -133,58 +133,6 @@ int start_targets(void)
 	}
 
 	return 0;
-}
-
-/* replace ~ with * in bash
- * # cd /sys/kernel/config/nvmet
- * # rm -f subsystems/~/hosts/~
- * # for i in subsystems/~/namespaces/~/enable ; do echo 0 > $i ; done
- * # rm -f ports/~/subsystems/~
- * # rmdir subsystems/~/namespaces/~
- * # rmdir subsystems/~
- * # rmdir ports/~
- * # rmdir hosts/~
- */
-void reset_config(void)
-{
-	char			 dir[MAXPATHLEN];
-	DIR			*subdir;
-	struct dirent		*entry;
-	int			 ret;
-
-	getcwd(dir, sizeof(dir));
-
-	ret = chdir(CFS_PATH);
-	if (ret)
-		goto out;
-
-	subdir = opendir(CFS_PATH CFS_SUBSYS);
-	if (!subdir)
-		goto ports;
-
-	for_each_dir(entry, subdir)
-		delete_subsys(entry->d_name);
-	closedir(subdir);
-
-ports:
-	subdir = opendir(CFS_PATH CFS_PORTS);
-	if (!subdir)
-		goto hosts;
-
-	for_each_dir(entry, subdir)
-		delete_portid(atoi(entry->d_name));
-	closedir(subdir);
-
-hosts:
-	subdir = opendir(CFS_PATH CFS_HOSTS);
-	if (!subdir)
-		goto out;
-
-	for_each_dir(entry, subdir)
-		delete_host(entry->d_name);
-	closedir(subdir);
-out:
-	chdir(dir);
 }
 
 static void delete_all_allowed_hosts(void)
@@ -262,7 +210,7 @@ static void unlink_all_ports(char *subsys)
  * # rm ../ports/~/subsystems/${SUBSYSTEM}
  * # rmdir ${SUBSYSTEM}
  */
-int delete_subsys(char *subsys)
+static int cfgfs_delete_subsys(char *subsys)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -292,7 +240,7 @@ int delete_subsys(char *subsys)
  * # [ -e ${SUBSYSTEM} ] || mkdir ${SUBSYSTEM}
  * # echo -n 1 > ${SUBSYSTEM}/attr_allow_any_host
  */
-int create_subsys(char *subsys, int allowany)
+static int cfgfs_create_subsys(char *subsys, int allowany)
 {
 	char			 dir[MAXPATHLEN];
 	FILE			*fd;
@@ -328,7 +276,7 @@ out:
  * # echo -n ${DEV} > ${SUBSYSTEM}/namespaces/${NSID}/device_path
  * # echo -n 1 > ${SUBSYSTEM}/namespaces/${NSID}/enable
  */
-int create_ns(char *subsys, int nsid, int devid, int devnsid)
+static int cfgfs_create_ns(char *subsys, int nsid, int devid, int devnsid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -372,7 +320,7 @@ out:
  * # echo -n 0 > ${SUBSYSTEM}/namespaces/${NSID}/enable
  * # rmdir ${SUBSYSTEM}/namespaces/${NSID}
  */
-int delete_ns(char *subsys, int nsid)
+static int cfgfs_delete_ns(char *subsys, int nsid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -403,7 +351,7 @@ out:
  * # cd /sys/kernel/config/nvmet/hosts
  * # mkdir ${HOSTNQN}
  */
-int create_host(char *host)
+static int cfgfs_create_host(char *host)
 {
 	char			 dir[MAXPATHLEN];
 	int			 ret;
@@ -425,7 +373,7 @@ int create_host(char *host)
  * # cd /sys/kernel/config/nvmet/hosts
  * # rmdir ${HOSTNQN}
  */
-int delete_host(char *host)
+static int cfgfs_delete_host(char *host)
 {
 	char			 dir[MAXPATHLEN];
 	int			 ret;
@@ -451,8 +399,8 @@ int delete_host(char *host)
  * # echo -n ${TARGET} > ${NVME_PORT}/addr_traddr
  * # echo -n ${PORT} > ${NVME_PORT}/addr_trsvcid
  */
-int create_portid(int portid, char *fam, char *typ, int req, char *addr,
-		  int svcid)
+static int cfgfs_create_portid(int portid, char *fam, char *typ, int req,
+			       char *addr, int svcid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 str[8];
@@ -532,7 +480,7 @@ out:
  * # rm -f ${NVME_PORT}/subsystems/~
  * # rmdir ${NVME_PORT}
  */
-int delete_portid(int portid)
+static int cfgfs_delete_portid(int portid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -570,7 +518,7 @@ out:
  * # cd /sys/kernel/config/nvmet/subsystems/
  * # ln -s ../../hosts/${HOSTNQN} ${SUBSYSTEM}/hosts/${HOSTNQN}
  */
-int link_host_to_subsys(char *subsys, char *host)
+static int cfgfs_link_host_to_subsys(char *subsys, char *host)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -598,7 +546,7 @@ int link_host_to_subsys(char *subsys, char *host)
  * # cd /sys/kernel/config/nvmet/subsystems
  * # rm ${SUBSYSTEM}/hosts/{HOSTNQN}
  */
-int unlink_host_from_subsys(char *subsys, char *host)
+static int cfgfs_unlink_host_from_subsys(char *subsys, char *host)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -623,7 +571,7 @@ int unlink_host_from_subsys(char *subsys, char *host)
  * # cd /sys/kernel/config/nvmet/ports
  * # ln -s ../subsystems/${SUBSYSTEM} ${NVME_PORT}/subsystems/${SUBSYSTEM}
  */
-int link_port_to_subsys(char *subsys, int portid)
+static int cfgfs_link_port_to_subsys(char *subsys, int portid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -651,7 +599,7 @@ int link_port_to_subsys(char *subsys, int portid)
  * # cd /sys/kernel/config/nvmet/ports
  * # rm ${NVME_PORT}/subsystems/${SUBSYSTEM}
  */
-int unlink_port_from_subsys(char *subsys, int portid)
+static int cfgfs_unlink_port_from_subsys(char *subsys, int portid)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -672,7 +620,59 @@ int unlink_port_from_subsys(char *subsys, int portid)
 	return ret;
 }
 
-int create_device(char *name)
+/* replace ~ with * in bash
+ * # cd /sys/kernel/config/nvmet
+ * # rm -f subsystems/~/hosts/~
+ * # for i in subsystems/~/namespaces/~/enable ; do echo 0 > $i ; done
+ * # rm -f ports/~/subsystems/~
+ * # rmdir subsystems/~/namespaces/~
+ * # rmdir subsystems/~
+ * # rmdir ports/~
+ * # rmdir hosts/~
+ */
+static void cfgfs_reset_config(void)
+{
+	char			 dir[MAXPATHLEN];
+	DIR			*subdir;
+	struct dirent		*entry;
+	int			 ret;
+
+	getcwd(dir, sizeof(dir));
+
+	ret = chdir(CFS_PATH);
+	if (ret)
+		goto out;
+
+	subdir = opendir(CFS_PATH CFS_SUBSYS);
+	if (!subdir)
+		goto ports;
+
+	for_each_dir(entry, subdir)
+		cfgfs_delete_subsys(entry->d_name);
+	closedir(subdir);
+
+ports:
+	subdir = opendir(CFS_PATH CFS_PORTS);
+	if (!subdir)
+		goto hosts;
+
+	for_each_dir(entry, subdir)
+		cfgfs_delete_portid(atoi(entry->d_name));
+	closedir(subdir);
+
+hosts:
+	subdir = opendir(CFS_PATH CFS_HOSTS);
+	if (!subdir)
+		goto out;
+
+	for_each_dir(entry, subdir)
+		cfgfs_delete_host(entry->d_name);
+	closedir(subdir);
+out:
+	chdir(dir);
+}
+
+static int create_device(char *name)
 {
 	struct nsdev		*device;
 
@@ -697,7 +697,7 @@ int create_device(char *name)
 	return 0;
 }
 
-int enumerate_devices(void)
+static int cfgfs_enumerate_devices(void)
 {
 	char			 dir[MAXPATHLEN];
 	char			 path[MAXPATHLEN];
@@ -759,4 +759,28 @@ null_blk:
 out:
 	chdir(dir);
 	return cnt;
+}
+
+static struct ops cfgfs_ops = {
+	.delete_subsys			= cfgfs_delete_subsys,
+	.create_subsys			= cfgfs_create_subsys,
+	.create_ns			= cfgfs_create_ns,
+	.delete_ns			= cfgfs_delete_ns,
+	.create_host			= cfgfs_create_host,
+	.delete_host			= cfgfs_delete_host,
+	.create_portid			= cfgfs_create_portid,
+	.delete_portid			= cfgfs_delete_portid,
+	.link_host_to_subsys		= cfgfs_link_host_to_subsys,
+	.unlink_host_from_subsys	= cfgfs_unlink_host_from_subsys,
+	.link_port_to_subsys		= cfgfs_link_port_to_subsys,
+	.unlink_port_from_subsys	= cfgfs_unlink_port_from_subsys,
+	.enumerate_devices		= cfgfs_enumerate_devices,
+	.reset_config			= cfgfs_reset_config,
+	.start_targets			= cfgfs_start_targets,
+	.stop_targets			= cfgfs_stop_targets,
+};
+
+struct ops *cfgfs_register_ops(void)
+{
+	return &cfgfs_ops;
 }

@@ -155,6 +155,36 @@ struct target {
 	int			 kato_countdown;
 };
 
+struct ops {
+	int (*delete_subsys)(char *subsys);
+	int (*create_subsys)(char *subsys, int allowany);
+	int (*create_ns)(char *subsys, int nsid, int devid, int devnsid);
+	int (*delete_ns)(char *subsys, int nsid);
+	int (*create_host)(char *host);
+	int (*delete_host)(char *host);
+	int (*create_portid)(int portid, char *fam, char *typ, int req,
+			     char *addr, int svcid);
+	int (*delete_portid)(int portid);
+	int (*link_host_to_subsys)(char *subsys, char *host);
+	int (*unlink_host_from_subsys)(char *subsys, char *host);
+	int (*link_port_to_subsys)(char *subsys, int portid);
+	int (*unlink_port_from_subsys)(char *subsys, int portid);
+	int (*enumerate_devices)(void);
+	void (*reset_config)(void);
+	int (*start_targets)(void);
+	void (*stop_targets)(void);
+};
+
+extern struct ops *ops;
+
+#ifdef CONFIG_CONFIGFS
+struct ops *cfgfs_register_ops(void);
+#endif
+
+#ifdef CONFIG_SPDK
+struct ops *spdk_register_ops(void);
+#endif
+
 struct mg_connection;
 
 void shutdown_dem(void);
@@ -163,23 +193,6 @@ void handle_http_request(struct mg_connection *c, void *ev_data);
 void *interface_thread(void *arg);
 int start_pseudo_target(struct host_iface *iface);
 int run_pseudo_target(struct endpoint *ep, void *id);
-
-void stop_targets(void);
-int start_targets(void);
-void reset_config(void);
-int create_subsys(char *subsys, int allowany);
-int delete_subsys(char *subsys);
-int create_ns(char *subsys, int nsid, int devid, int devnsid);
-int delete_ns(char *subsys, int nsid);
-int create_host(char *host);
-int delete_host(char *host);
-int create_portid(int portid, char *fam, char *typ, int req, char *addr,
-		  int svcid);
-int delete_portid(int portid);
-int link_host_to_subsys(char *subsys, char *host);
-int unlink_host_from_subsys(char *subsys, char *host);
-int link_port_to_subsys(char *subsys, int portid);
-int unlink_port_from_subsys(char *subsys, int portid);
 
 int enumerate_devices(void);
 int enumerate_interfaces(void);

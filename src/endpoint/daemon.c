@@ -45,6 +45,9 @@
 
 #define DEFAULT_HTTP_ROOT	"/"
 
+#define METHOD_CONFIGFS		"configfs"
+#define METHOD_SPDK		"spdk"
+
 static LINKED_LIST(device_linked_list);
 static LINKED_LIST(interface_linked_list);
 
@@ -57,6 +60,8 @@ struct linked_list			*devices = &device_linked_list;
 struct linked_list			*interfaces = &interface_linked_list;
 static struct host_iface		 host_iface;
 static char				*g_default_oob_port = "22334";
+struct ops				*ops;
+
 void shutdown_dem(void)
 {
 	stopped = 1;
@@ -145,12 +150,17 @@ static void show_help(char *app)
 #else
 	const char		*arg_list = "{-d} {-S}";
 #endif
+#if defined(CONFIG_CONFIGFS) && defined(CONFIG_SPDK)
+	const char		*alt_list = "{-m <method>}";
+#else
+	const char		*alt_list = "";
+#endif
 	const char		*oob_args =
 		"{-p <port>} {-r <root>} {-c <cert_file>}";
 	const char		*inb_args =
 		"{-t <trtype>} {-f <adrfam>} {-a <traddr>} {-s <trsvcid>}";
 
-	print_info("Usage: %s %s", app, arg_list);
+	print_info("Usage: %s %s %s", app, arg_list, alt_list);
 	print_info(" FOR Out-of-Band (HTTP) -- %s", oob_args);
 	print_info(" FOR In-Band (SC) -- %s", inb_args);
 
@@ -161,7 +171,10 @@ static void show_help(char *app)
 	print_info("  -d - enable debug prints in log files");
 	print_info("  -S - run as a standalone process (default is daemon)");
 #endif
-
+#if defined(CONFIG_CONFIGFS) && defined(CONFIG_SPDK)
+	print_info("  -m - management method [ %s ] (default is configfs)",
+		   METHOD_CONFIGFS valid_delim METHOD_SPDK);
+#endif
 	print_info("  Out-of-Band (RESTful) interface:");
 	print_info("  -p - port");
 	print_info("  -r - http root (default %s)", DEFAULT_HTTP_ROOT);
@@ -230,15 +243,21 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 	int			 inb_test;
 	int			 run_as_daemon;
 #ifdef CONFIG_DEBUG
-	const char		*opt_list = "?qdp:r:c:t:f:a:s:";
+	const char		*opt_list = "?qdp:r:c:t:f:a:s:m:";
 #else
-	const char		*opt_list = "?dSp:r:c:t:f:a:s:";
+	const char		*opt_list = "?dSp:r:c:t:f:a:s:m:";
 #endif
-
-	*ssl_cert = NULL;
 
 	if (argc > 1 && strcmp(argv[1], "--help") == 0)
 		goto help;
+
+	*ssl_cert = NULL;
+
+#ifdef CONFIG_CONFIGFS
+	ops = cfgfs_register_ops();
+#else
+	ops = spdk_register_ops();
+#endif
 
 #ifdef CONFIG_DEBUG
 	debug = 1;
@@ -263,6 +282,17 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 			break;
 		case 'S':
 			run_as_daemon = 0;
+			break;
+#endif
+#if defined(CONFIG_CONFIGFS) && defined(CONFIG_SPDK)
+		case 'm':
+			if (!strcmp(optarg, METHOD_SPDK))
+				ops = spdk_register_ops();
+			else if (strcmp(optarg, METHOD_CONFIGFS)) {
+				print_info("invalid management method '%s'",
+					   optarg);
+				goto help;
+			}
 			break;
 #endif
 		case 'r':
@@ -442,10 +472,10 @@ int main(int argc, char *argv[])
 		goto out1;
 	}
 
-	if (start_targets())
+	if (ops->start_targets())
 		goto out2;
 
-	if (enumerate_devices() <= 0) {
+	if (ops->enumerate_devices() <= 0) {
 		print_info("no nvme devices found");
 		goto out3;
 	}
@@ -467,7 +497,7 @@ int main(int argc, char *argv[])
 out4:
 	free_devices();
 out3:
-	stop_targets();
+	ops->stop_targets();
 out2:
 	free_interfaces();
 out1:
