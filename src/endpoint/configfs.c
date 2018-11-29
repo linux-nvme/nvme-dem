@@ -457,11 +457,9 @@ static int cfgfs_create_portid(int portid, char *fam, char *typ, int req,
 	} else if (req == NVMF_TREQ_NOT_REQUIRED) {
 		if (strcmp(val, NOT_REQUIRED))
 			goto out;
-#if 0 // TODO REVIEW THIS
 	} else {
 		if (strcmp(val, NOT_SPECIFIED))
 			goto out;
-#endif
 	}
 
 	snprintf(str, sizeof(str) - 1, "%d", svcid);
