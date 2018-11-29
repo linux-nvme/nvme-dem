@@ -48,8 +48,6 @@
 
 #define NVME_VER ((1 << 16) | (2 << 8) | 1) /* NVMe 1.2.1 */
 
-#define DEBUG_COMMANDS // TODO comment this out
-
 struct host_conn {
 	struct linked_list	 node;
 	struct endpoint		*ep;

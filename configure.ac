@@ -20,6 +20,15 @@ AC_ARG_ENABLE(debug,
    esac],[debug=false])
 AM_CONDITIONAL(DEBUG, test x$debug = xtrue)
 
+AC_ARG_ENABLE(nvmeof-tracing,
+  AS_HELP_STRING([--enable-nvmeof-tracing],[Turn on tracing nvme-of commands]),
+  [case "${enableval}" in
+     yes) nvmeof_tracing=true ;;
+     no)  nvmeof_tracing=false ;;
+     *) AC_MSG_ERROR(bad value ${enableval} for --enable-nvmeof-tracing) ;;
+   esac],[nvmeof_tracing=false])
+AM_CONDITIONAL(NVMEOF_TRACING, test x$nvmeof_tracing = xtrue)
+
 AC_ARG_ENABLE(extra-security-cflags,
   AS_HELP_STRING([--enable-extra-security-cflags],
 		 [Turn on extra_security_cflags]),

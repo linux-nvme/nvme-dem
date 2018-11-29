@@ -20,6 +20,10 @@ AC_DIR=src/auto_connect
 
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
+if NVMEOF_TRACING
+DEM_CFLAGS += -DDEBUG_COMMANDS
+endif
+
 GCC = ${KWWRAP}gcc
 CFLAGS = -W -Wall -Wno-unused-function
 CFLAGS += -Imongoose -Ijansson/src -I${INCL_DIR}
