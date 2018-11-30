@@ -86,12 +86,17 @@ static inline int msec_delta(struct timeval t0)
 #define UUID_PARTS		6
 #define UUID_FORMAT		"%08X-%04X-%04X-%04X-%08X%04X"
 
+#define U32_MASK		0xFFFFFFFF
+#define U16_MASK		0XFFFF
+#define U14_MASK		0X3FFF
+#define U12_MASK		0x0FFF
+
 static inline void gen_uuid(char *uuid)
 {
 	struct timespec		 t;
 	u32			 p[UUID_PARTS];
 	u32			 mask[UUID_PARTS] = {
-		0xFFFFFFFF, 0xFFFF, 0x0FFF, 0x3FFF, 0xFFFFFFFF, 0xFFFF };
+		U32_MASK, U16_MASK, U12_MASK, U14_MASK, U32_MASK, U16_MASK };
 	int			 i;
 
 	clock_gettime(CLOCK_REALTIME, &t);
@@ -105,7 +110,8 @@ static inline void gen_uuid(char *uuid)
 	p[3] |= 0x8000;
 
 	snprintf(uuid, UUID_LEN + 1, UUID_FORMAT,
-		 p[0], p[1], p[2], p[3], p[4], p[5]);
+		 U32_MASK & p[0], U16_MASK & p[1], U16_MASK & p[2],
+		 U16_MASK & p[3], U32_MASK & p[4], U16_MASK & p[5]);
 }
 
 #define PATH_NVME_FABRICS	"/dev/nvme-fabrics"

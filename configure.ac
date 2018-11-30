@@ -65,4 +65,14 @@ AS_IF(test x$with_spdk = xyes, [
 AS_IF(test x$with_configfs = xyes, [], AS_IF(test x$with_spdk = xyes, [],
   [AC_MSG_ERROR(Must provide --with-configfs and/or --with-spdk)]))
 
+AC_MSG_CHECKING([On CI Server])
+AC_LANG_WERROR
+AC_COMPILE_IFELSE([
+  AC_LANG_PROGRAM([[#include <stdio.h>]],
+		  [[freopen("/dev/null", "w+", stdout); ]])],
+  [AC_MSG_RESULT([no])],
+  [AC_MSG_RESULT([yes])
+   ci_server="yes"])
+AM_CONDITIONAL(CI_SERVER, test x$ci_server = xyes)
+
 AC_OUTPUT

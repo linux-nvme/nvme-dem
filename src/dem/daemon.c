@@ -580,6 +580,7 @@ static void set_signature(void)
 
 	strcpy(buf, "Basic ");
 	fgets(buf + 6, sizeof(buf) - 7, fd);
+
 	len = strlen(buf);
 
 	if (unlikely(!len))

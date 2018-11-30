@@ -45,7 +45,7 @@
 #define NVME_CTRL_ENABLE	0x460001
 #define NVME_CTRL_DISABLE	0x464001
 
-#define NVME_DISC_KATO		360000 /* ms = minutes */
+#define NVME_DISC_KATO_MS	(u16) 360000
 #define RETRY_COUNT		5
 #define MSG_TIMEOUT		100
 #define CONFIG_TIMEOUT		50
@@ -276,7 +276,7 @@ static int send_fabric_connect(struct ctrl_queue *ctrl)
 	cmd->connect.sqsize	= htole16(NVMF_DQ_DEPTH);
 
 	if (!ctrl->failed_kato)
-		cmd->connect.kato = htole16(NVME_DISC_KATO);
+		cmd->connect.kato = htole16(NVME_DISC_KATO_MS);
 
 	data->cntlid = htole16(NVME_CNTLID_DYNAMIC);
 	strncpy(data->subsysnqn, NVME_DISC_SUBSYS_NAME, NVMF_NQN_SIZE);

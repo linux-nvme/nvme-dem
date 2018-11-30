@@ -640,20 +640,19 @@ static int tcp_poll_for_msg(struct xp_ep *_ep, struct xp_qe **_qe,
 	}
 
 	msg_len = hdr.hlen - sizeof(hdr);
+	if (msg_len <= 0)
+		return msg_len;
 
-	if (msg_len > 0) {
-		if (posix_memalign(&msg, PAGE_SIZE, msg_len))
-			return -ENOMEM;
+	if (posix_memalign(&msg, PAGE_SIZE, msg_len))
+		return -ENOMEM;
 
-		len = read(ep->sockfd, msg, msg_len);
-		if (len == 0)
-			return -EAGAIN;
-		if (len < 0)
-			return -errno;
-	}
-
-	*bytes = msg_len;
+	len = read(ep->sockfd, msg, msg_len);
+	if (len == 0)
+		return -EAGAIN;
+	if (len < 0)
+		return -errno;
 	*_msg = msg;
+	*bytes = msg_len;
 
 	return 0;
 }

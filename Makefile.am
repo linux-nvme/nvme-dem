@@ -49,6 +49,10 @@ endif
 
 endif
 
+if CI_SERVER
+CFLAGS += -Wno-unused-result
+endif
+
 # ALT_CFLAGS used for sparse since mongoose has too many errors
 # a modified version of mongoose.h can be created and stored in /files
 # for sparse testing but is not valid for executable
@@ -162,7 +166,7 @@ install: must_be_root
 	[ -L /bin/dem ] || cp ${BIN_DIR}/* /bin
 	[ -e /etc/nvme/nvmeof-dem ] || mkdir -p /etc/nvme/nvmeof-dem
 	cp usr/nvmeof.conf /etc/nvme
-	cp usr/nvmeof /usr/libexec/
+	[ -d /usr/libexec ] && cp usr/nvmeof /usr/libexec/
 	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
 	cp usr/bash_completion.d/* /etc/bash_completion.d/
 	cp usr/man/*.1 /usr/share/man/man1/
