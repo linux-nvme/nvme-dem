@@ -808,7 +808,7 @@ static int build_port_delete_inb(struct portid *portid,
 		return 0;
 	}
 
-	entry->portid = portid->port_num;
+	entry->portid = portid->portid;
 
 	*_entry = entry;
 
