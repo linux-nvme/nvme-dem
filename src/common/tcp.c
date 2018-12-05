@@ -635,7 +635,6 @@ static int tcp_poll_for_msg(struct xp_ep *_ep, struct xp_qe **_qe,
 
 	len = read(ep->sockfd, &hdr, sizeof(hdr));
 	if (len != sizeof(hdr)) {
-		print_err("read header returned %d", errno);
 		return (len < 0) ? -errno : -ENODATA;
 	}
 
