@@ -247,6 +247,10 @@ static int tcp_accept_connection(struct xp_ep *_ep)
 			ret = -ENODATA;
 			goto err2;
 		}
+		if (init_req->hpda != 0) {
+			ret = -EPROTO;
+			goto err2;
+		}
 	}
 
 	if (posix_memalign((void **) &init_rep, PAGE_SIZE,
@@ -393,10 +397,8 @@ static int tcp_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 	}
 
 	ret = connect(ep->sockfd, (struct sockaddr *) dst, sizeof(*dst));
-	if (ret != 0) {
-		print_err("connect returned %d", errno);
+	if (ret != 0)
 		return -errno;
-	}
 
 	conn = (struct nvme_tcp_icreq_pdu *) data;
 
@@ -692,12 +694,14 @@ static int tcp_build_connect_data(void **req, char *hostnqn)
 		return -errno;
 
 	connect->c_hdr.pdu_type = NVME_TCP_ICREQ;
-	connect->c_hdr.hlen = sizeof(struct nvme_tcp_icreq_pdu);
-	connect->c_hdr.plen = sizeof(*connect);
+	connect->c_hdr.hlen = sizeof(*connect);
+	connect->c_hdr.pdo = 0;
+	connect->c_hdr.plen = htole32(sizeof(*connect));
 
 	connect->pfv = htole16(NVME_TCP_CONNECT_FMT_1_0);
-	connect->maxr2t = htole16(NVME_TCP_SINGLE_INFLIGHT_READY_TO_XMIT);
+	connect->maxr2t = 0;
 	connect->dgst = 0;
+	connect->hpda = 0;
 
 	*req = connect;
 
