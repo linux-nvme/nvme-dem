@@ -539,7 +539,7 @@ static int rdma_wait_for_connection(struct xp_pep *_pep, void **_id)
 	return 0;
 }
 
-static void route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
+static int route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 			   void *data, int bytes)
 {
 	struct rdma_conn_param	 params = { NULL };
@@ -554,19 +554,32 @@ static void route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 	params.private_data_len	= bytes;
 
 	ret = _rdma_create_ep(ep);
-	if (ret)
+	if (ret) {
 		print_errno("_rdma_create_ep failed", ret);
-	else if (rdma_connect(id, &params))
+		goto out;
+	}
+
+	params.qp_num		= id->qp->qp_num;
+
+	if (rdma_connect(id, &params)) {
 		print_errno("rdma_connect failed", errno);
+		ret = -errno;
+	}
+out:
+	return ret;
 }
 
-static void addr_resolved(struct rdma_cm_id *id)
+static int addr_resolved(struct rdma_cm_id *id)
 {
 	int			 ret;
 
 	ret = rdma_resolve_route(id, RESOLVE_TIMEOUT);
-	if (ret)
+	if (ret) {
 		print_errno("rdma_resolve_route failed", errno);
+		ret = -errno;
+	}
+
+	return ret;
 }
 
 static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
@@ -575,6 +588,7 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 	struct rdma_cm_event	*event = NULL;
 	enum rdma_cm_event_type	 ev;
+	int			 ret;
 
 	if (rdma_resolve_addr(ep->id, NULL, dst, RESOLVE_TIMEOUT))
 		return -EADDRNOTAVAIL;
@@ -597,10 +611,14 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 		rdma_ack_cm_event(event);
 		switch (ev) {
 		case RDMA_CM_EVENT_ADDR_RESOLVED:
-			addr_resolved(ep->id);
+			ret = addr_resolved(ep->id);
+			if (ret)
+				return ret;
 			continue;
 		case RDMA_CM_EVENT_ROUTE_RESOLVED:
-			route_resolved(ep, ep->id, data, len);
+			ret = route_resolved(ep, ep->id, data, len);
+			if (ret)
+				return ret;
 			continue;
 		case RDMA_CM_EVENT_ESTABLISHED:
 			if (rdma_create_queue_recv_pool(ep))
