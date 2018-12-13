@@ -2139,6 +2139,9 @@ int set_portid(char *alias, int id, char *data, char *resp)
 	if (ret)
 		goto out;
 
+	if (id == 0)
+		id = _portid.portid;
+
 	target = find_target(alias);
 	if (!target) {
 		ret = -ENOENT;
