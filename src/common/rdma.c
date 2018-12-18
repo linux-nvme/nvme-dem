@@ -63,6 +63,7 @@ struct rdma_ep {
 	struct rdma_event_channel *ec;
 	struct rdma_cm_id	*id;
 	struct rdma_qe		*qe;
+	bool			 initiator;
 	__u8			 state;
 	__u64			 depth;
 };
@@ -230,6 +231,7 @@ static int rdma_init_endpoint(struct xp_ep **_ep, int depth)
 	ep->id = id;
 	ep->ec = ec;
 	ep->depth = depth;
+	ep->initiator = true;
 
 	return 0;
 err2:
@@ -294,6 +296,8 @@ err1:
 	return -errno;
 }
 
+#define max(a,b) (((a) > (b)) ? (a) : (b))
+
 static int rdma_create_queue_pairs(struct rdma_ep *ep)
 {
 	struct ibv_qp_init_attr	 qp_attr = { NULL };
@@ -303,10 +307,22 @@ static int rdma_create_queue_pairs(struct rdma_ep *ep)
 	qp_attr.recv_cq = ep->rcq;
 	qp_attr.qp_type = IBV_QPT_RC;
 
-	qp_attr.cap.max_send_wr = send_wr_factor * ep->depth + 1;
 	qp_attr.cap.max_recv_wr = ep->depth + 1;
-	qp_attr.cap.max_send_sge = 2;
 	qp_attr.cap.max_recv_sge = 1;
+
+	if (ep->initiator) {
+		qp_attr.cap.max_send_wr = send_wr_factor * ep->depth + 1;
+		qp_attr.cap.max_send_sge = 2;
+	} else {
+		struct ibv_device_attr dev_attr;
+
+		if (ibv_query_device(ep->id->pd->context, &dev_attr))
+			return -errno;
+
+		qp_attr.cap.max_send_wr = ep->depth + 1;
+		qp_attr.cap.max_send_sge = max(dev_attr.max_sge_rd,
+					       dev_attr.max_sge);
+	}
 
 	if (rdma_create_qp(ep->id, ep->pd, &qp_attr))
 		return -errno;
@@ -543,15 +559,8 @@ static int route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 			   void *data, int bytes)
 {
 	struct rdma_conn_param	 params = { NULL };
+	struct ibv_device_attr	 attr;
 	int			 ret;
-
-	params.responder_resources = ep->depth + 1;
-	params.flow_control	= 1;
-	params.retry_count	= 7;
-	params.rnr_retry_count	= 7;
-
-	params.private_data	= data;
-	params.private_data_len	= bytes;
 
 	ret = _rdma_create_ep(ep);
 	if (ret) {
@@ -559,7 +568,20 @@ static int route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 		goto out;
 	}
 
+	ret = ibv_query_device(id->verbs, &attr);
+	if (ret) {
+		print_errno("ibv_query_device failed", ret);
+		goto out;
+	}
+
 	params.qp_num		= id->qp->qp_num;
+	params.responder_resources = attr.max_qp_rd_atom;
+	params.flow_control	= 1;
+	params.retry_count	= 7;
+	params.rnr_retry_count	= 7;
+
+	params.private_data	= data;
+	params.private_data_len	= bytes;
 
 	if (rdma_connect(id, &params)) {
 		print_errno("rdma_connect failed", errno);
