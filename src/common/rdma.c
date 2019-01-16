@@ -310,7 +310,7 @@ static int rdma_create_queue_pairs(struct rdma_ep *ep)
 	qp_attr.cap.max_recv_wr = ep->depth + 1;
 	qp_attr.cap.max_recv_sge = 1;
 
-	if (ep->initiator || send_wr_factor == 3) {
+	if (ep->initiator) {
 		qp_attr.cap.max_send_wr = send_wr_factor * ep->depth + 1;
 		qp_attr.cap.max_send_sge = 2;
 	} else {
