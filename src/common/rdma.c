@@ -49,6 +49,7 @@
 #define BACKLOG			16
 #define RESOLVE_TIMEOUT		5000
 #define EVENT_TIMEOUT		200
+#define ABSURD_MAX_WRS		8192
 
 struct rdma_qe {
 	struct ibv_mr		*recv_mr;
@@ -105,8 +106,6 @@ static struct {
 	{ IBV_WC_RESP_TIMEOUT_ERR,	"IBV_WC_RESP_TIMEOUT_ERR" },
 	{ IBV_WC_GENERAL_ERR,		"IBV_WC_GENERAL_ERR" },
 };
-
-#define max(a,b) (((a) > (b)) ? (a) : (b))
 
 static inline char *wc_str_status(u16 _status)
 {
@@ -233,7 +232,6 @@ static int rdma_init_endpoint(struct xp_ep **_ep, int depth)
 	ep->id = id;
 	ep->ec = ec;
 	ep->depth = depth;
-	ep->initiator = true;
 
 	return 0;
 err2:
@@ -301,7 +299,11 @@ err1:
 static int rdma_create_queue_pairs(struct rdma_ep *ep)
 {
 	struct ibv_qp_init_attr	 qp_attr = { NULL };
-	const int		 send_wr_factor = 3;	/* MR, SEND, INV */
+	struct ibv_device_attr	 dev_attr;
+	const int		 send_wr_factor = 3; /* MR, SEND, INV */
+
+	if (ibv_query_device(ep->id->pd->context, &dev_attr))
+		return -errno;
 
 	qp_attr.send_cq = ep->scq;
 	qp_attr.recv_cq = ep->rcq;
@@ -310,22 +312,11 @@ static int rdma_create_queue_pairs(struct rdma_ep *ep)
 	qp_attr.cap.max_recv_wr = ep->depth + 1;
 	qp_attr.cap.max_recv_sge = 1;
 
-	if (ep->initiator) {
+	qp_attr.cap.max_send_sge = min(dev_attr.max_sge_rd, dev_attr.max_sge);
+	if (dev_attr.max_qp_wr > ABSURD_MAX_WRS)
 		qp_attr.cap.max_send_wr = send_wr_factor * ep->depth + 1;
-		qp_attr.cap.max_send_sge = 2;
-	} else {
-		struct ibv_device_attr dev_attr;
-
-		if (ibv_query_device(ep->id->pd->context, &dev_attr))
-			return -errno;
-
-		qp_attr.cap.max_send_wr = ep->depth + 1;
-		qp_attr.cap.max_send_sge = max(dev_attr.max_sge_rd,
-					       dev_attr.max_sge);
-	}
-
-	printf("max_send_wr %u max_send_sge %u\n",
-		qp_attr.cap.max_send_wr, qp_attr.cap.max_send_sge);
+	else
+		qp_attr.cap.max_send_wr = dev_attr.max_qp_wr;
 
 	if (rdma_create_qp(ep->id, ep->pd, &qp_attr))
 		return -errno;
@@ -484,8 +475,25 @@ static int rdma_accept_connection(struct xp_ep *_ep)
 {
 	struct rdma_ep		*ep = (struct rdma_ep *) _ep;
 	struct rdma_conn_param	 params = { NULL };
+	struct ibv_device_attr	 attr;
+	int			 ret;
 
-	params.initiator_depth	= ep->depth;
+	ret = ibv_query_device(ep->id->verbs, &attr);
+	if (ret) {
+		print_errno("ibv_query_device failed", ret);
+		return -ret;
+	}
+
+	params.initiator_depth = ep->id->event->param.conn.responder_resources;
+	params.responder_resources = ep->id->event->param.conn.initiator_depth;
+
+	if (!params.initiator_depth)
+		params.initiator_depth = ep->depth;
+
+printf("%s(%d) initiator_depth %d responder_resources %d\n", __func__, __LINE__, params.initiator_depth, params.responder_resources);
+	rdma_ack_cm_event(ep->id->event);
+	ep->id->event = NULL;
+
 	params.flow_control	= 1;
 	params.retry_count	= 15;
 	params.rnr_retry_count	= 7;
@@ -544,16 +552,19 @@ static int rdma_wait_for_connection(struct xp_pep *_pep, void **_id)
 	id = event->id;
 	ev = event->event;
 
-	rdma_ack_cm_event(event);
-
 	if (ev == RDMA_CM_EVENT_ESTABLISHED ||
-	    ev == RDMA_CM_EVENT_DISCONNECTED)
+	    ev == RDMA_CM_EVENT_DISCONNECTED) {
+		rdma_ack_cm_event(event);
 		return -EAGAIN;
+	}
 
-	if (ev != RDMA_CM_EVENT_CONNECT_REQUEST)
+	if (ev != RDMA_CM_EVENT_CONNECT_REQUEST) {
+		rdma_ack_cm_event(event);
 		return -ENOTCONN;
+	}
 
 	*_id = id;
+	id->event = event;
 
 	return 0;
 }
@@ -579,13 +590,7 @@ static int route_resolved(struct rdma_ep *ep, struct rdma_cm_id *id,
 
 	params.qp_num		= id->qp->qp_num;
 
-	if (attr.max_qp_rd_atom && (u32) attr.max_qp_rd_atom < ep->depth + 1)
-		params.responder_resources = attr.max_qp_rd_atom;
-	else
-		params.responder_resources = ep->depth + 1;
-
-	printf("max_qp_rd_atom %u depth %llu\n", attr.max_qp_rd_atom, ep->depth);
-	printf("responder_resources %u\n", params.responder_resources);
+	params.responder_resources = attr.max_qp_rd_atom;
 
 	params.flow_control	= 1;
 	params.retry_count	= 7;
@@ -654,8 +659,7 @@ static int rdma_client_connect(struct xp_ep *_ep, struct sockaddr *dst,
 				return ret;
 			continue;
 		case RDMA_CM_EVENT_ESTABLISHED:
-			if (rdma_create_queue_recv_pool(ep))
-				return -errno;
+			ep->initiator = true;
 			ep->state = CONNECTED;
 			return 0;
 		default:
