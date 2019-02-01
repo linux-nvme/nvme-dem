@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: DUAL GPL-2.0/BSD
 /*
  * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
- * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
+ * Copyright (c) 2017-2019 Intel Corporation, Inc. All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -586,6 +586,7 @@ static int cfgfs_link_port_to_subsys(char *subsys, int portid)
 	sprintf(link, "%d/" CFS_SUBSYS "%s", portid, subsys);
 
 	ret = symlink(path, link);
+	print_err("ret2 %d: %s %s = %d\n", errno, path, link, ret);
 	if (ret)
 		ret = (errno == EEXIST) ? 0 : -errno;
 

@@ -336,5 +336,5 @@
       "$ref": "#/definitions/Targets"
     }
   },
-  "copyright": "Copyright 2017-2018 Intel Corporation Dual BSD/GPLv2"
+  "copyright": "Copyright 2017-2019 Intel Corporation Dual BSD/GPLv2"
 }

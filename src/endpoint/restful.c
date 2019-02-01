@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: DUAL GPL-2.0/BSD
 /*
  * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
- * Copyright (c) 2017-2018 Intel Corporation, Inc. All rights reserved.
+ * Copyright (c) 2017-2019 Intel Corporation, Inc. All rights reserved.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
@@ -496,6 +496,7 @@ static int link_portid(char *subsys, struct mg_str *body, char *resp)
 
 	portid = json_integer_value(obj);
 
+	print_err("HERE 1");
 	ret = ops->link_port_to_subsys(subsys, portid);
 	if (ret)
 		goto err;
@@ -540,6 +541,7 @@ static int post_request(char *p[], int n, struct mg_str *body, char *resp)
 		else
 			goto bad;
 	} else if (n == 3) {
+		print_err("HERE 0");
 		if (strcmp(p[0], URI_SUBSYSTEM))
 			goto bad;
 		else if (strcmp(p[2], URI_NAMESPACE) == 0)
