@@ -1,6 +1,6 @@
 /*
  * NVMe over Fabrics Distributed Endpoint Management (NVMe-oF DEM).
- * Copyright (c) 2017-
+ * Copyright (c) 2017-2019 Intel Corporation, Inc.
  *
  * This software is available to you under a choice of one of two
  * licenses.  You may choose to be licensed under the terms of the GNU
