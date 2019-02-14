@@ -49,8 +49,12 @@ endif
 
 endif
 
-if CI_SERVER
+if PICKY_COMPILER_FOPEN
 CFLAGS += -Wno-unused-result
+endif
+if PICKY_COMPILER_SPRINTF
+CFLAGS += -Wno-format-overflow
+CFLAGS += -Wno-format-truncation
 endif
 
 # ALT_CFLAGS used for sparse since mongoose has too many errors

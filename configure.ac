@@ -11,6 +11,9 @@ AC_CHECK_LIB([ibverbs], [ibv_create_cq], [],
 AC_CHECK_LIB([pthread], [pthread_create], [],
   [AC_MSG_ERROR(Install libpthread-devel)])
 
+AC_CHECK_FILE([/usr/bin/libtool], [],
+  [AC_MSG_ERROR(Install libtool)])
+
 AC_ARG_ENABLE(debug,
   AS_HELP_STRING([--enable-debug],[Turn on debugging]),
   [case "${enableval}" in
@@ -65,14 +68,24 @@ AS_IF(test x$with_spdk = xyes, [
 AS_IF(test x$with_configfs = xyes, [], AS_IF(test x$with_spdk = xyes, [],
   [AC_MSG_ERROR(Must provide --with-configfs and/or --with-spdk)]))
 
-AC_MSG_CHECKING([On CI Server])
+AC_MSG_CHECKING([for picky compilers - unused fopen return values])
 AC_LANG_WERROR
 AC_COMPILE_IFELSE([
   AC_LANG_PROGRAM([[#include <stdio.h>]],
 		  [[freopen("/dev/null", "w+", stdout); ]])],
   [AC_MSG_RESULT([no])],
   [AC_MSG_RESULT([yes])
-   ci_server="yes"])
-AM_CONDITIONAL(CI_SERVER, test x$ci_server = xyes)
+   picky_compiler_fopen="yes"])
+AM_CONDITIONAL(PICKY_COMPILER_FOPEN, test x$picky_compiler_fopen = xyes)
+
+AC_MSG_CHECKING([for picky compilers - sprintf overflow/truncate])
+AC_LANG_WERROR
+AC_COMPILE_IFELSE([
+  AC_LANG_PROGRAM([[#include <stdio.h>]],
+		  [[ char x[4]; sprintf(x, "%s", "12345678"); ]])],
+  [AC_MSG_RESULT([no])],
+  [AC_MSG_RESULT([yes])
+   picky_compiler_sprintf="yes"])
+AM_CONDITIONAL(PICKY_COMPILER_SPRINTF, test x$picky_compiler_sprintf = xyes)
 
 AC_OUTPUT
