@@ -2,6 +2,9 @@
 
 .SILENT:
 
+VERSION=1
+RELEASE=0
+
 DEM_EXE=dem
 MON_EXE=dem-dm
 CLI_EXE=dem-cli
@@ -17,6 +20,18 @@ MON_DIR=src/monitor
 CLI_DIR=src/cli
 EM_DIR=src/endpoint
 AC_DIR=src/auto_connect
+
+prefix ?= /usr
+bindir ?= ${prefix}/bin
+sysconfdir ?= /etc
+mandir ?= ${prefix}/share/man
+sysddir ?= ${prefix}/lib/systemd/system
+libexecdir ?= ${prefix}/libexec
+if LOCAL_PREFIX
+sharedir ?= ${prefix}/share
+else
+sharedir ?= ${prefix}/local/share
+endif
 
 DEM_CFLAGS = -DMG_ENABLE_THREADS -DMG_ENABLE_HTTP_WEBSOCKET=0
 
@@ -163,32 +178,52 @@ clean:
 	rm -rf ${BIN_DIR}/ config.json *.vglog .k* kw.cfg
 	echo Done.
 
-must_be_root:
-	[ `whoami` == "root" ]
+rpm_prep:
+	rm -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tgz
+	rm -rf ~/rpmbuild/BUILD*/nvme-dem*
+	[ -d ~/rpmbuild/SOURCES ] || mkdir -p ~/rpmbuild/SOURCES
+	cd .. ; \
+	  [ -d nvme-dem-${VERSION} ] \
+	    && rm -rf nvme-dem-${VERSION}/* \
+	    || mkdir nvme-dem-${VERSION} ; \
+	  cp -r nvme-dem/* nvme-dem-${VERSION} ; \
+	  tar cz -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tgz nvme-dem-${VERSION} ; \
+	  rm -rf nvme-dem-${VERSION}
 
-install: must_be_root
-	[ -L /bin/dem ] || cp ${BIN_DIR}/* /bin
-	[ -e /etc/nvme/nvmeof-dem ] || mkdir -p /etc/nvme/nvmeof-dem
-	cp usr/nvmeof.conf /etc/nvme
-	[ ! -d /usr/libexec ] || cp usr/nvmeof /usr/libexec/
-	cp usr/nvmeof.service /usr/lib/systemd/system/nvmeof.service
-	cp usr/bash_completion.d/* /etc/bash_completion.d/
-	cp usr/man/*.1 /usr/share/man/man1/
-	cp usr/man/*.8 /usr/share/man/man8/
+rpm: rpm_prep
+	rpmbuild -bb dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
+
+srpm: rpm_prep
+	rpmbuild -bs dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
+
+install:
+	[ -e ${bindir} ] || mkdir -p ${bindir}
+	[ -e ${libexecdir} ] || mkdir -p ${libexecdir}
+	[ -e ${sharedir}/bash_completion.d ] || mkdir -p ${sharedir}/bash_completion.d
+	[ -e ${sysconfdir}/nvme/nvmeof-dem ] || mkdir -p ${sysconfdir}/nvme/nvmeof-dem
+	[ -e ${sysddir} ] || mkdir -p ${sysddir}
+	[ -e ${mandir}/man1 ] || mkdir -p ${mandir}/man1
+	[ -e ${mandir}/man8 ] || mkdir ${mandir}/man8
+	[ -L ${bindir}/dem ] || cp ${BIN_DIR}/* ${bindir}
+	cp usr/nvmeof.conf ${sysconfdir}/nvme
+	[ ! -d ${libexecdir} ] || cp usr/nvmeof ${libexecdir}/
+	cp usr/nvmeof.service ${sysddir}/nvmeof.service
+	cp usr/bash_completion.d/* ${sharedir}/bash_completion.d/
+	cp usr/man/*.1 ${mandir}/man1/
+	cp usr/man/*.8 ${mandir}/man8/
 	echo Done.
 
-uninstall: must_be_root
-	[ `whoami` == "root" ]
-	rm -f /etc/bash_completion.d/${CLI_EXE}
-	rm -f /bin/${CLI_EXE} /bin/${AC_EXE} /bin/${MON_EXE}
-	rm -f /bin/${DEM_EXE} /bin/${EM_EXE}
-	rm -f /etc/nvme/nvmeof.conf
-	rm -rf /etc/nvme/nvmeof-dem
-	rm -f /usr/libexec/nvmeof
-	rm -f /usr/lib/systemd/system/nvmeof.service
-	rm -f /usr/share/man/man1/${CLI_EXE}.1 /usr/share/man/man8/${MON_EXE}.1
-	rm -f /usr/share/man/man1/${EM_EXE}.8 /usr/share/man/man8/${AC_EXE}.8
-	rm -f /usr/share/man/man1/${DEM_EXE}.8
+uninstall:
+	rm -f ${bindir}/${CLI_EXE} ${bindir}/${AC_EXE} ${bindir}/${MON_EXE}
+	rm -f ${bindir}/${DEM_EXE} ${bindir}/${EM_EXE}
+	rm -f ${sharedir}/bash_completion.d/${CLI_EXE}
+	rm -f ${sysconfdir}/nvme/nvmeof.conf
+	rm -rf ${sysconfdir}/nvme/nvmeof-dem
+	rm -f ${libexecdir}/nvmeof
+	rm -f ${sysddir}/nvmeof.service
+	rm -f ${mandir}/man1/${CLI_EXE}.1* ${mandir}/man1/${MON_EXE}.1*
+	rm -f ${mandir}/man8/${EM_EXE}.8* ${mandir}/man8/${AC_EXE}.8*
+	rm -f ${mandir}/man8/${DEM_EXE}.8*
 	echo Done.
 
 mongoose/.git:

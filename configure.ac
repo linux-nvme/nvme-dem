@@ -53,6 +53,8 @@ AC_ARG_WITH(configfs, AS_HELP_STRING([--with-configfs],
 AM_CONDITIONAL(SPDK, test x$with_spdk = xyes)
 AM_CONDITIONAL(CONFIGFS, test x$with_configfs = xyes)
 
+AM_CONDITIONAL([LOCAL_PREFIX], [test "${prefix##*/}" == "local"])
+
 AS_IF(test x$with_spdk = xyes, [
   AC_CHECK_FILE([/usr/lib/libspdk.so], [],
     [AC_MSG_ERROR(Install spdk)])
