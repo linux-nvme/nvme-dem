@@ -1,9 +1,26 @@
 run the following (as root or not, it does not matter)
 
 $ ./autoconf.sh
-$ ./configure
+$ ./configure --prefix=/usr --sysconfdir=/etc
 $ make
 
 as root, run the following
 
 # make install
+
+to build packages run either of the following. note the prefix
+and sysconfdir options are not needed but are equivelant to the
+prior configure command.
+
+$ ./autoconf.sh
+$ ./configure
+$ make rpm
+$ make srpm
+
+the resulting packages will be in ~/rpmbuild/RPMS/x86_64 and
+~/rpmbuild/SRPMS
+
+the default for prefix if not specified on the configure command
+is /usr/local.  without specifying prefix, the sysconfdir default is
+/etc.  if prefix is given, the sysconfdir is needed as the result
+without correcting it will be /usr/etc with is bad.
