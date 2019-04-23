@@ -1,31 +1,28 @@
-.\" dem-ac.8 --
+.\" dem-dm.8 --
 .\" Copyright 2018-2019 Intel Corporation, Inc.
 .\" May be distributed under the GNU General Public License
-.TH DEM-AC 8 "February 2019" "nvmeof-dem" "System Administration"
+.TH DEM-DM 8 "February 2019" "nvmeof-dem" "System Administration"
 .SH NAME
-dem-ac \-
-Distributed Endpoint Management - Auto Connect
+dem-dm \-
+Distributed Endpoint Management - Discovery Monitor
 .SH SYNOPSIS
-.B dem-ac
-can be used on an NVMe-oF Host to use a Discovery controller to automatically
-connect to Subsystems within a NVMe-oF network. The Discovery controller may
+.B dem-dm
+can be used on an NVMe-oF Host to use a Discovery controller to monitor
+available Subsystems within a NVMe-oF network. The Discovery controller may be
 provided by the Distributed Endpoint Manager (DEM) or may be provided by a
 single Endpoint.
 .SH DESCRIPTION
-.B dem-ac
-is a program that can run as a daemon or standalone on a NVMe-oF Host that
-will connect to a Discovery controller to retrieve the log pages of the
-Subsystems to which that Host has access.  The program with then attempt to
-connect to each Subsystem to establish a persistent connection that Subsystem
-to appear as a local NMVe device to the Host.
+.B dem-dm
+will monitor a Discovery controller to retrieve the log pages of the
+Subsystems to which that Host has access.  The program with then determine
+if there were any changes to the log pages. If the were new or modified pages,
+the entire log page will be displayed.  If a log page is remove, a simple
+message indicating the subsystem nqn was deleted would be displayed.
 
 .SH PARAMETERS
 .TP
 .I -d
 enable debug prints in log files
-.TP
-.I -S
-run as a standalone process (default is daemon)
 .TP
 .I -h <hostnqn>
 the Host NQN to use for connecting to be the Discovery controller
@@ -47,9 +44,9 @@ transport service id (a.k.a. Port Number) to use. (see help for default)
 
 .SH SEE ALSO
 .BR dem-cli (1),
-.BR dem_dm (1),
 .BR dem (8),
 .BR dem-em (8),
+.BR dem-ac (8),
 .SH AVAILABILITY
-The dem-ac command is part of the nvmeof-dem package and is available from
+The dem-dm command is part of the nvmeof-dem package and is available from
 http://github.com/linux-nvme/nvme-dem.
