@@ -19,9 +19,9 @@ NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
       controller and a management capabilities to configure Targets,
       May be used standalone or in concert with other DEM components.
       Purposes:
-         1.  Collect and distribute discovery log pages
-         2.  Configure remote NVMe resources via in-band or
-             out-of-band interfaces
+         1. Collect and distribute discovery log pages
+         2. Configure remote NVMe resources via in-band or out-of-band
+            interfaces
 
    Endpoint Manager (DEM-EM)
       Optional mechanism for In-band or out-of-band configuration of each
@@ -85,10 +85,12 @@ NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
       make and answer module questions for NVMe Target sub-modules
          $ make
          $ make modules_install
-         $ Sudo make install
+         $ sudo make install
+
       Ensure the system will boot to the new kernel
-         #grep "^menuentry" /boot/grub2/grub.cfg | cut -d "'" -f2
-         #grub2-set-default <zero-based index of the new kernel>
+
+         # grep "^menuentry" /boot/grub2/grub.cfg | cut -d "'" -f2
+         # grub2-set-default <zero-based index of the new kernel>
 
    Boot the new kernel
 
@@ -110,12 +112,12 @@ NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
        libuuid-devel    libibverbs-devel
 
    Build and install
-         $ ./autoconf.sh
-         $ ./configure (optional flag: --enable-debug)
-         $ make
+       $ ./autoconf.sh
+       $ ./configure (optional flag: --enable-debug)
+       $ make
 
    As root, run the following
-         $ make install
+       # make install
 
    Man pages for dem, dem-em, dem-ac, and dem-cli are available after install
 
@@ -125,104 +127,154 @@ NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
    Following is example for system as both RDMA Host and Target and using
    nullb0 for device and manually starting DEM
 
-         PCI_HOST_LOAD=no
-         NVMEOF_HOST_LOAD=yes
-           RDMA_HOST_LOAD=yes
-           FC_HOST_LOAD=no
-           TCP_HOST_LOAD=no
-         NVMEOF_TARGET_LOAD=yes
-           RDMA_TARGET_LOAD=yes
-           FC_TARGET_LOAD=no
-           TCP_TARGET_LOAD=no
-           NULL_BLK_TARGET_LOAD=yes
-         START_DEM=no
-         START_DEM_AC=no
-         START_DEM_EM=no
-         #DEM_AC_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 4422"
-         #DEM_EM_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 22334"
-         #DEM_EM_OPTS="-p 22345"
+       PCI_HOST_LOAD=no
+       NVMEOF_HOST_LOAD=yes
+          RDMA_HOST_LOAD=yes
+          FC_HOST_LOAD=no
+          TCP_HOST_LOAD=no
+       NVMEOF_TARGET_LOAD=yes
+          RDMA_TARGET_LOAD=yes
+          FC_TARGET_LOAD=no
+          TCP_TARGET_LOAD=no
+          NULL_BLK_TARGET_LOAD=yes
+       START_DEM=no
+       START_DEM_AC=no
+       START_DEM_EM=no
+       # DEM_AC_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 4422"
+       # DEM_EM_OPTS="-t rdma -f ipv4 -a 192.168.1.1 -s 22334"
+       # DEM_EM_OPTS="-p 22345"
 
 6. Starting NVMe-oF Drivers
 
    1. Manually Start using nvmeof service
-         $ systemctl start nvmeof
+
+       # systemctl start nvmeof
 
    2. Configure the system to start DEM on boot
-         $ chkconfig nvmeof on
-         $ reboot
-       or
-         $ systemctl start nvmeof
+
+       # chkconfig nvmeof on
+       # reboot
+
+      or
+
+       # systemctl start nvmeof
 
    3. If not running nvmeof service, load individual DEM drivers
-         $ modprobe configfs
-         $ modprobe nvme-rdma
-         $ modprobe nvmet-rdma
-         $ modprobe null-blk
 
-7. Manually Starting - Endpoint Manager
+       # modprobe configfs
+       # modprobe nvme-rdma
+       # modprobe nvmet-rdma
+       # modprobe null-blk
+
+7. Manually Starting - Endpoint Manager (dem-em)
 
    Optional mechanism for In-band or out-of-band configuration of each Target.
    Only needed if a systems administrator will be remotely managing remote
    NVMe resources.
 
-   Configure fabric interface(s) the Endpoint Manager will report to the DEM.
-   This is done via files like ifcfg files under /etc/nvme/nvmeof-dem
-   (file 'config' and 'signature' are reserved).
+   Configure fabric interface(s) the Endpoint Manager will report to the DEM
+   (Discovery Controller).  This is the fabric interface the DEM will use
+   for NVMe-oF.  This is done via files ifcfg-like files under
+   /etc/nvme/nvmeof-dem (file ‘config’ and ‘signature’ are reserved).
 
-   Example RDMA interface on IP-Address 192.168.22.1.
-       Note: TRSVCID 4420 is the assigned NVMe-oF ID
+   Example RDMA interface on IP-Address “192.168.22.1”. Note: The specification
+   of a TRSVCID is an indication that the DEM should use this transport for
+   Hosts to connect for retrieval of Discovery Log pages. The TRSVCID in the
+   example below is not used by the Endpoint Manager - TRSVCID used by Target
+   drivers are assigned by administrator through DEM configuration. This
+   TRSVCID is only used by the DEM daemon.
 
-         #This is a comment
-         TRTYPE=rdma
-         ADRFAM=ipv4
-         TRADDR=192.168.22.1
-         TRSVCID=4420
+      # Configuration file for RDMA interface
+      TRTYPE=rdma
+      ADRFAM=ipv4
+      TRADDR=192.168.22.1
+      TRSVCID=4422  # Service ID only used by DEM Discovery Controller
 
-   Starting Target's Endpoint Manager on either out-of-band or in-band
-       A. Out-of-Band specifying RESTful interfaces on port 22334
-              $ dem-em -p 22334
-       B. In-Band on local rdma ipv4 address 192.168.22.1, the service ID
-          is definable, but cannot be 4420
-              $ dem-em -t rdma -f ipv4 -a 192.168.22.1 -s 4423
+   Start Target Endpoint Manager specifying ‘management mode’.  This is the
+   mechanism the DEM will use to communicate to the DEM-EM.  This is only
+   used for configuration purposes.
 
-   Starting either in-band or out-of-band DEM-EM in debug mode should report
-   enumerated devices and interfaces
+      A. Out-of-Band management mode specifying RESTful interfaces on
+         port 22334.
 
-8. Manually Starting - DEM
+         # dem-em -p 22334
 
-   Configure fabric interface(s) for Host communication to DEM.
-   This is done via files like ifcfg files under /etc/nvme/nvmeof-dem
-   (file 'config' and 'signature' are reserved).
+      B. In-Band management mode on rdma ipv4 address “192.168.22.1”.
+         The Service ID is definable, but cannot be “4420” as this would
+         conflict with the Target driver.
 
-   Example RDMA interface on IP-Address 192.168.22.2.
-       Note: TRSVCID 4420 is the pre-assigned NVMe-oF ID:
+         # dem-em -t rdma -f ipv4 -a 192.168.22.1 -s 4433
 
-         #This is a comment
-         TRTYPE=rdma
-         ADRFAM=ipv4
-         TRADDR=192.168.22.2
-         TRSVCID=4422
+   Starting either in-band or out-of-band DEM-EM reports enumerated devices
+   and interfaces.
 
-   Starting DEM specifying RESTful interfaces on a port.
+   If run in debug-mode the DEM-EM will not start as a daemon, and all output
+   will be sent to stdout rather than to /var/log/…
+
+8. Manually Starting - DEM Dicsovery Controller (dem)
+
+   Configure fabric interface(s) for Host communication to DEM Discovery
+   Controller.  This is the fabric interface DEM listens on for Hosts to
+   connect and request Discovery Log Pages.  This is done via ifcfg-like
+   files under /etc/nvme/nvmeof-dem (file ‘config’ and ‘signature’ are
+   reserved).
+
+   Example RDMA interface on IP-Address 192.168.22.2.  If the TRSVCID is not
+   present in a given configuration file, the default TRSVCID for that
+   interface is the pre-assigned NVMe-oF ID "4420".
+
+   Note 1: TRSVCID “4420” is the pre-assigned NVMe-oF ID and MAY ONLY be used
+   if the DEM Discovery Controller is NOT co-located with an NVMe-oF Target
+   driver.
+
+   Note 2: If the DEM Discovery Controller and DEM Endpoint Manager are
+   co-located configuration files will be used by both services to define
+   interfaces used for communication with Hosts.
+
+      # Configuration file for RDMA interface
+      TRTYPE=rdma
+      ADRFAM=ipv4
+      TRADDR=192.168.22.2
+      TRSVCID=4422  # Service ID only used by DEM Discovery Controller
+
+   Starting DEM Discovery Controller specifying RESTful interfaces on a port.
    Default HTTP port is 22345
-            $ dem p <HTTP port id>
+      # dem -p <HTTP port id>
 
-9. Manually Starting - Auto Connect
+   If run in debug-mode the DEM will not start as a daemon, and all output will
+   be sent to stdout rather than to /var/log/…
 
-   Optional component to enable Hosts to connect to DEM and automatically
-   connect to provisioned NVMe resources as defined by Discovery Log Pages
+9. Manually Starting - Auto Connect (dem-ac)
 
-   Starting Host Auto Connect to address of the DEM
-         $ dem-ac -t rdma -f ipv4 -a 192.168.22.2 -s 4422
+   Optional component to enable Hosts to connect to a Discovery controller
+   (DEM or NVMe-oF Target) and automatically connect to provisioned NVMe
+   resources as defined by Discovery Log Pages.
 
-10. Manually Starting - Discovery Monitor
+   Starting Auto Connect to address of the DEM Discovery Controller.
 
-   Optional component to enable Hosts to monitor DEM and report provisioned
-   NVMe resources as defined by Discovery Log Pages.
+      # dem-ac -t rdma -f ipv4 -a 192.168.22.2 -s 4422
 
-   Starting Monitor to address of the DEM or the Discovery controller of an
-   enabled Target
-         $ dem-dm -t rdma -f ipv4 -a 192.168.22.2 -s 4422
+   Starting Auto Connect to address of an NVMe-oF Target Discovery Controller
+
+      # dem-ac -t rdma -f ipv4 -a 192.168.22.200 -s 4420
+
+   If run in debug-mode the DEM-AC will not start as a daemon, and all output
+   will be sent to stdout rather than to /var/log/…
+
+10. Manually Starting - Discovery Monitor (dem-dm)
+
+   Optional component to enable Hosts to monitor a Discovery Controller
+   (DEM or NVMe-oF Target) and report provisioned NVMe resources as defined
+   by Discovery Log Pages.
+
+   Starting Monitor and point it to the address of the DEM Discovery Controller.
+
+      # dem-dm -t rdma -f ipv4 -a 192.168.22.2 -s 4422
+
+   Starting Monitor and point it to the address of an NVMe-oF Target Discovery
+   Controller.
+
+      # dem-dm -t rdma -f ipv4 -a 192.168.22.200 -s 4420
 
 11. Configuration Methods
 
@@ -231,8 +283,9 @@ NVMe Distributed Endpoirt Management (DEM) Project Table of Contents:
    from dem to allow bridge to lab networks
 
    Create subdirectory for DEM on the web hosting site and copy web files
-         $ mkdir /var/www/html/dem
-         $ cp html/* /var/www/html/dem
+
+      $ mkdir /var/www/html/dem
+      $ cp html/* /var/www/html/dem
 
    Command Line Interface (DEM-CLI): Mechanism to interface with the DEM via
    console command line.  dem-cli command on system running dem allows full
