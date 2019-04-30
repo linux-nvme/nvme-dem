@@ -2,7 +2,7 @@
 
 .SILENT:
 
-VERSION=1
+VERSION=@VERSION@
 RELEASE=0
 
 DEM_EXE=dem
@@ -179,24 +179,29 @@ clean:
 	echo Done.
 
 rpm_prep:
-	rm -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tgz
+	rm -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tar.gz
 	rm -rf ~/rpmbuild/BUILD*/nvme-dem*
 	[ -d ~/rpmbuild/SOURCES ] || mkdir -p ~/rpmbuild/SOURCES
+	cd mongoose ; git clean -xfdq
+	cd jansson ; git clean -xfdq
 	cd .. ; \
 	  [ -d nvme-dem-${VERSION} ] \
 	    && rm -rf nvme-dem-${VERSION}/* \
 	    || mkdir nvme-dem-${VERSION} ; \
 	  cp -r nvme-dem/* nvme-dem-${VERSION} ; \
-	  tar cz -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tgz nvme-dem-${VERSION} ; \
+	  tar cz -f ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tar.gz \
+		nvme-dem-${VERSION} ; \
 	  rm -rf nvme-dem-${VERSION}
 
 rpm: rpm_prep
-	rpmbuild -bb dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
+	rpmbuild -bb nvme-dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
 
 srpm: rpm_prep
-	rpmbuild -bs dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
+	rpmbuild -bs nvme-dem.spec --define "_version ${VERSION}" --define "_release ${RELEASE}"
+	echo nvme-dem-${VERSION}.tar.gz > ~/rpmbuild/SOURCES/latest.txt
+	echo remember to upload ~/rpmbuild/SOURCES/latest.txt ~/rpmbuild/SOURCES/nvme-dem-${VERSION}.tar.gz
 
-install:
+install: all
 	[ -e ${bindir} ] || mkdir -p ${bindir}
 	[ -e ${libexecdir} ] || mkdir -p ${libexecdir}
 	[ -e ${sharedir}/bash_completion.d ] || mkdir -p ${sharedir}/bash_completion.d
@@ -211,7 +216,6 @@ install:
 	cp usr/bash_completion.d/* ${sharedir}/bash_completion.d/
 	cp usr/man/*.1 ${mandir}/man1/
 	cp usr/man/*.8 ${mandir}/man8/
-	echo Done.
 
 uninstall:
 	rm -f ${bindir}/${CLI_EXE} ${bindir}/${AC_EXE} ${bindir}/${MON_EXE}

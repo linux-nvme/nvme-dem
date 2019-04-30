@@ -1,15 +1,12 @@
-%{!?_version: %define _version 1 }
-%{!?_release: %define _release 0 }
-
 Name: nvme-dem
-Version: %{_version}
-Release: %{_release}%{?dist}
+Version: @VERSION@
+Release: 0
 Summary: NVMe over Fabrics Distributed Endpoint Management suite
 
 Group: User-mode Administrative Tools
 License: GPLv2 or BSD
 Url: http://www.github.com/linux-nvme/%{name}
-Source: http://www.github.com/linux-nvme/%{name}-%{version}.tgz
+Source: http://www.github.com/linux-nvme/%{name}-%{version}.tar.gz
 BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-root-%(%{__id_u} -n)
 
 %description
@@ -21,9 +18,7 @@ configuration and provisioning of remote NVMe resources.
 %setup -q -n %{name}-%{version}
 
 %build
-./autoconf.sh
 %configure %{configopts}
-make
 
 %install
 rm -rf %{buildroot}
@@ -53,4 +48,5 @@ rm -rf %{buildroot}
 %doc AUTHORS COPYING README
 
 %changelog
-2019-04-22 created spec file
+* Mon Apr 22 2019 created spec file
+- Release 1.0.0

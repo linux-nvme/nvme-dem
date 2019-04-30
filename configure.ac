@@ -1,4 +1,4 @@
-AC_INIT(dem,1.0)
+AC_INIT(nvme-dem,1.0)
 AM_INIT_AUTOMAKE
 AC_OUTPUT(Makefile)
 
@@ -90,4 +90,5 @@ AC_COMPILE_IFELSE([
    picky_compiler_sprintf="yes"])
 AM_CONDITIONAL(PICKY_COMPILER_SPRINTF, test x$picky_compiler_sprintf = xyes)
 
+AC_CONFIG_FILES([nvme-dem.spec])
 AC_OUTPUT
