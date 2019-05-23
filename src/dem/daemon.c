@@ -255,7 +255,7 @@ static int init_dem(int argc, char *argv[], char **ssl_cert)
 		goto help;
 
 	if (getuid() != 0) {
-		print_err("must be root to run demd as a daemon");
+		print_err("must be root to run as a daemon");
 		return -1;
 	}
 

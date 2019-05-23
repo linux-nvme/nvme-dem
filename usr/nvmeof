@@ -179,8 +179,7 @@ cleanup_sysfs()
 
 stop_service()
 {
-    kill_daemon demt
-    kill_daemon demd
+    kill_daemon
 
     cleanup_sysfs
 

@@ -137,8 +137,8 @@ static int daemonize(void)
 		return -1;
 	}
 
-	freopen("/var/log/demt_debug.log", "a", stdout);
-	freopen("/var/log/demt.log", "a", stderr);
+	freopen("/var/log/dem_em_debug.log", "a", stdout);
+	freopen("/var/log/dem_em.log", "a", stderr);
 
 	return 0;
 }
