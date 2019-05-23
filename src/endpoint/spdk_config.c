@@ -271,10 +271,49 @@ static int parse_err_resp(void)
 	return rc;
 }
 
+
+static int _recv_response(int *resp,
+			  int (*parser)(void *,
+					const struct spdk_json_val *))
+{
+	int			rc = -1;
+	struct spdk_jsonrpc_client_response *json_resp = NULL;
+
+	do {
+		rc = spdk_jsonrpc_client_poll(client, 1);
+	} while (rc == 0 || rc == -ENOTCONN);
+
+	if (rc <= 0) {
+		print_err("spdk_jsonrpc_client_poll() failed");
+		return rc;
+	}
+
+	json_resp = spdk_jsonrpc_client_get_response(client);
+	if (json_resp == NULL) {
+		print_err("spdk_jsonrpc_client_get_response() failed");
+		goto out;
+	}
+
+	/* Check for error response */
+	if (json_resp->error != NULL) {
+		print_err("Unexpected error response");
+		goto out;
+	}
+
+	if (json_resp->result == NULL) {
+		print_err("Unexpected error no result data");
+		goto out;
+	}
+
+	rc = parser(resp, json_resp->result);
+out:
+	spdk_jsonrpc_client_free_response(json_resp);
+	return rc;
+}
 static int _delete_subsys(struct subsystem *subsys)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -282,7 +321,7 @@ static int _delete_subsys(struct subsystem *subsys)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "delete_nvmf_subsystem", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "delete_nvmf_subsystem");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subsys->nqn);
@@ -291,9 +330,7 @@ static int _delete_subsys(struct subsystem *subsys)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -303,7 +340,7 @@ static int _delete_subsys(struct subsystem *subsys)
 static int _create_subsys(struct subsystem *subsys)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -311,7 +348,7 @@ static int _create_subsys(struct subsystem *subsys)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_create", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_create");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subsys->nqn);
@@ -321,9 +358,7 @@ static int _create_subsys(struct subsystem *subsys)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -402,7 +437,7 @@ static int spdk_create_ns(char *subnqn, int nsid, int devid, int devnsid)
 	else
 		sprintf(bdev_name, NVME_DEV_FMT, devid, devnsid);
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_ns", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_add_ns");
 
 	spdk_json_write_named_object_begin(w, "params");
 
@@ -418,9 +453,7 @@ static int spdk_create_ns(char *subnqn, int nsid, int devid, int devnsid)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -430,7 +463,7 @@ static int spdk_create_ns(char *subnqn, int nsid, int devid, int devnsid)
 static int spdk_delete_ns(char *subnqn, int nsid)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -441,7 +474,7 @@ static int spdk_delete_ns(char *subnqn, int nsid)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_remove_ns", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_remove_ns");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subnqn);
@@ -451,9 +484,7 @@ static int spdk_delete_ns(char *subnqn, int nsid)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -510,7 +541,7 @@ static int spdk_create_portid(int id, char *fam, char *typ, int req,
 static int add_listener(struct subsystem *subsys, struct portid *portid)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -518,7 +549,7 @@ static int add_listener(struct subsystem *subsys, struct portid *portid)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_listener", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_add_listener");
 
 	spdk_json_write_named_object_begin(w, "params");
 
@@ -536,9 +567,7 @@ static int add_listener(struct subsystem *subsys, struct portid *portid)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -548,7 +577,7 @@ static int add_listener(struct subsystem *subsys, struct portid *portid)
 static int remove_listener(struct subsystem *subsys, struct portid *portid)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -556,8 +585,8 @@ static int remove_listener(struct subsystem *subsys, struct portid *portid)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req,
-				       "nvmf_subsystem_remove_listener", 1);
+	w = spdk_jsonrpc_begin_request(req, 1,
+				       "nvmf_subsystem_remove_listener");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subsys->nqn);
@@ -574,9 +603,7 @@ static int remove_listener(struct subsystem *subsys, struct portid *portid)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -586,7 +613,7 @@ static int remove_listener(struct subsystem *subsys, struct portid *portid)
 static int add_host(struct subsystem *subsys, struct host *host)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -594,7 +621,7 @@ static int add_host(struct subsystem *subsys, struct host *host)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_add_host", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_add_host");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subsys->nqn);
@@ -604,9 +631,7 @@ static int add_host(struct subsystem *subsys, struct host *host)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -616,7 +641,7 @@ static int add_host(struct subsystem *subsys, struct host *host)
 static int remove_host(struct subsystem *subsys, struct host *host)
 {
 	int			rc;
-	bool			resp;
+	int			resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -624,7 +649,7 @@ static int remove_host(struct subsystem *subsys, struct host *host)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "nvmf_subsystem_remove_host", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "nvmf_subsystem_remove_host");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "nqn", subsys->nqn);
@@ -634,9 +659,7 @@ static int remove_host(struct subsystem *subsys, struct host *host)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -886,13 +909,11 @@ static int spdk_enumerate_devices(void)
 	if (req == NULL)
 		return 0;
 
-	w = spdk_jsonrpc_begin_request(req, "get_bdevs", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "get_bdevs");
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, bdev_parser, &num_bdevs);
+	rc = _recv_response(&num_bdevs, bdev_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -902,7 +923,7 @@ static int spdk_enumerate_devices(void)
 static int add_nvme_device(struct pci_device *dev)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	char			 name[MAXSTRLEN];
 	char			 address[MAXSTRLEN];
 	struct spdk_json_write_ctx *w;
@@ -917,7 +938,7 @@ static int add_nvme_device(struct pci_device *dev)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "construct_nvme_bdev", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "construct_nvme_bdev");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "name", name);
@@ -928,9 +949,7 @@ static int add_nvme_device(struct pci_device *dev)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -940,7 +959,7 @@ static int add_nvme_device(struct pci_device *dev)
 static int add_null_device(void)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -948,7 +967,7 @@ static int add_null_device(void)
 	if (req == NULL)
 		return -ENOMEM;
 
-	w = spdk_jsonrpc_begin_request(req, "construct_null_bdev", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "construct_null_bdev");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "name", NULL_BLK_DEVICE);
@@ -959,9 +978,7 @@ static int add_null_device(void)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	rc = _recv_response(&resp, resp_parser);
 	if (rc)
 		return parse_err_resp();
 
@@ -978,9 +995,9 @@ static void _del_nvme_device(char *name)
 	if (req == NULL)
 		return;
 	if (!strcmp(name, NULL_BLK_DEVICE))
-		w = spdk_jsonrpc_begin_request(req, "delete_null_bdev", 1);
+		w = spdk_jsonrpc_begin_request(req, 1, "delete_null_bdev");
 	else
-		w = spdk_jsonrpc_begin_request(req, "delete_bdev", 1);
+		w = spdk_jsonrpc_begin_request(req, 1, "delete_bdev");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "name", name);
@@ -989,9 +1006,7 @@ static void _del_nvme_device(char *name)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	_recv_response(&resp, resp_parser);
 }
 
 static void del_nvme_device(void)
@@ -1043,13 +1058,11 @@ static void clear_devices(void)
 	if (req == NULL)
 		return;
 
-	w = spdk_jsonrpc_begin_request(req, "get_bdevs", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "get_bdevs");
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, bdev_reset, &resp);
+	rc = _recv_response(&resp, bdev_reset);
 	if (rc)
 		parse_err_resp();
 }
@@ -1064,7 +1077,7 @@ static void del_null_device(void)
 	if (req == NULL)
 		return;
 
-	w = spdk_jsonrpc_begin_request(req, "delete_null_bdev", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "delete_null_bdev");
 
 	spdk_json_write_named_object_begin(w, "params");
 	spdk_json_write_named_string(w, "name", NULL_BLK_DEVICE);
@@ -1073,9 +1086,7 @@ static void del_null_device(void)
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	spdk_jsonrpc_client_recv_response(client, resp_parser, &resp);
+	_recv_response(&resp, resp_parser);
 }
 
 static int enumerate_nvme_devices(void)
@@ -1205,7 +1216,7 @@ out:
 static void clear_subsystems(void)
 {
 	int			 rc;
-	bool			 resp;
+	int			 resp;
 	struct spdk_json_write_ctx *w;
 	struct spdk_jsonrpc_client_request *req;
 
@@ -1213,14 +1224,12 @@ static void clear_subsystems(void)
 	if (req == NULL)
 		return;
 
-	w = spdk_jsonrpc_begin_request(req, "get_nvmf_subsystems", 1);
+	w = spdk_jsonrpc_begin_request(req, 1, "get_nvmf_subsystems");
 
 	spdk_jsonrpc_end_request(req, w);
 	spdk_jsonrpc_client_send_request(client, req);
 
-	spdk_jsonrpc_client_free_request(req);
-
-	rc = spdk_jsonrpc_client_recv_response(client, _clear_subsys, &resp);
+	rc = _recv_response(&resp, _clear_subsys);
 	if (rc)
 		parse_err_resp();
 }
