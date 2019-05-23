@@ -586,7 +586,6 @@ static int cfgfs_link_port_to_subsys(char *subsys, int portid)
 	sprintf(link, "%d/" CFS_SUBSYS "%s", portid, subsys);
 
 	ret = symlink(path, link);
-	print_err("ret2 %d: %s %s = %d\n", errno, path, link, ret);
 	if (ret)
 		ret = (errno == EEXIST) ? 0 : -errno;
 
