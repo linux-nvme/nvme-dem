@@ -80,6 +80,8 @@ enum { HUMAN = 0, RAW = -1, JSON = 1 };
 #define _INB_MGMT	"inband"
 #define _OOB_MGMT	"outofband"
 #define _LOCAL_MGMT	"local"
+#define _CONFIG		"config"
+#define _SHUTDOWN	"shutdown"
 
 #define DELETE_PROMPT	"Are you sure you want to delete "
 
@@ -92,6 +94,14 @@ struct verbs {
 	char		*args;
 	char		*help;
 };
+
+static inline int verb_enabled(struct verbs *p, int update_enabled)
+{
+	return update_enabled
+		|| strcmp(p->verb, _GET) == 0
+		|| strcmp(p->verb, _LIST) == 0
+		|| strcmp(p->verb, _CONFIG) == 0;
+}
 
 static char *error_str(int ret)
 {
@@ -1130,9 +1140,9 @@ static int unlink_host(char *base, int n, char **p)
  */
 static struct verbs verb_list[] = {
 	/* DEM */
-	{ dem_config,	 DEM,     0, "config",   NULL, NULL,
+	{ dem_config,	 DEM,     0, _CONFIG,   NULL, NULL,
 	  "show dem configuration including interfaces" },
-	{ dem_shutdown,	 DEM,     0, "shutdown", NULL, NULL,
+	{ dem_shutdown,	 DEM,     0, _SHUTDOWN, NULL, NULL,
 	  "signal the dem to shutdown" },
 
 	/* GROUPS */
@@ -1282,7 +1292,7 @@ static void show_help(char *prog, char *msg, char *opt)
 		printf(" | delete | link | unlink\n");
 		printf("	 | refresh | config | shutdown\n");
 	} else
-		printf("  verb : list | get\n");
+		printf("  verb : list | get | config\n");
 
 	printf("       : shorthand verbs may be used (first 3 characters)\n");
 
@@ -1306,8 +1316,7 @@ static void show_help(char *prog, char *msg, char *opt)
 	printf("\n");
 
 	for (p = verb_list; p->verb; p++) {
-		if (!update_enabled && strcmp(p->verb, _GET) &&
-		    strcmp(p->verb, _LIST))
+		if (!verb_enabled(p, update_enabled))
 			continue;
 
 		if (target != p->target) {
@@ -1339,8 +1348,7 @@ static struct verbs *find_verb(char *verb, char *object)
 			else
 				continue;
 		}
-		if (!update_enabled && strcmp(p->verb, _GET) &&
-		    strcmp(p->verb, _LIST))
+		if (!verb_enabled(p, update_enabled))
 			break;
 		if (!p->object)
 			return p;

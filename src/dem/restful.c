@@ -140,8 +140,8 @@ static int get_dem_request(char *verb, char *resp)
 			    iface->address);
 		resp += n;
 
-		n = sprintf(resp, JSSTR "}", TAG_TRSVCID,
-			    iface->port);
+		n = sprintf(resp, JSINT "}", TAG_TRSVCID,
+			    (u64) atoi(iface->port));
 		resp += n;
 	}
 
