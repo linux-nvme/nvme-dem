@@ -49,8 +49,8 @@
 #define NVME_CNTLID_DYNAMIC		0xFFFF
 
 #define NVME_OPCODE_MASK                0x3
-#define NVME_OPCODE_C2H                 0x1
-#define NVME_OPCODE_H2C                 0x2
+#define NVME_OPCODE_H2C                 0x1
+#define NVME_OPCODE_C2H                 0x2
 
 enum {
 	nvme_admin_get_log_page		= 0x02,
