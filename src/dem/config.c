@@ -987,7 +987,7 @@ static inline int get_inb_nsdevs(struct target *target)
 	int			 devid;
 	int			 ret;
 
-	ret = send_get_config(ep, nvmf_get_ns_config, PAGE_SIZE,
+	ret = send_mi_receive(ep, nvmf_get_ns_config, PAGE_SIZE,
 			      (void **) &hdr);
 	if (ret) {
 		print_err("send get nsdevs INB failed for %s", alias);
@@ -1059,7 +1059,7 @@ static inline int get_inb_xports(struct target *target)
 	int			 i;
 	int			 ret;
 
-	ret = send_get_config(ep, nvmf_get_xport_config, PAGE_SIZE,
+	ret = send_mi_receive(ep, nvmf_get_xport_config, PAGE_SIZE,
 			      (void **) &hdr);
 	if (ret) {
 		print_err("send get xports INB failed for %s", target->alias);
@@ -1165,7 +1165,7 @@ static int _send_set_config(struct ctrl_queue *ctrl, int id, int len, void *p)
 	int			 ret;
 
 	if (ctrl->connected) {
-		ret = send_set_config(&ctrl->ep, id, len, p);
+		ret = send_mi_send(&ctrl->ep, id, len, p);
 		if (!ret)
 			return 0;
 
@@ -1178,7 +1178,7 @@ static int _send_set_config(struct ctrl_queue *ctrl, int id, int len, void *p)
 
 	ctrl->connected = 1;
 
-	return send_set_config(&ctrl->ep, id, len, p);
+	return send_mi_send(&ctrl->ep, id, len, p);
 }
 
 static int config_portid_inb(struct target *target, struct portid *portid)
@@ -2561,7 +2561,7 @@ static int _send_reset_config(struct ctrl_queue *ctrl)
 	int			 ret;
 
 	if (ctrl->connected) {
-		ret = send_reset_config(&ctrl->ep);
+		ret = send_mi_send(&ctrl->ep, nvmf_reset_config, 0, NULL);
 		if (!ret)
 			return 0;
 
@@ -2574,7 +2574,7 @@ static int _send_reset_config(struct ctrl_queue *ctrl)
 
 	ctrl->connected = 1;
 
-	return send_reset_config(&ctrl->ep);
+	return send_mi_send(&ctrl->ep, nvmf_reset_config, 0, NULL);
 }
 
 static int send_del_target_inb(struct target *target)

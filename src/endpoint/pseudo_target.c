@@ -407,13 +407,13 @@ static inline int unlink_host(void *data)
 	return ops->unlink_host_from_subsys(entry->subnqn, entry->hostnqn);
 }
 
-static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
+static int handle_mi_receive(struct endpoint *ep, struct nvme_command *cmd,
 			     u64 addr, u64 key, u64 len)
 {
-	struct nvmf_resource_config_command *c = &cmd->config;
+	struct nvme_mi_command	 *c = &cmd->mi_cmd;
 	int			  ret;
 
-	switch (c->command_id) {
+	switch (c->fcid) {
 	case nvmf_get_ns_config:
 		len = get_nsdev(ep->data);
 		break;
@@ -434,28 +434,10 @@ static int handle_get_config(struct nvme_command *cmd, struct endpoint *ep,
 	return ret;
 }
 
-static int handle_reset_config(struct nvme_command *cmd)
+static int handle_mi_send(struct endpoint *ep, struct nvme_command *cmd,
+			  u64 addr, u64 key, u64 len)
 {
-	struct nvmf_resource_config_command *c = &cmd->config;
-	int			  ret;
-
-	switch (c->command_id) {
-	case nvmf_reset_config:
-		ops->reset_config();
-		ret = 0;
-		break;
-	default:
-		print_err("unknown set command id %x", c->command_id);
-		ret = NVME_SC_INVALID_FIELD;
-	}
-
-	return ret;
-}
-
-static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
-			     u64 addr, u64 key, u64 len)
-{
-	struct nvmf_resource_config_command *c = &cmd->config;
+	struct nvme_mi_command	 *c = &cmd->mi_cmd;
 	int			  ret;
 
 	ret = ep->ops->rma_read(ep->ep, ep->data, addr, len, key, ep->data_mr);
@@ -464,7 +446,11 @@ static int handle_set_config(struct nvme_command *cmd, struct endpoint *ep,
 		goto out;
 	}
 
-	switch (c->command_id) {
+	switch (c->fcid) {
+	case nvmf_reset_config:
+		ops->reset_config();
+		ret = 0;
+		break;
 	case nvmf_set_port_config:
 		ret = set_portid(ep->data);
 		if (ret)
@@ -572,20 +558,15 @@ static int handle_request(struct host_conn *host, struct qe *qe, void *buf,
 		case nvme_fabrics_type_connect:
 			ret = handle_connect(ep, addr, key, len);
 			break;
-		case nvme_fabrics_type_resource_config_get:
-			ret = handle_get_config(cmd, ep, addr, key, len);
-			break;
-		case nvme_fabrics_type_resource_config_set:
-			ret = handle_set_config(cmd, ep, addr, key, len);
-			break;
-		case nvme_fabrics_type_resource_config_reset:
-			ret = handle_reset_config(cmd);
-			break;
 		default:
 			print_err("unknown fctype %d", cmd->fabrics.fctype);
 			ret = NVME_SC_INVALID_OPCODE;
 		}
-	} else if (cmd->common.opcode == nvme_admin_identify)
+	} else if (cmd->common.opcode == nvme_mi_send)
+		ret = handle_mi_send(ep, cmd, addr, key, len);
+	else if (cmd->common.opcode == nvme_mi_receive)
+		ret = handle_mi_receive(ep, cmd, addr, key, len);
+	else if (cmd->common.opcode == nvme_admin_identify)
 		ret = handle_identify(ep, cmd, addr, key, len);
 	else if (cmd->common.opcode == nvme_admin_keep_alive)
 		ret = 0;

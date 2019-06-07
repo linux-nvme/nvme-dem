@@ -59,7 +59,9 @@ enum {
 	nvme_admin_get_features		= 0x0A,
 	nvme_admin_async_event		= 0x0C,
 	nvme_admin_keep_alive		= 0x18,
-	nvme_fabrics_command		= 0x7f,
+	nvme_mi_send			= 0x1D,
+	nvme_mi_receive			= 0x1E,
+	nvme_fabrics_command		= 0x7F,
 };
 
 enum {
@@ -449,6 +451,25 @@ struct nvme_features {
 	__le32			dword15;
 };
 
+struct nvme_mi_command {
+	__u8			opcode;
+	__u8			flags;
+	__u16			command_id;
+	__le32			nsid;
+	__u64			rsvd1[2];
+	union nvme_data_ptr	dptr;
+	__u8			msg_type;
+	__u8			mi_msg_type;
+	__u16			rsvd2;
+	__u8			mi_opcode;
+	__u8			rsvd3[3];
+	__u8			fcid;	// TP6001
+	__u8			rsvd[3];
+	__le32			mi_req_dword1;
+	__le32			dword14;
+	__le32			dword15;
+};
+
 struct nvme_get_log_page_command {
 	__u8			opcode;
 	__u8			flags;
@@ -467,12 +488,15 @@ struct nvme_get_log_page_command {
 };
 
 enum nvmf_capsule_command {
-	nvme_fabrics_type_property_set		= 0x00,
-	nvme_fabrics_type_connect		= 0x01,
-	nvme_fabrics_type_property_get		= 0x04,
-	nvme_fabrics_type_resource_config_reset	= 0x08,
-	nvme_fabrics_type_resource_config_set	= 0x09,
-	nvme_fabrics_type_resource_config_get	= 0x0A,
+	nvme_fabrics_type_property_set	= 0x00,
+	nvme_fabrics_type_connect	= 0x01,
+	nvme_fabrics_type_property_get	= 0x04,
+};
+
+enum mi_capsule_command { //TODO: now it is TBD so we are using 0x0C..
+//Review once we finalize the values in spec
+	nvme_mi_nvmeof_config_set	= 0x0C,
+	nvme_mi_nvmeof_config_get	= 0x0D,
 };
 
 struct nvmf_common_command {
@@ -484,22 +508,27 @@ struct nvmf_common_command {
 	__u8			ts[24];
 };
 
+//nvme-of get config mi opcodes
 enum {
 	nvmf_get_ns_config	= 0x01,
 	nvmf_get_xport_config	= 0x02,
-	nvmf_reset_config	= 0x03,
-	nvmf_set_port_config	= 0x04,
-	nvmf_del_port_config	= 0x05,
-	nvmf_link_port_config	= 0x06,
-	nvmf_unlink_port_config	= 0x07,
-	nvmf_set_subsys_config	= 0x08,
-	nvmf_del_subsys_config	= 0x09,
-	nvmf_set_ns_config	= 0x0a,
-	nvmf_del_ns_config	= 0x0b,
-	nvmf_set_host_config	= 0x0c,
-	nvmf_del_host_config	= 0x0d,
-	nvmf_link_host_config	= 0x0e,
-	nvmf_unlink_host_config	= 0x0f,
+};
+
+//nvme-of set config mi opcodes
+enum {
+	nvmf_reset_config	= 0x00,
+	nvmf_set_port_config	= 0x01, 
+	nvmf_del_port_config	= 0x02,
+	nvmf_link_port_config	= 0x03,
+	nvmf_unlink_port_config	= 0x04,
+	nvmf_set_subsys_config	= 0x05,
+	nvmf_del_subsys_config	= 0x06,
+	nvmf_set_ns_config	= 0x07,
+	nvmf_del_ns_config	= 0x08,
+	nvmf_set_host_config	= 0x09,
+	nvmf_del_host_config	= 0x0a,
+	nvmf_link_host_config	= 0x0b,
+	nvmf_unlink_host_config	= 0x0c,
 };
 
 struct nvmf_resource_config_command {
@@ -598,7 +627,7 @@ struct nvme_command {
 		struct nvmf_connect_command		connect;
 		struct nvmf_property_set_command	prop_set;
 		struct nvmf_property_get_command	prop_get;
-		struct nvmf_resource_config_command	config;
+		struct nvme_mi_command			mi_cmd;
 	};
 };
 
