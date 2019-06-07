@@ -556,9 +556,9 @@ static inline int tcp_handle_inline_data(struct tcp_ep *ep,
 	else
 		direction = cmd->common.opcode & NVME_OPCODE_MASK;
 
-	if (direction == NVME_OPCODE_C2H)
+	if (direction == NVME_OPCODE_H2C)
 		ret = tcp_inline_write(ep->sockfd, data, length);
-	else if (direction == NVME_OPCODE_H2C)
+	else if (direction == NVME_OPCODE_C2H)
 		ret = tcp_inline_read(ep->sockfd, data, length);
 	else
 		ret = 0;
