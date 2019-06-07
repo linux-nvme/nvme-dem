@@ -338,7 +338,7 @@ int send_keep_alive(struct endpoint *ep)
 	return send_admin_cmd(ep, nvme_admin_keep_alive);
 }
 
-int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
+int send_mi_receive(struct endpoint *ep, int fcid, int len, void **_data)
 {
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
@@ -366,10 +366,10 @@ int send_get_config(struct endpoint *ep, int cid, int len, void **_data)
 
 	key = ep->ops->remote_key(mr);
 
-	ep->ops->set_sgl(cmd, nvme_fabrics_command, len, data, key);
+	ep->ops->set_sgl(cmd, nvme_mi_receive, len, data, key);
 
-	cmd->config.command_id	= cid;
-	cmd->config.fctype	= nvme_fabrics_type_resource_config_get;
+	cmd->mi_cmd.mi_opcode	= nvme_mi_nvmeof_config_get;
+	cmd->mi_cmd.fcid	= fcid;
 
 	*_data = data;
 
@@ -389,40 +389,7 @@ out:
 	return ret;
 }
 
-int send_reset_config(struct endpoint *ep)
-{
-	struct nvme_command		*cmd = ep->cmd;
-	int				 bytes;
-	int				 cnt = CONFIG_RETRY_COUNT;
-	int				 ret;
-
-	if (!cmd)
-		return -EINVAL;
-
-	bytes = sizeof(*cmd);
-
-	memset(cmd, 0, BUF_SIZE);
-
-	cmd->common.flags	= NVME_CMD_SGL_METABUF;
-	cmd->common.opcode	= nvme_fabrics_command;
-
-	cmd->config.command_id	= nvmf_reset_config;
-	cmd->config.fctype	= nvme_fabrics_type_resource_config_reset;
-
-	ret = send_cmd(ep, cmd, bytes);
-	if (ret)
-		goto out;
-
-	do {
-		usleep(CONFIG_TIMEOUT);
-		ret = process_nvme_rsp(ep, 0, NULL);
-	} while (ret == -EAGAIN && --cnt);
-out:
-
-	return ret;
-}
-
-int send_set_config(struct endpoint *ep, int cid, int len, void *data)
+int send_mi_send(struct endpoint *ep, int fcid, int len, void *data)
 {
 	struct nvme_command		*cmd = ep->cmd;
 	struct xp_mr			*mr;
@@ -442,10 +409,10 @@ int send_set_config(struct endpoint *ep, int cid, int len, void *data)
 
 	key = ep->ops->remote_key(mr);
 
-	ep->ops->set_sgl(cmd, nvme_fabrics_command, len, data, key);
+	ep->ops->set_sgl(cmd, nvme_mi_send, len, data, key);
 
-	cmd->config.command_id	= cid;
-	cmd->config.fctype	= nvme_fabrics_type_resource_config_set;
+	cmd->mi_cmd.mi_opcode	= nvme_mi_nvmeof_config_set;
+	cmd->mi_cmd.fcid	= fcid;
 
 	ret = send_cmd(ep, cmd, bytes);
 	if (ret)

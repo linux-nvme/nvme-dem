@@ -195,9 +195,8 @@ int send_get_features(struct endpoint *ep, u8 fid, u64 *result);
 int send_set_features(struct endpoint *ep, u8 fid, u32 dword11);
 int send_async_event_request(struct endpoint *ep);
 int send_keep_alive(struct endpoint *ep);
-int send_reset_config(struct endpoint *ep);
-int send_set_config(struct endpoint *ep, int cid, int len, void *data);
-int send_get_config(struct endpoint *ep, int cid, int len, void **data);
+int send_mi_send(struct endpoint *ep, int cid, int len, void *data);
+int send_mi_receive(struct endpoint *ep, int cid, int len, void **data);
 
 int send_del_target(struct target *target);
 
