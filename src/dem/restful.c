@@ -648,6 +648,37 @@ static int patch_group_request(char *group, struct mg_str *body, char *resp)
 	return 0;
 }
 
+static int handle_redfish_requests(char *p[], int n, struct http_message *hm,
+				 char **resp)
+{
+//	char			*redfish;
+	int			 ret = 0;
+
+	UNUSED(p);
+	UNUSED(n);
+	UNUSED(hm);
+	UNUSED(resp);
+
+
+//	ret = parse_redfish_uri_path(p, n, hm, &resp);
+	/* this will get the sysfs file path */
+
+/*	if (is_equal(&hm->method, &s_get_method))
+		ret = get_redfish_request(group, resp);
+	else if (is_equal(&hm->method, &s_put_method))
+		ret = put_redfish_request(group, p, n, &hm->body, *resp);
+	else if (is_equal(&hm->method, &s_delete_method))
+		ret = delete_redfish_request(group, p, n, *resp);
+	else if (is_equal(&hm->method, &s_post_method))
+		ret = post_redfish_request(group, p, n, *resp);
+	else if (is_equal(&hm->method, &s_patch_method))
+		ret = patch_redfish_request(group, &hm->body, *resp);
+	else
+		ret = bad_request(*resp);
+*/
+	return ret;
+
+}
 static int handle_group_requests(char *p[], int n, struct http_message *hm,
 				 char **resp)
 {
@@ -765,6 +796,9 @@ void handle_http_request(struct mg_connection *c, void *ev_data)
 
 	if (strncmp(parts[0], URI_DEM, DEM_LEN) == 0)
 		ret = handle_dem_requests(parts[1], hm, resp);
+	else if (strncmp(parts[0], URI_V1, V1_LEN) == 0) {
+		ret = handle_redfish_requests(parts, n, hm, &resp);
+	}
 	else if (strncmp(parts[0], URI_GROUP, GROUP_LEN) == 0)
 		ret = handle_group_requests(parts, n, hm, &resp);
 	else if (strncmp(parts[0], URI_HOST, HOST_LEN) == 0)
