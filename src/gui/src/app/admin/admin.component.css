@@ -1,0 +1,53 @@
+.upButton {
+  height: 200px;
+  width: 300px;
+  float: left;
+  position: relative;
+  background-color: white;
+  outline: none;
+  cursor:pointer;
+  left: 260px;
+  top: 30px;
+  margin: 85px;
+  border-color: #4397EA;
+}
+
+.downButton {
+  height: 200px;
+  width: 300px;
+  float: left;
+  position: relative;
+  background-color: white;
+  outline: none;
+  top: 270px;
+  border-color: #4397EA;
+
+}
+
+.button-text {
+    position: absolute;
+    font-family: 'serif';
+    font-size: 37px;
+    color: #0d4985;
+    bottom: 40%;
+    width: 100%;
+    left: 0%;
+  }
+
+  .small-img {
+  max-width: 200px;
+  max-height: 200px;
+  position: absolute;
+  top: 30%;
+  width: 100%;
+  left: 25%;
+  }
+
+.big-img{
+    max-width: 200px;
+    max-height: 200px;
+    position: absolute;
+    top: 10%;
+    width: 100%;
+    left: 30%;
+}

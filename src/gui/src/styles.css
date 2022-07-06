@@ -1,0 +1,28 @@
+/* You can add global styles to this file, and also import other style files */
+
+* {
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Times New Roman';
+}
+
+.bg-img {
+    background: url('/assets/intel.png') no-repeat center center fixed;
+    /* background-position: center;
+    background-repeat: no-repeat; */
+    background-size: cover;
+    -webkit-background-size: cover;
+    -moz-background-size: cover;
+    -o-background-size: cover;
+    background-size: cover;
+    /* margin-top: 350px; */
+}
+
+.bg-admin {
+    background-color: #DCDCDC;
+}
+html, body { height: 100%; overflow: hidden; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }

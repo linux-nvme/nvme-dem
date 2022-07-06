@@ -1,0 +1,231 @@
+.backbutton{
+    margin-bottom: 10px;
+    margin-top:10px;
+    background-color: Transparent;
+    background-repeat:no-repeat;
+    border:none;
+    cursor:pointer;
+    overflow: hidden;
+    outline:none;
+    text-decoration: underline;
+    font-size: 25px;
+    color: #043870;
+  }
+
+  /* label {
+    position: relative;
+    left: -70%;
+    width: 200px;
+  }
+
+  input {
+    position: relative;
+    left: -70%; 
+  } */
+
+  h4 {
+    font-weight: bold;
+  }
+  .backbutton:hover {
+      color: white;
+  }
+
+  table .btn{
+    margin: 6px;
+  }
+  
+  .btn-primary {
+    position: relative;
+    left: 90%;
+    top: 3%;
+  }
+
+  select {
+    margin-top: 5px;
+  }
+  img {
+    width: 20px;
+    height: 20px;
+    position: relative;
+    left: 50%;
+  }
+
+  #cancelBtn {
+    margin-left: 10px;
+}
+  h1 {
+    position: relative;
+    width: 1300px;
+    left: 400px;
+    color: #043870;
+    font-family: 'Allura';
+    font-size: 42px;
+    text-align: center;
+    } 
+
+    .subsystems {
+        background: #e4e6ff;
+        padding: 0.5em 1em 0.5em 1.5em;
+        margin: 1em;
+        max-width: 15%;
+        position: relative;
+        left: 37%;
+        top: 20%;
+        border: 2px #e4e6ff solid;
+    }
+
+    .subsystems .subsystemListItem {
+        font-size: 20px;
+        font-family: Georgia, 'Times New Roman', Times, serif;
+        background: #e4e6ff;
+        padding: 0.3em;
+        margin: 0em;
+        text-align: left;
+        cursor: pointer;
+        border-bottom: 0.25px rgba(99, 102, 255, 0.61) solid;
+        /* box-shadow: 0px 0px 0px 8px #2200e0(0,0,0,0.3); */
+        width: 90%;
+
+        /* border: 1px black solid; */
+    }
+
+    ul {
+        list-style-type: none
+    }
+
+    .selected {
+        background: rgb(99, 183, 231);
+        color: rgb(255, 255, 255);
+    }
+/* 
+    form {
+        display: flex;
+        position: relative;
+        width: 20%;
+        height: 20%;
+        justify-content: center;
+        align-items: flex-end;
+        flex-direction: column;
+        top: 10%;
+        left: 55%;
+        /* left: 100px; */
+
+    .container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: left;
+        padding: 20px;
+        background: #e4e6ff;
+        border-radius: 10px;
+        border-color: black;
+        width: 252px;
+        height: 450px;
+        position: relative;
+        bottom: 10%;
+        right: 28.5%;
+    }
+
+    #SSNameLabel, #TransportDetailsLabel, #EndpointLabel, #ControllerLabel, #VolumeLabel {
+        font-size: 20px;
+        padding: 10px;
+        position: relative;
+        /* bottom: %; */
+    }
+
+    input#SSName, input#Volume, input#Controller, input#Endpoint, input#TransportDetails {
+        outline: 0;
+        font-size: 20px;
+        padding: 5px 5px;
+        /* margin-bottom: 50px; */
+        /* margin: 5px; */
+        min-width: 50px;
+        position: relative;
+        bottom: 10%;
+    }
+
+    
+#users {
+    font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+  }
+  
+  #users td, #users th {
+    border: 1px, solid, #ddd;
+    padding: 8px;
+  }
+  
+  #users tr:nth-child(even) {background-color: #f2f2f2;}
+  
+  #users tr:hover {background-color: rgb(99, 183, 231);}
+  
+  #users th {
+  padding-top: 12px;
+  padding-bottom: 12px;
+  text-align: left;
+  background-color: blueviolet;
+  color: white;
+  }
+  
+  .actionImg {
+    height: 30px;
+    width: 30px;
+    cursor: pointer;
+  }
+
+  .wrapper {
+      margin-top: 10%;
+  }
+
+
+  .wrapper{
+      position: relative;
+      bottom: 10%;
+  }
+
+  .wrapper h1{
+    font-family: 'Allura';
+    font-size: 52px;
+    margin-bottom: 60px;
+    margin-top: 30px;
+    text-align: center;
+  }
+  
+  .team{
+    display: flex;
+    justify-content: center;
+    width: auto;
+    text-align: center;
+    flex-wrap: wrap;
+  }
+  
+  .team .team_member{
+    background: #fff;
+    margin:5px;
+    margin-right: 120px;
+    margin-left: 120px;
+    margin-bottom: 50px;
+    width: 300px;
+    padding: 20px;
+    line-height: 20px;
+    color: #8e8b8b;  
+    position: relative;
+  }
+  
+  .team .team_member h3{
+    color: #0e0d6d;
+    font-size: 26px;
+    margin-top: 20px;
+  }
+  
+  .team .team_member ul{
+      margin-right: 20px;
+  }
+  /* .team .team_member p.role{
+    color: #ccc;
+    margin: 12px 0;
+    font-size: 12px;
+    text-transform: uppercase;
+  }
+   */

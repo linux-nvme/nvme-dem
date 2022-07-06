@@ -1,0 +1,79 @@
+.backbutton{
+  margin-bottom: 10px;
+  margin-top:10px;
+  background-color: Transparent;
+  background-repeat:no-repeat;
+  border:none;
+  cursor:pointer;
+  overflow: hidden;
+  outline:none;
+  text-decoration: underline;
+  font-size: 25px;
+  color: #043870;
+}
+
+.backbutton:hover {
+  color: white;
+}
+
+table .btn{
+  margin: 6px;
+}
+
+form { 
+  margin: 0 auto; 
+  width:250px;
+  }
+  
+  h1 {
+    position: relative;
+    width: 700px;
+    left: 600px;
+    color: #043870;
+    font-family: 'Allura';
+    font-size: 42px;
+    text-align: center;
+    } 
+
+  /* .table {
+    position: absolute;
+    margin-top: 2%;
+    width: 90%;
+    max-height: 100%;
+    overflow: auto;
+} */
+
+#users {
+  font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+  border-collapse: collapse;
+  width: 100%;
+}
+
+#users td, #users th {
+  border: 1px, solid, #ddd;
+  padding: 8px;
+}
+
+#users tr:nth-child(even) {background-color: #f2f2f2;}
+
+#users tr:hover {background-color: rgb(99, 183, 231);}
+
+#users th {
+padding-top: 12px;
+padding-bottom: 12px;
+text-align: left;
+background-color: blueviolet;
+color: white;
+}
+
+h3 {
+text-align: center;
+color: brown;
+margin-top: -29px;
+}
+
+.actionImg {
+  height: 30px;
+  width: 30px;
+  cursor: pointer;
+}

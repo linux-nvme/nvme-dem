@@ -1,0 +1,35 @@
+<app-navbar_intel></app-navbar_intel>
+<a routerLink="/admin">
+  
+  <button type="button" name="button" class="backbutton"><i class="fa fa-arrow-left fa-2x" aria-hidden="true"></i> </button>
+  </a>
+
+
+<h1> Hosts </h1>
+<hr>
+<table id = "users">
+
+  <tr>
+  <th *ngFor = "let column of headers">
+      {{column}}
+  
+  </th>
+  </tr>
+  
+  <tr *ngFor = "let row of rows">
+      <td *ngFor = "let column of dataHeaders">
+          {{row[column]}}
+  
+      </td>
+      <td>
+        <button class="btn btn-sm btn-info" (click) ="infoBtnClicked(row)">
+          <i class="fa fa-search"></i>Details</button>
+        <button class="btn btn-sm btn-warning" (click)="openEdit(contentEdit, row)">
+          <i class="fa fa-edit"></i>Edit</button>
+        <button class="btn btn-sm btn-danger" (click)="openDelete(contentDelete, row)">
+          <i class="fa fa-remove"></i>Delete</button>
+      </td>
+  </tr>
+  
+  </table>
+

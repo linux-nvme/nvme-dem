@@ -1,0 +1,78 @@
+<div class="container">
+    <!-- <div class="accordion-heading" id = "f1" (click) = "onClick($event)"> Controllers: <span class="pull-right up-icon icon" [class.icon] = "acc1Visible"> <i class="fa fa-chevron-up"></i></span></div>
+    <div class="accordion-content" *ngIf="acc1Visible">
+        <ul *ngFor="let details of acc1Content">
+            <li>{{details.Controllers}}</li>
+        </ul>
+    </div> -->
+    <br>
+    <div class="accordion-heading" id = "f2" (click) = "onClick($event)"> Volumes: <span class="pull-right up-icon" [class.icon] = "acc2Visible"> <i class="fa fa-chevron-up"></i></span></div>
+    <div class="accordion-content" *ngIf="acc2Visible"> 
+        <table id = "users">
+
+            <tr>
+                <th>
+                    Physical Volume
+                </th>
+                <th>
+                    Underlying Volume
+                </th>
+            </tr>
+            
+            <ng-container *ngFor="let details of acc2Content">
+                <tr>
+                    <td>  {{details.Volumes}} </td>
+                    <td>  
+                        <ng-container *ngFor="let subdetails of acc2SubContent[0]">
+                            {{subdetails.VolumeNS}}
+                        </ng-container>
+                    </td>
+                </tr>
+            </ng-container>
+
+        </table>
+               
+                    
+            
+    </div>
+    <br>
+
+    <div class="accordion-heading" id = "f3" (click) = "onClick($event)"> Endpoints: <span class="pull-right up-icon" [class.icon] = "acc3Visible"> <i class="fa fa-chevron-up"></i></span></div>
+    <div class="accordion-content" *ngIf="acc3Visible">  
+        <ul *ngFor="let details of acc3Content">
+            <li>{{details.Endpoints}}</li>
+        </ul>
+    </div>
+    <br>
+
+    <div class="accordion-heading" id = "f4" (click) = "onClick($event)"> Transport IP: <span class="pull-right up-icon" [class.icon] = "acc4Visible"> <i class="fa fa-chevron-up"></i></span></div>
+    <div class="accordion-content" *ngIf="acc4Visible">  
+        <ul *ngFor="let details of acc4Content">
+            <li>{{details.Protocol}} - {{details.IPv4Address}}:{{details.Port}} </li>
+        </ul>
+    </div>
+    <br>
+
+    <div class="accordion-heading" id = "f5" (click) = "onClick($event)"> Connections: <span class="pull-right up-icon" [class.icon] = "acc5Visible"> <i class="fa fa-chevron-up"></i></span></div>
+    <div class="accordion-content" *ngIf="acc5Visible">  
+        <ul *ngFor="let details of acc5Content">
+            <li>
+                <span *ngFor="let d of details.volumeInfo">
+                {{d.VolumeEP}} -
+                </span>
+                {{details.targetEP}} <-------------------------------------[
+                
+                <span *ngFor="let c of details.accessCapabilityL">
+                    {{c.accessCP}}
+                </span> 
+                
+                ]---------------------------------------------------->
+                <span *ngFor="let d of details.initiatorEP">
+                    {{d.iEP}}
+                </span> 
+             </li>
+        </ul>
+    </div>
+    <br>
+
+</div>

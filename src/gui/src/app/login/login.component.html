@@ -1,0 +1,40 @@
+
+<h1>
+    <strong> Distributed Endpoint Manager (DEM) </strong>
+</h1>
+<br>
+<h3> 
+    <p> 
+    DEM is an implementation of a centralized NVMe-oF Discovery Controller. <br>
+    This application manages hosts, targets and provisioned subsystems. <br>
+    It visualizes groups consisting of endpoints and associated hosts. 
+</p>
+</h3>
+<form (submit)= "loginUser($event)">
+    <div class="LoginContainer">
+        <label for="username" id = "userLabel">Username</label>
+
+    <div>
+        <input type="text" placeholder="Username" id="username" name = "username">
+    </div>
+
+    <label for="password" id="passLabel">Password</label>
+
+    <div><input type="password" placeholder="Password" id="password" name= "password"></div>
+
+    <label for="ipAddress" id = "ipAddresslabel">DEM IP Address</label>
+
+    <div><input type="text" placeholder="IP Address" id="ipAddress" name = "ipAddress"></div>
+
+    <label for="port" id = "portlabel">Port</label>
+
+    <div><input type="text" placeholder="Port" id="port" name = "port"></div>
+
+    <div>
+        <button type="submit" id = "submit"> <strong> Submit </strong>  </button> 
+    </div>
+
+    <img src='/assets/intelLogo.png' alt="Smith's Detection" id= "logoImg"><br>
+        <label id = "formFooter"> Copyright: Only authorized user by Intel Corporation can use this application</label>
+    </div>
+</form>

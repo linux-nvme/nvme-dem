@@ -1,0 +1,40 @@
+<div class="table-container">
+
+    <table mat-table [dataSource]="dataSource" #mytable class="mat-table mat-elevation-z8">
+
+        <!--- Note that these columns can be defined in any order.
+        The actual rendered columns are set as a property on the row definition" -->
+        <div *ngFor="let columnItem of columnItems">
+            <ng-container matColumnDef="{{columnItem.columnDef}}">
+                <th mat-header-cell *matHeaderCellDef> {{columnItem.columnName}} </th>
+                <td mat-cell *matCellDef="let element">
+                    <div *ngIf="dialogTable; else elseTemplateDialogTable">
+                        <div contenteditable (input)="onChangeTableData($event.target.innerHTML, element, columnItem.columnDef)"> {{element[columnItem.columnDef]}} </div>
+                    </div>
+                    <ng-template #elseTemplateDialogTable>
+                        <div> {{element[columnItem.columnDef]}} </div>
+                    </ng-template>
+                </td>
+            </ng-container>
+        </div>
+
+        <!-- Action Column -->
+        <ng-container matColumnDef="action">
+            <th mat-header-cell *matHeaderCellDef> Actions </th>
+            <td mat-cell *matCellDef="let element" class={{actionLinkCSS}}>
+                <div class="btn-container">
+                    <a *ngIf="!dialogTable" (click)="openDialog('Info',element)"><img *ngIf="!dialogTable" src="{{infoImage}}" alt=""></a>
+                    <a *ngIf="!dialogTable" (click)="openDialog('Update',element)"><img src="{{editImage}}" alt=""></a>
+                    <a *ngIf="!dialogTable" (click)="openDialog('Delete',element)"><img src="{{deleteImage}}" alt=""></a>
+                    <a *ngIf="dialogTable" (click)="delete(element)"><img src="{{deleteImage}}" alt=""></a>
+                    <!-- <div *ngIf="isLicenseScreen"> -->
+                    <a *ngIf="isLicenseScreen" (click)="openDialog('Download',element)"><img src="{{downloadImage}}" alt=""></a>
+                    <a *ngIf="isLicenseScreen" (click)="openDialog('Refresh',element)"><img src="{{refreshImage}}" alt=""></a>
+                </div>
+            </td>
+            </ng-container>
+                <tr mat-header-row *matHeaderRowDef="displayedColumns; sticky : true"></tr>
+                <tr mat-row *matRowDef="let row; columns: displayedColumns;"></tr>
+
+    </table>
+</div>

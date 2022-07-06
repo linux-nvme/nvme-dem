@@ -1,0 +1,80 @@
+
+
+.accordion-heading {
+    padding: 10px;
+    cursor: pointer;
+    background: #043870;
+    color: white;
+    font-weight: 500;
+    margin-top: 4px;
+    border-radius: 2px;
+    width: 140%;
+    position: relative;
+    right: 20%;
+}
+
+.accordion-content {
+    transition: 4s ease-in-out;
+    padding: 10px;
+    background: white;
+    width: 140%;
+    position: relative;
+    right: 20%;
+    border: 1px solid white;
+    border-bottom-left-radius: 2px;
+    border-bottom-right-radius: 2px;
+    animation-name: slideDown;
+    animation-duration: 1s;
+    -webkit-animation-duration: 1s;
+    animation-timing-function: ease;
+    -webkit-animation-timing-function: ease;
+}
+
+#users {
+    font-family: "Trebuchet MS", Arial, Helvetica, sans-serif;
+    border-collapse: collapse;
+    width: 100%;
+    border: dotted 2px #000000;
+  }
+  
+  #users td, #users th {
+    padding: 8px;
+    border: dotted 1px #000000;
+  }
+
+  #users th {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    text-align: left;
+    }
+
+@keyframes slideDown {
+    0% {
+        transform: translateY(-100%);
+    }
+    50% {
+        transform: translateY(8%);
+    }
+    65% {
+        transform: translateY(-4%);
+    }
+    80% {
+        transform: translateY(4%);
+    }
+    95% {
+        transform: translateY(-2%);
+    }
+    100% {
+        transform: translateY(0%);
+    }
+}
+
+.up-icon {
+    transition: 0.2s ease-out;
+}
+
+.icon {
+    animation-name: icon;
+    transform: rotate(180deg);
+    transition: 0.2s ease-out;
+}

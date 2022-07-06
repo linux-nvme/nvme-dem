@@ -1,0 +1,105 @@
+form {
+    display: flex;
+    position: relative;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    align-items: flex-end;
+    flex-direction: column;
+    bottom: 190px;
+    right: 30px;
+    /* left: 100px; */
+}
+
+h1 {
+    color: white;
+    /* text-align: center; */
+    position: relative;
+    top: 80px;
+    left: 50px;
+    /* text-align: center; */
+    font-size: 35px
+}
+
+h3 {
+    color: white;
+    position: relative;
+    top: 80px;
+    left: 50px;
+    font-size: 25px;
+
+}
+
+input#username, input#password, input#ipAddress, input#port {
+    outline: 0;
+    font-size: 20px;
+    padding: 5px 5px;
+    /* margin-bottom: 50px; */
+    /* margin: 5px; */
+    min-width: 50px;
+    position: relative;
+    bottom: 55px;
+}
+
+button#submit {
+    /* margin: 20px;
+    padding: 20px; */
+    position: relative;
+    bottom: 30px;
+    border-radius: 5px;
+    border-width: 1px;
+    font-size: 15px;
+    cursor: pointer;
+    width: 100px;
+    height: 40px;
+    text-align: center;
+    background-color: #2E62CB;
+    color: white;
+    box-shadow: 0 2px #999;
+    outline: none;
+}
+
+button#submit:hover {
+    background-color: #023497;
+}
+
+button#submit:active {
+    background-color: #2E62CB;
+    box-shadow: 0 2px gray;
+    transform: translateY(2px);
+}
+
+.LoginContainer {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 20px;
+    background: #e4e6ff;
+    border-radius: 10px;
+    border-color: black;
+    width: 310px;
+    height: 550px;
+    position: relative;
+    top: 20px;
+    right: 50px;
+}
+
+#userLabel, #passLabel, #ipAddresslabel, #portlabel {
+    font-size: 20px;
+    padding: 10px;
+    position: relative;
+    bottom: 50px;
+}
+
+#logoImg {
+    width: 50px;
+    position: relative;
+    bottom: -20px;
+}
+
+#formFooter {
+    font-size: 15px;
+    position: relative;
+    bottom: -25px;
+}

@@ -1,0 +1,92 @@
+.btn-container {
+    width: 80%;
+    height: 60%;
+    display: flex;
+    justify-content: space-around;
+    flex-wrap: wrap;
+    align-items: center;
+    flex-direction: row;
+    margin-top: 2%;
+    margin-left: 15%;
+}
+
+.container {
+    display: flex;
+    flex-direction: column;
+    width: 180%;
+    margin-left: 55%;
+    margin-top: 5%;
+    flex-basis: 300px;
+}
+
+.action-link{
+  width: 15%;
+}
+.action-link-license{
+  width:30%;
+}
+
+.mat-table {
+    overflow: auto;
+    width: 100%;
+    padding-right: 10px;
+    box-shadow: none;
+    border-width: 1px;
+    border-color: #ccc;
+}
+
+.table-container {
+    margin-top: 10px;
+    margin-left:10px;
+}
+
+td.mat-cell {
+    border-right: 1px solid;
+    text-align: center;
+    align-self: stretch;
+}
+
+td.mat-cell:last-child {
+    border-right: 1px;
+    border-left: 1px;
+}
+
+a {
+    cursor: pointer;
+}
+
+a img {
+    width: 20px;
+    height: 20px;
+}
+
+th.mat-sort-header-sorted {
+    color: black;
+}
+
+.mat-header-row {
+    height: 30px !important;
+}
+
+th.mat-header-cell {
+    text-align: center;
+    max-width: 300px;
+    background-color: #2f4f4f;
+    color: white;
+    font-weight: lighter;
+    font-size: 13px;
+    font-family: Helvetica;
+    height: 20px !important;
+}
+
+td.mat-cell {
+    border: 0px;
+    font-family: Helvetica;
+}
+table tr:nth-child(even) {
+    background-color: #f2f2f2;
+}
+
+table tr:hover {
+    background-color: #ddd;
+}

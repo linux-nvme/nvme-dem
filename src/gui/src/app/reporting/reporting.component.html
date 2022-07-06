@@ -1,0 +1,118 @@
+<app-navbar_intel></app-navbar_intel>
+<a routerLink="/admin">
+  <button type="button" name="button" class="backbutton"><i class="fa fa-arrow-left fa-2x" aria-hidden="true"></i> </button>
+  </a>
+
+    <h1> Targets </h1>
+
+    <hr>
+
+    <!-- Add -->
+    <ng-template #content let-modal>
+      <div class="modal-header">
+        <h4 class="modal-title" id="modal-basic-title"> Add a new target system </h4>
+        <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+      </div>
+      <div class="modal-body">
+        <form #f="ngForm" (ngSubmit)="onSubmit(f)" novalidate>
+          <div class="mb-3">
+            <label for="targetName">Target Name</label>
+            <input type="text" id="targetName" class="form-control" name="targetName" ngModel>
+            <br>
+            <label for="targetIP">Target Transport IP</label>
+            <input type="text" id="targetIP" class="form-control" placeholder="___.___.___.___" name="targetIP" ngModel>
+          </div>
+            <button data-dismiss="modal" id = "submitBtn" class="btn btn-info">Submit</button>
+            <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Cancel click')">Cancel</button>
+        </form>
+      </div>
+    </ng-template>
+    
+    <button type="button" class="btn btn-primary" (click)="open(content)">Add</button>
+
+        <!-- Edit -->
+    <ng-template #contentEdit let-modal>
+      <div class="modal-header">
+        <h4 class="modal-title" id="modal-basic-title"> Add a new target system </h4>
+        <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+      </div>
+      <div class="modal-body">
+        <form [formGroup]="editForm" novalidate>
+          <div class="mb-3">
+            <label for="targetName">Target Name</label>
+            <input type="text" formControlName="targetNameEdit" class="form-control">
+            <br>
+            <label for="targetIP">Target Transport IP</label>
+            <input type="text" formControlName="targetIPEdit" class="form-control">
+          </div>
+            <button data-dismiss="modal" id = "saveBtnEdit" class="btn btn-info" (click)="onSave()">Save</button>
+            <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Cancel click')">Cancel</button>
+        </form>
+      </div>
+    </ng-template>
+
+        <!-- View -->
+    <ng-template #contentDetails let-modal>
+      <div class="modal-header">
+        <h4 class="modal-title" id="modal-basic-title"> Edit </h4>
+        <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+      </div>
+      <div class="modal-body">
+        <form>
+          <div class="form-group">
+            <label for="targetName">Target Name</label>
+            <input type="text" id="targetNameDetails" class="form-control">
+          </div>
+          <br>
+          <div class="form-group">
+            <label for="targetIP">Target Transport IP</label>
+            <input type="text" id="targetIPDetails" class="form-control">
+          </div>
+          <br>
+          <button data-dismiss="modal" id = "saveBtn" class="btn btn-info">Save</button>
+          <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Cancel click')">Cancel</button>
+        </form>
+      </div>
+    </ng-template>
+
+    <!-- Delete -->
+    <ng-template #contentDelete let-modal>
+      <div class="modal-header">
+        <h4 class="modal-title">Confirm Delete</h4>
+        <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')">
+          <!-- <span aria-hidden="true">&times;</span> -->
+        </button>
+      </div>
+      <div class="modal-body">
+        <h2>Are you sure you want to delete ? </h2>
+        <button data-dismiss="modal" class="btn btn-danger" (click)="onDelete()">Yes</button> 
+        <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Save click')">Cancel</button>
+      </div>
+    </ng-template>
+
+        <!-- Table -->
+    <table id = "users">
+
+  <tr>
+  <th *ngFor = "let column of headers">
+      {{column}}
+  
+  </th>
+  </tr>
+  
+  <tr *ngFor = "let row of rows">
+      <td *ngFor = "let column of dataHeaders">
+          {{row[column]}}
+  
+      </td>
+      <td>
+        <button class="btn btn-sm btn-info" (click) ="infoBtnClicked(row)">
+          <i class="fa fa-search"></i>Details</button>
+        <button class="btn btn-sm btn-warning" (click)="openEdit(contentEdit, row)">
+          <i class="fa fa-edit"></i>Edit</button>
+        <button class="btn btn-sm btn-danger" (click)="openDelete(contentDelete, row)">
+          <i class="fa fa-remove"></i>Delete</button>
+      </td>
+  </tr>
+  
+  </table>

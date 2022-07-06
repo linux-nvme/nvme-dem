@@ -1,0 +1,142 @@
+<app-navbar_intel></app-navbar_intel>
+<a routerLink="/reporting">
+  <button type="button" name="button" class="backbutton"><i class="fa fa-arrow-left fa-2x" aria-hidden="true"></i>
+  </button>
+</a>
+
+<!-- Add -->
+<ng-template #content let-modal>
+    <div class="modal-header">
+      <h4 class="modal-title" id="modal-basic-title"> Add a new target subsystem </h4>
+      <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')"></button>
+    </div>
+    <div class="modal-body">
+      <form #f="ngForm" (ngSubmit)="onSubmit(f)" novalidate>
+        <div class="mb-3">
+          <label for="subsystemName">Subsystem Name</label>
+          <input type="text" id="subsystemName" class="form-control" name="subsystemName" ngModel>
+          <label for="volumeSubsystemName">Volume Name</label>
+          <input type="text" id="volumeSubsystemName" class="form-control" name="volumeSubsystemName" ngModel>
+          <img src="/assets/arrow.png" alt="">
+          <br>
+
+          <select formControlName="underlyingVolumeDropdown" class="form-control">
+            <option disabled>Select Underlying Volume</option>
+            <option>Choose Underlying Volume</option>
+            <option *ngFor="let vol of systemVolumeNames">{{vol.Name}}</option>
+        </select>
+
+          <label for="EPName">Endpoint Name</label>
+          <input type="text" id="EPName" class="form-control" name="EPName" ngModel>
+         
+          <label for="TDetails">Transport Details</label>
+
+          <select formControlName="transportDropdown" class="form-control">
+            <option disabled>Select Transport Details</option>
+            <option>Choose Transport Details</option>
+            <option *ngFor="let td of chassisTransportIPList">{{td.Address}}</option>
+        </select>
+
+          <label for="connectionName">Connection</label>
+          <input type="text" id="connectionName" class="form-control" name="connectionName" placeholder="Connection Name" ngModel>
+
+                    <select formControlName="accessPermission" class="form-control">
+                        <option disabled>Select Permission Level</option>
+                        <option>Choose Access Permission</option>
+                        <option *ngFor="let web of accessList">{{web}}</option>
+                    </select>
+
+<!-- 
+                    <select formControlName="accessPermission">
+                        <option disabled>Select Permission Level</option>
+                        <option>Choose Access Permission</option>
+                        <option *ngFor="let web of accessList">{{web}}</option>
+                    </select> -->
+                    
+
+        </div>
+          <button data-dismiss="modal" id = "submitBtn" class="btn btn-info">Submit</button>
+          <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Cancel click')">Cancel</button>
+      </form>
+    </div>
+  </ng-template>
+
+
+  
+  <ng-template #contentDelete let-modal>
+    <div class="modal-header">
+      <h4 class="modal-title">Confirm Delete</h4>
+      <button type="button" class="btn-close" aria-label="Close" (click)="modal.dismiss('Cross click')">
+        <!-- <span aria-hidden="true">&times;</span> -->
+      </button>
+    </div>
+    <div class="modal-body">
+      <h2>Are you sure you want to delete ? </h2>
+      <button data-dismiss="modal" class="btn btn-danger" (click)="onDelete()">Yes</button> 
+      <button type="button" id = "cancelBtn" class="btn btn-outline-dark" (click)="modal.close('Save click')">Cancel</button>
+    </div>
+  </ng-template>
+
+  
+<button type="button" class="btn btn-primary" (click)="open(content)">Add</button>
+
+
+    <h1>  Target Systems - {{targetName}} ({{targetTransportIP}})</h1>
+
+    <hr>
+
+<table id = "users">
+
+    <tr>
+    <th *ngFor = "let column of headers">
+        {{column}}
+    
+    </th>
+    </tr>
+    
+    <tr *ngFor = "let row of rows">
+        <td *ngFor = "let column of dataHeaders">
+            {{row[column]}}
+    
+        </td>
+        <td>
+            <button class="btn btn-sm btn-info" (click) ="infoBtnClicked(row)">
+              <i class="fa fa-search"></i>Details</button>
+            <button class="btn btn-sm btn-warning" (click)="openEdit(contentEdit, row)">
+              <i class="fa fa-edit"></i>Edit</button>
+            <button class="btn btn-sm btn-danger" (click)="openDelete(contentDelete, row)">
+              <i class="fa fa-remove"></i>Delete</button>
+          </td>
+    </tr>
+    
+    </table>
+
+    <div class="wrapper">
+        <hr>
+        <h1><u>
+            Underlying Resources
+        </u>
+    </h1>
+            
+        <div class="team">
+          <div class="team_member">
+            <h3>Volume Namespaces</h3>   
+            <hr>         
+                <ul *ngFor="let volume of systemVolumeNames"> 
+                    <li>  {{volume.Name}} </li>
+                  </ul>
+          </div>
+          <div class="team_member">
+            <h3> Transport IP Details </h3>
+            <hr>         
+            <ul *ngFor="let details of chassisTransportIPList">
+                <li>
+                    Address: {{details.Address}} <br>
+                    SubnetMask: {{details.SubnetMask}} <br>
+                    AddressOrigin:{{details.AddressOrigin}} <br>
+                    Gateway: {{details.Gateway}}
+                </li>
+            </ul>
+        </div>
+        </div>
+      </div>

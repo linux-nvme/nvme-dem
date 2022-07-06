@@ -1,0 +1,105 @@
+Date : 2022-06-08 15:04:14
+Directory : c:\Users\garggaur\Downloads\zip\NVme\src\app
+Total : 66 files,  2148 codes, 255 comments, 546 blanks, all 2949 lines
+
+Languages
++------------+------------+------------+------------+------------+------------+
+| language   | files      | code       | comment    | blank      | total      |
++------------+------------+------------+------------+------------+------------+
+| TypeScript |         38 |      1,270 |        137 |        361 |      1,768 |
+| CSS        |         14 |        649 |         35 |        110 |        794 |
+| HTML       |         14 |        229 |         83 |         75 |        387 |
++------------+------------+------------+------------+------------+------------+
+
+Directories
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| path                                                                                               | files      | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| .                                                                                                  |         66 |      2,148 |        255 |        546 |      2,949 |
+| accordion                                                                                          |          4 |        167 |          6 |         26 |        199 |
+| admin                                                                                              |          4 |        104 |         11 |         28 |        143 |
+| customer                                                                                           |          4 |         80 |          0 |         23 |        103 |
+| home                                                                                               |          4 |         36 |          0 |         12 |         48 |
+| landing-page                                                                                       |          4 |        143 |         76 |         47 |        266 |
+| login                                                                                              |          4 |        186 |          8 |         36 |        230 |
+| logout                                                                                             |          4 |         43 |          0 |         12 |         55 |
+| navbar_intel                                                                                       |          4 |         99 |         15 |         25 |        139 |
+| reporting                                                                                          |          4 |        134 |          1 |         36 |        171 |
+| reporting_                                                                                         |          4 |         72 |          0 |         21 |         93 |
+| subsystem-details                                                                                  |          4 |        251 |         33 |         73 |        357 |
+| table                                                                                              |          4 |        169 |          4 |         35 |        208 |
+| target-subsystems                                                                                  |          4 |        202 |         50 |         44 |        296 |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+
+Files
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| filename                                                                                           | language   | code       | comment    | blank      | total      |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\accordion\accordion.component.css                     | CSS        |         56 |          0 |          6 |         62 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\accordion\accordion.component.html                    | HTML       |         41 |          6 |          4 |         51 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\accordion\accordion.component.spec.ts                 | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\accordion\accordion.component.ts                      | TypeScript |         50 |          0 |         10 |         60 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\admin\admin.component.css                             | CSS        |         48 |          0 |          6 |         54 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\admin\admin.component.html                            | HTML       |         16 |          3 |          8 |         27 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\admin\admin.component.spec.ts                         | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\admin\admin.component.ts                              | TypeScript |         20 |          8 |          8 |         36 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app-routing.module.ts                                 | TypeScript |          8 |          0 |          3 |         11 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app.component.css                                     | CSS        |          0 |          0 |          1 |          1 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app.component.html                                    | HTML       |          1 |          0 |          0 |          1 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app.component.spec.ts                                 | TypeScript |         31 |          0 |          5 |         36 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app.component.ts                                      | TypeScript |          9 |          0 |          2 |         11 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\app.module.ts                                         | TypeScript |         96 |         10 |          8 |        114 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\auth.guard.spec.ts                                    | TypeScript |         12 |          0 |          5 |         17 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\auth.guard.ts                                         | TypeScript |         31 |          5 |          8 |         44 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\auth.service.spec.ts                                  | TypeScript |         12 |          0 |          5 |         17 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\auth.service.ts                                       | TypeScript |         24 |         36 |         15 |         75 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\customer\customer.component.css                       | CSS        |         36 |          0 |          4 |         40 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\customer\customer.component.html                      | HTML       |          7 |          0 |          7 |         14 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\customer\customer.component.spec.ts                   | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\customer\customer.component.ts                        | TypeScript |         17 |          0 |          6 |         23 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\home\home.component.css                               | CSS        |          0 |          0 |          1 |          1 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\home\home.component.html                              | HTML       |          3 |          0 |          0 |          3 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\home\home.component.spec.ts                           | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\home\home.component.ts                                | TypeScript |         13 |          0 |          5 |         18 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\interface.ts                                          | TypeScript |          3 |          0 |          0 |          3 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\landing-page\landing-page.component.css               | CSS        |         54 |          7 |         12 |         73 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\landing-page\landing-page.component.html              | HTML       |         22 |         42 |         13 |         77 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\landing-page\landing-page.component.spec.ts           | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\landing-page\landing-page.component.ts                | TypeScript |         47 |         27 |         16 |         90 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\login\login.component.css                             | CSS        |         87 |          7 |         11 |        105 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\login\login.component.html                            | HTML       |         30 |          0 |         11 |         41 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\login\login.component.spec.ts                         | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\login\login.component.ts                              | TypeScript |         49 |          1 |          8 |         58 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\logout\logout.component.css                           | CSS        |          0 |          0 |          1 |          1 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\logout\logout.component.html                          | HTML       |          1 |          0 |          1 |          2 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\logout\logout.component.spec.ts                       | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\logout\logout.component.ts                            | TypeScript |         22 |          0 |          4 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\navbar_intel\navbar_intel.component.css               | CSS        |         56 |         15 |         13 |         84 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\navbar_intel\navbar_intel.component.html              | HTML       |         12 |          0 |          1 |         13 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\navbar_intel\navbar_intel.component.spec.ts           | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\navbar_intel\navbar_intel.component.ts                | TypeScript |         11 |          0 |          5 |         16 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting\reporting.component.css                     | CSS        |         50 |          0 |         10 |         60 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting\reporting.component.html                    | HTML       |         21 |          0 |          8 |         29 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting\reporting.component.spec.ts                 | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting\reporting.component.ts                      | TypeScript |         43 |          1 |         12 |         56 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting_\reporting_.component.css                   | CSS        |         20 |          0 |          3 |         23 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting_\reporting_.component.html                  | HTML       |         11 |          0 |          4 |         15 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting_\reporting_.component.spec.ts               | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\reporting_\reporting_.component.ts                    | TypeScript |         21 |          0 |          8 |         29 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\subsystem-details\subsystem-details.component.css     | CSS        |         51 |          0 |         10 |         61 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\subsystem-details\subsystem-details.component.html    | HTML       |         10 |          0 |          5 |         15 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\subsystem-details\subsystem-details.component.spec.ts | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\subsystem-details\subsystem-details.component.ts      | TypeScript |        170 |         33 |         52 |        255 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\table\table.component.css                             | CSS        |         79 |          0 |         14 |         93 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\table\table.component.html                            | HTML       |         32 |          4 |          4 |         40 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\table\table.component.spec.ts                         | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\table\table.component.ts                              | TypeScript |         38 |          0 |         11 |         49 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\target-subsystems\target-subsystems.component.css     | CSS        |        112 |          6 |         18 |        136 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\target-subsystems\target-subsystems.component.html    | HTML       |         22 |         28 |          9 |         59 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\target-subsystems\target-subsystems.component.spec.ts | TypeScript |         20 |          0 |          6 |         26 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\target-subsystems\target-subsystems.component.ts      | TypeScript |         48 |         16 |         11 |         75 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\typings.ts                                            | TypeScript |          7 |          0 |          0 |          7 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\user.service.spec.ts                                  | TypeScript |         12 |          0 |          5 |         17 |
+| c:\Users\garggaur\Downloads\zip\NVme\src\app\user.service.ts                                       | TypeScript |        216 |          0 |         71 |        287 |
+| Total                                                                                              |            |      2,148 |        255 |        546 |      2,949 |
++----------------------------------------------------------------------------------------------------+------------+------------+------------+------------+------------+
